@@ -1,0 +1,7 @@
+USE licoreria_pos;
+
+ALTER TABLE usuarios
+  ADD COLUMN failed_attempts INT NOT NULL DEFAULT 0,
+  ADD COLUMN lockouts INT NOT NULL DEFAULT 0,
+  ADD COLUMN lock_until DATETIME NULL,
+  ADD COLUMN is_blocked TINYINT(1) NOT NULL DEFAULT 0;

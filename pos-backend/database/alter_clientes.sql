@@ -1,0 +1,22 @@
+USE licoreria_pos;
+
+CREATE TABLE IF NOT EXISTS clientes (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  email VARCHAR(180) NOT NULL UNIQUE,
+  password VARCHAR(255) NULL,
+  nombre_completo VARCHAR(160) NULL,
+  telefono VARCHAR(15) NULL,
+  direccion VARCHAR(255) NULL,
+  ubicacion_lat DECIMAL(10, 7) NULL,
+  ubicacion_lng DECIMAL(10, 7) NULL,
+  provider VARCHAR(20) NOT NULL DEFAULT 'email',
+  google_sub VARCHAR(80) NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_clientes_google_sub (google_sub)
+);
+
+ALTER TABLE clientes MODIFY COLUMN password VARCHAR(255) NULL;
+ALTER TABLE clientes ADD COLUMN IF NOT EXISTS ubicacion_lat DECIMAL(10, 7) NULL;
+ALTER TABLE clientes ADD COLUMN IF NOT EXISTS ubicacion_lng DECIMAL(10, 7) NULL;

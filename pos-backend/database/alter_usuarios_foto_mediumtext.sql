@@ -1,0 +1,2 @@
+ALTER TABLE usuarios
+  MODIFY COLUMN foto_url MEDIUMTEXT NULL;

@@ -1,0 +1,10 @@
+USE licoreria_pos;
+
+ALTER TABLE ventas
+  ADD COLUMN IF NOT EXISTS pedido_estado VARCHAR(20) NULL,
+  ADD COLUMN IF NOT EXISTS pedido_updated_at TIMESTAMP NULL,
+  ADD COLUMN IF NOT EXISTS direccion_entrega VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS ubicacion_lat DECIMAL(10, 7) NULL,
+  ADD COLUMN IF NOT EXISTS ubicacion_lng DECIMAL(10, 7) NULL,
+  ADD COLUMN IF NOT EXISTS pedido_rechazo_motivo VARCHAR(255) NULL;
+
