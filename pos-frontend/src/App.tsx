@@ -20,7 +20,7 @@ import { DEFAULT_APP_CONFIG, loadAppConfig, saveMergedAppConfig } from './utils/
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const ProductosPage = lazy(() => import('./pages/ProductosPage'));
 const ProveedoresPage = lazy(() => import('./pages/ProveedoresPage'));
-const CategoriasPage = lazy(() => import('./pages/CategoriasPage'));
+const CategoriasPage = lazy(() => import('./pages/04-CategoriasPage'));
 const VentasPage = lazy(() => import('./pages/VentasPage'));
 const PedidosPage = lazy(() => import('./pages/PedidosPage'));
 const ReportesPage = lazy(() => import('./pages/ReportesPage'));

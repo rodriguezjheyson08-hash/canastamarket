@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Container,
   Typography,
@@ -18,6 +18,7 @@ import {
 import { Add, Edit, Delete } from '@mui/icons-material';
 import { Categoria } from '../types';
 import CategoriaForm from '../components/forms/CategoriaForm';
+import LoadingSpinner from '../components/common/LoadingSpinner';
 import {
   createCategoria,
   deleteCategoria,
@@ -40,11 +41,11 @@ const CategoriasPage: React.FC = () => {
     severity: 'success' | 'error';
   }>({ open: false, message: '', severity: 'success' });
 
-  useEffect(() => {
-    fetchCategorias();
+  const showSnackbar = useCallback((message: string, severity: 'success' | 'error') => {
+    setSnackbar({ open: true, message, severity });
   }, []);
 
-  const fetchCategorias = async () => {
+  const fetchCategorias = useCallback(async () => {
     setLoading(true);
     try {
       const data = await getCategorias();
@@ -55,7 +56,11 @@ const CategoriasPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showSnackbar, t]);
+
+  useEffect(() => {
+    fetchCategorias();
+  }, [fetchCategorias]);
 
   const handleCreate = () => {
     setEditingCategoria(undefined);
@@ -104,11 +109,9 @@ const CategoriasPage: React.FC = () => {
     }
   };
 
-  const showSnackbar = (message: string, severity: 'success' | 'error') => {
-    setSnackbar({ open: true, message, severity });
-  };
-
-  if (loading) return null;
+  if (loading) {
+    return <LoadingSpinner />;
+  }
 
   return (
     <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
