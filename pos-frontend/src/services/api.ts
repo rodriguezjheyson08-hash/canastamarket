@@ -1,6 +1,8 @@
 import axios from 'axios';
 import { getToken } from '../utils/auth';
 import { API_URL } from '../utils/apiBase';
+import { AppConfig } from '../utils/appConfig';
+import { BoletaConfig } from '../utils/boletaConfig';
 import { Venta, VentaCreatePayload, DashboardStats, LoginData, User, RegisterData, UserPermissions } from '../types';
 
 const buildAuthHeaders = (token?: string | null) =>
@@ -323,4 +325,32 @@ export const deleteUsuario = async (id: number): Promise<void> => {
   await axios.delete(`${API_URL}/usuarios/${id}`, {
     headers: { Authorization: `Bearer ${token}` }
   });
+};
+
+export interface ConfiguracionSistemaPayload {
+  personalizacion?: AppConfig;
+  boleta?: BoletaConfig;
+}
+
+export interface ConfiguracionSistemaResponse {
+  personalizacion: AppConfig | null;
+  boleta: BoletaConfig | null;
+}
+
+export const getConfiguracionSistema = async (): Promise<ConfiguracionSistemaResponse> => {
+  const token = getToken();
+  const res = await axios.get(`${API_URL}/configuracion`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  return res.data;
+};
+
+export const saveConfiguracionSistema = async (
+  payload: ConfiguracionSistemaPayload
+): Promise<ConfiguracionSistemaResponse> => {
+  const token = getToken();
+  const res = await axios.put(`${API_URL}/configuracion`, payload, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  return res.data;
 };

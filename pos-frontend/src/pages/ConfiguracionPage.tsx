@@ -52,7 +52,8 @@ import {
   deleteUsuario,
   unlockUsuario,
   getPersonaPorDni,
-  UsuarioItem
+  UsuarioItem,
+  saveConfiguracionSistema
 } from '../services/api';
 import {
   BoletaConfig,
@@ -540,6 +541,7 @@ const ConfiguracionPage: React.FC = () => {
     }
 
     const updated = saveAppConfig(config);
+    await saveConfiguracionSistema({ personalizacion: updated, boleta: boletaConfig });
     setConfig(updated);
     setConfigError('');
     setCustomOpen(false);
@@ -631,7 +633,7 @@ const ConfiguracionPage: React.FC = () => {
     }
   };
 
-  const handleBoletaSave = () => {
+  const handleBoletaSave = async () => {
     setBoletaError('');
     if (!boletaConfig.nombre.trim()) {
       setBoletaError('El nombre para la boleta es obligatorio.');
@@ -652,6 +654,7 @@ const ConfiguracionPage: React.FC = () => {
 
     const saved = saveBoletaConfig(boletaConfig);
     setBoletaConfig(saved);
+    await saveConfiguracionSistema({ personalizacion: config, boleta: saved });
     setBoletaOpen(false);
     setToastMsg('Configuración de boleta guardada correctamente');
   };
@@ -785,12 +788,9 @@ const ConfiguracionPage: React.FC = () => {
                       <Typography variant="h6">{t('Configuración del Sistema', 'System settings')}</Typography>
                     </Box>
 
-                    <Box display="flex" gap={1} flexWrap="wrap" mb={2}>
+                    <Box display="flex" gap={1} flexWrap="nowrap" mb={2}>
                       <Button variant={customOpen ? 'contained' : 'outlined'} size="small" onClick={() => setCustomOpen((prev) => !prev)}>
                         {customOpen ? t('Cerrar personalización', 'Close customization') : t('Abrir personalización', 'Open customization')}
-                      </Button>
-                      <Button variant={deliveryOpen ? 'contained' : 'outlined'} size="small" onClick={() => setDeliveryOpen((prev) => !prev)}>
-                        {deliveryOpen ? t('Cerrar delivery', 'Close delivery') : t('Abrir delivery', 'Open delivery')}
                       </Button>
                       <Button variant={boletaOpen ? 'contained' : 'outlined'} size="small" onClick={() => setBoletaOpen((prev) => !prev)}>
                         {boletaOpen ? t('Cerrar boleta', 'Close receipt') : t('Abrir boleta', 'Open receipt')}

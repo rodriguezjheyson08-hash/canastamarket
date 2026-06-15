@@ -16,6 +16,7 @@ const pedidosRoutes = require('./routes/pedidos');
 const repartidoresRoutes = require('./routes/repartidores');
 const proveedoresRoutes = require('./routes/proveedores');
 const tiendaRoutes = require('./routes/tienda');
+const configuracionRoutes = require('./routes/configuracion');
 
 const app = express();
 app.disable('x-powered-by');
@@ -116,6 +117,7 @@ app.use('/api/pedidos', pedidosRoutes);
 app.use('/api/repartidores', repartidoresRoutes);
 app.use('/api/proveedores', proveedoresRoutes);
 app.use('/api/tienda', tiendaRoutes);
+app.use('/api/configuracion', configuracionRoutes);
 
 app.use((err, _req, res, _next) => {
   const status = err.status || 500;
