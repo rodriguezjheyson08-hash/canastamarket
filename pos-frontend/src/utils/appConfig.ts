@@ -1,3 +1,9 @@
+/*
+ * MAPA DEL ARCHIVO: UTILIDAD FRONTEND
+ * UBICACION: pos-frontend/src/utils/appConfig.ts
+ * QUE HACE: Funciones auxiliares reutilizables.
+ * GUIA: usa comentarios DISEÑO/LOGICA/RUTA/SERVICIO para ubicar rapido donde cambiar algo.
+ */
 export interface AppConfig {
   appName: string;
   idioma: string;
@@ -6,6 +12,7 @@ export interface AppConfig {
   userImg: string;
 }
 
+// CONSTANTE: APP_CONFIG_STORAGE_KEY guarda un valor fijo usado por este bloque.
 export const APP_CONFIG_STORAGE_KEY = 'configApp';
 
 export const DEFAULT_APP_CONFIG: AppConfig = {
@@ -16,12 +23,13 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   userImg: ''
 };
 
+// LOGICA: apply App Config To Document encapsula una operacion reutilizable.
 export const applyAppConfigToDocument = (config: AppConfig): void => {
-  if (typeof document === 'undefined') return;
+  if (typeof globalThis.document === 'undefined') return;
 
-  document.title = config.appName;
+  globalThis.document.title = config.appName;
 
-  const descriptionMeta = document.querySelector('meta[name="description"]');
+  const descriptionMeta = globalThis.document.querySelector('meta[name="description"]');
   if (descriptionMeta) {
     descriptionMeta.setAttribute('content', config.appName);
   }
@@ -44,9 +52,10 @@ const normalizeAppConfig = (input: Partial<AppConfig> | null | undefined): AppCo
   };
 };
 
+// LOGICA: load App Config encapsula una operacion reutilizable.
 export const loadAppConfig = (): AppConfig => {
   try {
-    const saved = localStorage.getItem(APP_CONFIG_STORAGE_KEY);
+    const saved = globalThis.localStorage.getItem(APP_CONFIG_STORAGE_KEY);
     if (!saved) {
       applyAppConfigToDocument(DEFAULT_APP_CONFIG);
       return { ...DEFAULT_APP_CONFIG };
@@ -61,16 +70,12 @@ export const loadAppConfig = (): AppConfig => {
   }
 };
 
+// LOGICA: save App Config encapsula una operacion reutilizable.
 export const saveAppConfig = (config: Partial<AppConfig>): AppConfig => {
   const normalized = normalizeAppConfig(config);
-  localStorage.setItem(APP_CONFIG_STORAGE_KEY, JSON.stringify(normalized));
+  globalThis.localStorage.setItem(APP_CONFIG_STORAGE_KEY, JSON.stringify(normalized));
   applyAppConfigToDocument(normalized);
-  window.dispatchEvent(new Event('storage'));
-  window.dispatchEvent(new Event('configAppUpdate'));
+  globalThis.dispatchEvent(new Event('storage'));
+  globalThis.dispatchEvent(new Event('configAppUpdate'));
   return normalized;
-};
-
-export const saveMergedAppConfig = (config: Partial<AppConfig>): AppConfig => {
-  const current = loadAppConfig();
-  return saveAppConfig({ ...current, ...config });
 };

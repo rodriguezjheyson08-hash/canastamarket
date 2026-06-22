@@ -1,3 +1,12 @@
+/*
+ * MAPA DEL ARCHIVO: UI FRONTEND
+ * UBICACION: pos-frontend/src/components/ui/skeleton.tsx
+ * QUE HACE: Componente visual base reutilizable.
+ * GUIA: usa comentarios DISEÑO/LOGICA/RUTA/SERVICIO para ubicar rapido donde cambiar algo.
+ */
+// DISEÑO FRONTEND - SKELETON:
+// Componente base para representar carga visual antes de mostrar datos reales.
+// DISEÑO FRONTEND - CAMBIOS: aqui se modifica la apariencia del estado skeleton/cargando.
 import React from 'react';
 
 interface SkeletonProps {

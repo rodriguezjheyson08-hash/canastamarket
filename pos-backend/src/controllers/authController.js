@@ -1,12 +1,37 @@
+/*
+ * MAPA DEL ARCHIVO: CONTROLADOR BACKEND
+ * UBICACION: pos-backend/src/controllers/authController.js
+ * QUE HACE: Recibe req/res, ejecuta logica de negocio y responde al frontend.
+ * GUIA: usa comentarios DISEÑO/LOGICA/RUTA/SERVICIO para ubicar rapido donde cambiar algo.
+ */
+const axios = require('axios');
 const pool = require('../db/pool');
+const env = require('../config/env');
+// DEPENDENCIAS BACKEND: librerias, helpers y tipos que usa este archivo.
 const { normalizePermisos } = require('../utils/permisos');
-const { ensureRepartoSchema } = require('../utils/ensureRepartoSchema');
 const { ensurePasswordColumnSchema } = require('../utils/ensurePasswordColumnSchema');
 const { hashPassword, verifyPassword, needsPasswordRehash } = require('../utils/passwords');
 const { createToken } = require('../utils/tokens');
 
+// LOGICA BACKEND - ESTADO INTERNO:
+// Evita revisar/agregar columnas de usuarios en cada request; se marca true despues de la primera revision.
 let usuariosPermisosColumnChecked = false;
+// LOGICA BACKEND - SEGURIDAD:
+// Cantidad maxima de intentos de login antes de bloquear la cuenta.
+const MAX_LOGIN_ATTEMPTS = 3;
+// SERVICIO EXTERNO:
+// URL oficial de Google usada para validar el token enviado por el boton "Continuar con Google".
+const GOOGLE_TOKENINFO_URL = 'https://oauth2.googleapis.com/tokeninfo';
 
+// LOGICA BACKEND - CONSULTA BASE:
+// Campos que siempre se leen cuando se busca un usuario para login normal o login con Google.
+const USER_SELECT = `SELECT id, nombre_usuario, nombre_completo, rol, password, dni, telefono, email, foto_url,
+            permisos, failed_attempts, lockouts, lock_until, is_blocked, is_active
+     FROM usuarios`;
+
+// LOGICA BACKEND - MIGRACION AUTOMATICA:
+// Asegura que la tabla usuarios tenga columnas necesarias para permisos, DNI, email y password.
+// Si falta una columna, la agrega; si tiene tipo incorrecto, lo corrige.
 const ensureUsuariosPermisosColumn = async (runner = pool) => {
   if (usuariosPermisosColumnChecked) return;
 
@@ -49,105 +74,9 @@ const ensureUsuariosPermisosColumn = async (runner = pool) => {
   usuariosPermisosColumnChecked = true;
 };
 
-const login = async (req, res) => {
-  await ensureUsuariosPermisosColumn();
-  await ensureRepartoSchema();
-  const { nombreUsuario, password } = req.body;
-  if (!nombreUsuario || !password) {
-    return res.status(400).json({ message: 'Nombre de usuario y password son obligatorios.' });
-  }
-
-  const [rows] = await pool.query(
-    `SELECT id, nombre_usuario, nombre_completo, rol, password, dni, telefono, email, foto_url,
-            permisos, failed_attempts, lockouts, lock_until, is_blocked, is_active
-     FROM usuarios WHERE nombre_usuario = ?`,
-    [nombreUsuario]
-  );
-
-  if (rows.length === 0) {
-    return res.status(401).json({ message: 'Credenciales inválidas.' });
-  }
-
-  const row = rows[0];
-
-  const MAX_ATTEMPTS = 3;
-  const isCajero = String(row.rol || '').trim().toUpperCase() === 'CAJERO';
-
-  if (row.is_active === 0) {
-    return res.status(403).json({ message: 'Cuenta desactivada. Contacta al administrador.' });
-  }
-
-  if (isCajero) {
-    if (row.is_blocked) {
-      return res.status(403).json({ message: 'Cuenta bloqueada. Contacta al administrador.' });
-    }
-    if (row.lock_until) {
-      const lockUntil = new Date(row.lock_until);
-      if (lockUntil > new Date()) {
-        const retryAfterSeconds = Math.max(1, Math.ceil((lockUntil.getTime() - Date.now()) / 1000));
-        return res.status(429).json({
-          message: `Cuenta bloqueada temporalmente. Te quedan 0 intentos. Intenta en ${retryAfterSeconds} segundos.`,
-          remaining_attempts: 0,
-          retry_after_seconds: retryAfterSeconds
-        });
-      }
-      await pool.execute(
-        'UPDATE usuarios SET lock_until = NULL, failed_attempts = 0 WHERE id = ?',
-        [row.id]
-      );
-    }
-  }
-
-  const passwordOk = verifyPassword(row.password, password);
-  if (!passwordOk) {
-    if (isCajero) {
-      const nextAttempts = (row.failed_attempts || 0) + 1;
-      if (nextAttempts >= MAX_ATTEMPTS) {
-        if ((row.lockouts || 0) >= 1) {
-          await pool.execute(
-            'UPDATE usuarios SET is_blocked = 1, failed_attempts = 0, lock_until = NULL WHERE id = ?',
-            [row.id]
-          );
-          return res.status(403).json({
-            message: 'Cuenta bloqueada. Te quedan 0 intentos. Contacta al administrador.',
-            remaining_attempts: 0
-          });
-        }
-        const lockUntil = new Date(Date.now() + 2 * 60 * 1000);
-        await pool.execute(
-          'UPDATE usuarios SET failed_attempts = 0, lock_until = ?, lockouts = lockouts + 1 WHERE id = ?',
-          [lockUntil, row.id]
-        );
-        return res.status(429).json({
-          message: 'Demasiados intentos. Te quedan 0 intentos. Cuenta bloqueada por 2 minutos.',
-          remaining_attempts: 0
-        });
-      }
-      const remainingAttempts = Math.max(0, MAX_ATTEMPTS - nextAttempts + 1);
-      await pool.execute(
-        'UPDATE usuarios SET failed_attempts = ? WHERE id = ?',
-        [nextAttempts, row.id]
-      );
-      return res.status(401).json({
-        message: `Credenciales inválidas. Te quedan ${remainingAttempts} intentos.`,
-        remaining_attempts: remainingAttempts
-      });
-    }
-    return res.status(401).json({ message: 'Credenciales inválidas.' });
-  }
-
-  if (isCajero) {
-    await pool.execute(
-      'UPDATE usuarios SET failed_attempts = 0, lockouts = 0, lock_until = NULL WHERE id = ?',
-      [row.id]
-    );
-  }
-
-  if (needsPasswordRehash(row.password)) {
-    const hashedPassword = hashPassword(password);
-    await pool.execute('UPDATE usuarios SET password = ? WHERE id = ?', [hashedPassword, row.id]);
-  }
-
+// LOGICA BACKEND - RESPUESTA DE LOGIN:
+// Construye el objeto que recibe React al iniciar sesion: token JWT + datos visibles del usuario.
+const buildAuthPayload = (row, extra = {}) => {
   const user = {
     id: row.id,
     nombreUsuario: row.nombre_usuario,
@@ -156,19 +85,181 @@ const login = async (req, res) => {
     dni: row.dni,
     telefono: row.telefono,
     email: row.email,
-    fotoUrl: row.foto_url,
+    fotoUrl: row.foto_url || extra.fotoUrl,
     permisos: normalizePermisos(row.rol, row.permisos)
   };
 
   const token = createToken({
     sub: row.id,
     role: row.rol,
-    type: String(row.rol || '').trim().toUpperCase() === 'REPARTIDOR' ? 'repartidor' : 'admin'
+    type: 'admin'
   });
 
-  res.json({ token, user });
+  return { token, user };
+};
+
+// LOGICA BACKEND - CONTROL DE ACCESO:
+// Valida si el usuario puede entrar al sistema antes de revisar o entregar token.
+const validateUserAccess = (row) => {
+  const role = String(row.rol || '').trim().toUpperCase();
+  if (!['ADMINISTRADOR', 'CAJERO'].includes(role)) {
+    return { status: 403, message: 'Rol no permitido en este sistema.' };
+  }
+
+  if (row.is_active === 0) {
+    return { status: 403, message: 'Cuenta desactivada. Contacta al administrador.' };
+  }
+
+  if (row.is_blocked) {
+    return { status: 403, message: 'Cuenta bloqueada. Contacta al administrador.' };
+  }
+
+  return null;
+};
+
+// LOGICA BACKEND - INTENTOS DE LOGIN:
+// Limpia contador de intentos fallidos cuando el login fue correcto.
+const resetLoginAttempts = async (userId) => {
+  await pool.execute(
+    'UPDATE usuarios SET failed_attempts = 0, lockouts = 0, lock_until = NULL WHERE id = ?',
+    [userId]
+  );
+};
+
+// LOGICA BACKEND - BLOQUEO POR PASSWORD INCORRECTO:
+// Suma intentos fallidos; al llegar al maximo bloquea la cuenta y responde error.
+const registerFailedAttempt = async (row, res) => {
+  const nextAttempts = Number(row.failed_attempts || 0) + 1;
+
+  if (nextAttempts >= MAX_LOGIN_ATTEMPTS) {
+    await pool.execute(
+      'UPDATE usuarios SET is_blocked = 1, failed_attempts = 0, lock_until = NULL WHERE id = ?',
+      [row.id]
+    );
+    return res.status(403).json({
+      message: 'Cuenta bloqueada. Te quedan 0 intentos. Contacta al administrador.',
+      remaining_attempts: 0
+    });
+  }
+
+  const remainingAttempts = Math.max(0, MAX_LOGIN_ATTEMPTS - nextAttempts);
+  await pool.execute(
+    'UPDATE usuarios SET failed_attempts = ? WHERE id = ?',
+    [nextAttempts, row.id]
+  );
+
+  return res.status(401).json({
+    message: `Credenciales inválidas. Te quedan ${remainingAttempts} intentos.`,
+    remaining_attempts: remainingAttempts
+  });
+};
+
+// SERVICIO BACKEND - GOOGLE LOGIN:
+// Valida con Google que el credential recibido sea real, pertenezca a este cliente y tenga email verificado.
+const verifyGoogleCredential = async (credential) => {
+  const clientId = String(env.google?.clientId || '').trim();
+  if (!clientId) {
+    throw new Error('Google no está configurado.');
+  }
+
+  const { data } = await axios.get(GOOGLE_TOKENINFO_URL, {
+    params: { id_token: credential },
+    timeout: 8000
+  });
+
+  const audience = String(data?.aud || '').trim();
+  const email = String(data?.email || '').trim().toLowerCase();
+  const emailVerified = String(data?.email_verified || '').toLowerCase() === 'true';
+
+  if (audience !== clientId || !email || !emailVerified) {
+    throw new Error('Token de Google inválido.');
+  }
+
+  return {
+    email,
+    name: String(data?.name || '').trim(),
+    picture: String(data?.picture || '').trim()
+  };
+};
+
+// CONTROLADOR BACKEND - LOGIN NORMAL:
+// Endpoint usado por el formulario de usuario/password. Busca usuario, valida acceso,
+// verifica password, reinicia intentos, actualiza hash si hace falta y devuelve token.
+const login = async (req, res) => {
+  await ensureUsuariosPermisosColumn();
+  const { nombreUsuario, password } = req.body;
+  const identifier = String(nombreUsuario || '').trim();
+  if (!identifier || !password) {
+    return res.status(400).json({ message: 'Rellena todos los campos.' });
+  }
+
+  const [rows] = await pool.query(
+    `${USER_SELECT} WHERE nombre_usuario = ? OR LOWER(email) = ? LIMIT 1`,
+    [identifier, identifier.toLowerCase()]
+  );
+
+  if (rows.length === 0) {
+    return res.status(401).json({ message: 'Credenciales inválidas.' });
+  }
+
+  const row = rows[0];
+  const accessError = validateUserAccess(row);
+  if (accessError) {
+    return res.status(accessError.status).json({ message: accessError.message });
+  }
+
+  const passwordOk = verifyPassword(row.password, password);
+  if (!passwordOk) {
+    return registerFailedAttempt(row, res);
+  }
+
+  await resetLoginAttempts(row.id);
+
+  if (needsPasswordRehash(row.password)) {
+    const hashedPassword = hashPassword(password);
+    await pool.execute('UPDATE usuarios SET password = ? WHERE id = ?', [hashedPassword, row.id]);
+  }
+
+  res.json(buildAuthPayload(row));
+};
+
+// CONTROLADOR BACKEND - LOGIN CON GOOGLE:
+// Endpoint usado por el boton Google. Valida token con Google, busca usuario por email,
+// valida permisos/estado y devuelve token si el correo existe en la base de datos.
+const loginWithGoogle = async (req, res) => {
+  await ensureUsuariosPermisosColumn();
+  const credential = String(req.body?.credential || '').trim();
+  if (!credential) {
+    return res.status(400).json({ message: 'Continúa con un correo válido.' });
+  }
+
+  let googleUser;
+  try {
+    googleUser = await verifyGoogleCredential(credential);
+  } catch {
+    return res.status(401).json({ message: 'Continúa con un correo válido.' });
+  }
+
+  const [rows] = await pool.query(
+    `${USER_SELECT} WHERE LOWER(email) = ? LIMIT 1`,
+    [googleUser.email]
+  );
+
+  if (rows.length === 0) {
+    return res.status(401).json({ message: 'Continúa con un correo válido.' });
+  }
+
+  const row = rows[0];
+  const accessError = validateUserAccess(row);
+  if (accessError) {
+    return res.status(accessError.status).json({ message: accessError.message });
+  }
+
+  await resetLoginAttempts(row.id);
+  res.json(buildAuthPayload(row, { fotoUrl: googleUser.picture }));
 };
 
 module.exports = {
-  login
+  login,
+  loginWithGoogle
 };

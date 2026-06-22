@@ -1,11 +1,21 @@
+/*
+ * MAPA DEL ARCHIVO: LAYOUT FRONTEND
+ * UBICACION: pos-frontend/src/components/layout/Header.tsx
+ * QUE HACE: Contiene piezas visuales compartidas del marco de la app como header o footer.
+ * GUIA: usa comentarios DISEÑO/LOGICA/RUTA/SERVICIO para ubicar rapido donde cambiar algo.
+ */
 import React from 'react';
 import { AppBar, Toolbar, Typography, Box, Button, Avatar } from '@mui/material';
 import StorefrontIcon from '@mui/icons-material/Storefront';
+// IMPORTACIONES FRONTEND: librerias, helpers y tipos que usa este archivo.
 import { useAuth } from '../../contexts/AuthContext';
 import BackButton from '../common/BackButton';
 import { useAppConfig } from '../../hooks/useAppConfig';
 import { useI18n } from '../../hooks/useI18n';
 
+export const PEDIDOS_ONLINE_UPDATE_EVENT = 'pedidos-online-update';
+
+// TIPOS FRONTEND: props/datos HeaderProps usados por este componente.
 interface HeaderProps {
   showBack?: boolean;
 }

@@ -1,5 +1,11 @@
+/*
+ * MAPA DEL ARCHIVO: PAGOS BACKEND
+ * UBICACION: pos-backend/src/pagos/mercadopagoController.js
+ * QUE HACE: Logica de pagos e integracion con Mercado Pago.
+ * GUIA: usa comentarios DISEÑO/LOGICA/RUTA/SERVICIO para ubicar rapido donde cambiar algo.
+ */
 const axios = require('axios');
-const { createPreference, getPayment, searchPaymentsByExternalReference } = require('./mercadopagoService');
+const { createPreference, getPayment } = require('./mercadopagoService');
 
 const isAllowedUrl = (rawUrl) => {
   if (typeof rawUrl !== 'string') return false;
@@ -14,6 +20,7 @@ const isAllowedUrl = (rawUrl) => {
   }
 };
 
+// LOGICA: map Item concentra una operacion de este archivo.
 const mapItem = (item) => ({
   title: item.title || item.nombre || 'Producto',
   quantity: Number(item.quantity || item.cantidad || 1),
@@ -21,6 +28,7 @@ const mapItem = (item) => ({
   currency_id: item.currency_id || 'PEN'
 });
 
+// LOGICA: build Preference Payload concentra una operacion de este archivo.
 const buildPreferencePayload = ({ items, backUrls, notificationUrl, externalReference, metadata }) => {
   const sanitizedBackUrls = backUrls && typeof backUrls === 'object'
     ? {
@@ -41,6 +49,7 @@ const buildPreferencePayload = ({ items, backUrls, notificationUrl, externalRefe
   };
 };
 
+// LOGICA: get Mercado Pago Error Text concentra una operacion de este archivo.
 const getMercadoPagoErrorText = (error) => {
   if (!axios.isAxiosError(error)) return '';
   const message = error.response?.data?.message || '';
@@ -50,6 +59,7 @@ const getMercadoPagoErrorText = (error) => {
   return `${message} ${cause}`.toLowerCase();
 };
 
+// LOGICA: should Retry With Minimal Payload concentra una operacion de este archivo.
 const shouldRetryWithMinimalPayload = (error) => {
   if (!axios.isAxiosError(error)) return false;
   if ((error.response?.status || 0) !== 400) return false;
@@ -65,6 +75,7 @@ const shouldRetryWithMinimalPayload = (error) => {
   );
 };
 
+// LOGICA: create Mercado Pago Preference concentra una operacion de este archivo.
 const createMercadoPagoPreference = async (req, res) => {
   const { items, backUrls, notificationUrl, externalReference, metadata } = req.body || {};
 
@@ -143,6 +154,7 @@ const createMercadoPagoPreference = async (req, res) => {
   }
 };
 
+// LOGICA: get Mercado Pago Payment concentra una operacion de este archivo.
 const getMercadoPagoPayment = async (req, res) => {
   const paymentId = req.params.id;
   if (!paymentId) {
@@ -171,41 +183,7 @@ const getMercadoPagoPayment = async (req, res) => {
   }
 };
 
-const searchMercadoPagoPayment = async (req, res) => {
-  const externalReference = String(req.query?.external_reference || '').trim();
-  if (!externalReference) {
-    return res.status(400).json({ message: 'external_reference es obligatorio.' });
-  }
-  try {
-    const data = await searchPaymentsByExternalReference(externalReference, 10);
-    const results = Array.isArray(data?.results) ? data.results : [];
-    if (results.length === 0) {
-      return res.json({ payment: null });
-    }
-    const first = results[0];
-    res.json({
-      payment: {
-        id: first.id,
-        status: first.status,
-        status_detail: first.status_detail,
-        transaction_amount: first.transaction_amount,
-        currency_id: first.currency_id
-      }
-    });
-  } catch (error) {
-    if (axios.isAxiosError(error)) {
-      const status = error.response?.status || 500;
-      const message = error.response?.data?.message || 'Error al buscar pago en Mercado Pago.';
-      return res.status(status).json({
-        message,
-        details: error.response?.data?.cause || error.response?.data
-      });
-    }
-    const status = error.status || 500;
-    return res.status(status).json({ message: error.message || 'Error al buscar pago.' });
-  }
-};
-
+// LOGICA: mercado Pago Webhook concentra una operacion de este archivo.
 const mercadoPagoWebhook = async (req, res) => {
   // Mercado Pago envía notificaciones con distintos formatos según el tipo.
   // Se responde 200 para evitar reintentos agresivos.
@@ -215,6 +193,5 @@ const mercadoPagoWebhook = async (req, res) => {
 module.exports = {
   createMercadoPagoPreference,
   getMercadoPagoPayment,
-  searchMercadoPagoPayment,
   mercadoPagoWebhook
 };

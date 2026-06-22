@@ -1,3 +1,9 @@
+/*
+ * MAPA DEL ARCHIVO: FORMULARIO FRONTEND
+ * UBICACION: pos-frontend/src/components/forms/CategoriaForm.tsx
+ * QUE HACE: Contiene campos, validaciones visuales y envio de datos de un formulario.
+ * GUIA: usa comentarios DISEÑO/LOGICA/RUTA/SERVICIO para ubicar rapido donde cambiar algo.
+ */
 import React, { useState, useEffect } from 'react';
 import {
   Dialog,
@@ -8,9 +14,11 @@ import {
   Button,
   Box
 } from '@mui/material';
+// IMPORTACIONES FRONTEND: librerias, helpers y tipos que usa este archivo.
 import { Categoria } from '../../types';
 import { useI18n } from '../../hooks/useI18n';
 
+// TIPOS FRONTEND: props/datos CategoriaFormProps usados por este componente.
 interface CategoriaFormProps {
   open: boolean;
   onClose: () => void;
@@ -46,6 +54,7 @@ const CategoriaForm: React.FC<CategoriaFormProps> = ({
     }
   }, [categoria]);
 
+// LOGICA: handle Change concentra una operacion de este archivo.
   const handleChange = (field: keyof Omit<Categoria, 'id'>) => (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -55,6 +64,7 @@ const CategoriaForm: React.FC<CategoriaFormProps> = ({
     }));
   };
 
+// LOGICA: handle Submit concentra una operacion de este archivo.
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     onSubmit(formData);

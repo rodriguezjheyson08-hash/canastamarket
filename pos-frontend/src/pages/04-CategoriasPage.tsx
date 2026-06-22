@@ -1,3 +1,9 @@
+/*
+ * MAPA DEL ARCHIVO: PANTALLA FRONTEND
+ * UBICACION: pos-frontend/src/pages/04-CategoriasPage.tsx
+ * QUE HACE: Contiene estructura visible de una pagina, estados de React y llamadas a servicios.
+ * GUIA: usa comentarios DISEÑO/LOGICA/RUTA/SERVICIO para ubicar rapido donde cambiar algo.
+ */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Container,
@@ -15,6 +21,7 @@ import {
   Alert,
   Snackbar
 } from '@mui/material';
+// IMPORTACIONES FRONTEND: librerias, helpers y tipos que usa este archivo.
 import { Add, Edit, Delete } from '@mui/icons-material';
 import { Categoria } from '../types';
 import CategoriaForm from '../components/forms/CategoriaForm';
@@ -62,16 +69,19 @@ const CategoriasPage: React.FC = () => {
     fetchCategorias();
   }, [fetchCategorias]);
 
+// LOGICA: handle Create concentra una operacion de este archivo.
   const handleCreate = () => {
     setEditingCategoria(undefined);
     setFormOpen(true);
   };
 
+// LOGICA: handle Edit concentra una operacion de este archivo.
   const handleEdit = (categoria: Categoria) => {
     setEditingCategoria(categoria);
     setFormOpen(true);
   };
 
+// LOGICA: handle Delete concentra una operacion de este archivo.
   const handleDelete = async (id: number) => {
     try {
       const productos = await getProductos();
@@ -89,6 +99,7 @@ const CategoriasPage: React.FC = () => {
     }
   };
 
+// LOGICA: handle Submit concentra una operacion de este archivo.
   const handleSubmit = async (categoriaData: Omit<Categoria, 'id'>) => {
     setSaving(true);
     try {

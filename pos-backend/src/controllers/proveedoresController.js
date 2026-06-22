@@ -1,156 +1,125 @@
+/*
+ * MAPA DEL ARCHIVO: CONTROLADOR BACKEND
+ * UBICACION: pos-backend/src/controllers/proveedoresController.js
+ * QUE HACE: Recibe req/res, ejecuta logica de negocio y responde al frontend.
+ * GUIA: usa comentarios DISEÑO/LOGICA/RUTA/SERVICIO para ubicar rapido donde cambiar algo.
+ */
 const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
+const PDFDocument = require('pdfkit');
 const pool = require('../db/pool');
 const { consultarRuc } = require('../apidni/rucService');
+// DEPENDENCIAS BACKEND: librerias, helpers y tipos que usa este archivo.
 const { ensureProveedoresSchema } = require('../utils/ensureProveedoresSchema');
+const {
+  csvEscape,
+  mapPedidoCompraRow,
+  normalizeProveedorRow,
+  normalizeRucApiData,
+  proveedorSelect
+} = require('../features/proveedores/mappers');
+const { isRucValido, toDbProveedor } = require('../features/proveedores/validators');
 
-const isRucValido = (ruc) => /^\d{11}$/.test(String(ruc || '').trim());
-const normalizePhoneDigits = (value) => {
-  const digits = String(value || '').replace(/\D/g, '');
-  return digits || null;
+// LOGICA BACKEND: obtiene un proveedor por ID y lo normaliza para responder al frontend.
+const getProveedorRowById = async (id) => {
+  const [rows] = await pool.query(`SELECT ${proveedorSelect} FROM proveedores WHERE id = ?`, [id]);
+  return rows[0] ? normalizeProveedorRow(rows[0]) : null;
 };
 
-const safeJsonParse = (value) => {
-  if (value === null || value === undefined) return null;
-  if (typeof value === 'object') return value;
-  const raw = String(value).trim();
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return raw;
-  }
+// LOGICA PDF/PEDIDO - TEXTO:
+// Limpia textos libres antes de guardarlos o imprimirlos en la orden de compra.
+const cleanText = (value, maxLength = 255) => {
+  const text = String(value ?? '').trim();
+  return text ? text.slice(0, maxLength) : null;
 };
 
-const serializeOptionalJson = (value) => {
-  if (value === undefined) return null;
-  if (value === null) return null;
-  if (typeof value === 'string') return value;
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return null;
-  }
+// LOGICA PDF/PEDIDO - NUMEROS:
+// Conserva solo digitos para DNI/RUC y evita longitudes fuera del formato peruano.
+const cleanDigits = (value, maxLength) => {
+  const text = String(value ?? '').replace(/\D/g, '');
+  return text ? text.slice(0, maxLength) : null;
 };
 
-const toOptionalInt = (value) => {
-  if (value === undefined || value === null || value === '') return null;
-  const num = Number(value);
-  if (!Number.isFinite(num)) return null;
-  return Math.trunc(num);
-};
-
-const normalizeProveedorRow = (row) => ({
-  id: row.id,
-  numeroDocumento: row.numero_documento,
-  razonSocial: row.razon_social,
-  estado: row.estado,
-  condicion: row.condicion,
-  direccion: row.direccion,
-  ubigeo: row.ubigeo,
-  viaTipo: row.via_tipo,
-  viaNombre: row.via_nombre,
-  zonaCodigo: row.zona_codigo,
-  zonaTipo: row.zona_tipo,
-  numero: row.numero,
-  interior: row.interior,
-  lote: row.lote,
-  dpto: row.dpto,
-  manzana: row.manzana,
-  kilometro: row.kilometro,
-  distrito: row.distrito,
-  provincia: row.provincia,
-  departamento: row.departamento,
-  tipo: row.tipo,
-  actividadEconomica: row.actividad_economica,
-  numeroTrabajadores: row.numero_trabajadores !== null && row.numero_trabajadores !== undefined ? Number(row.numero_trabajadores) : null,
-  tipoFacturacion: row.tipo_facturacion,
-  tipoContabilidad: row.tipo_contabilidad,
-  comercioExterior: row.comercio_exterior,
-  esAgenteRetencion: row.es_agente_retencion === null || row.es_agente_retencion === undefined ? null : row.es_agente_retencion === 1,
-  esBuenContribuyente: row.es_buen_contribuyente === null || row.es_buen_contribuyente === undefined ? null : row.es_buen_contribuyente === 1,
-  localesAnexos: safeJsonParse(row.locales_anexos),
-  contactoNombre: row.contacto_nombre,
-  contactoTelefono: row.contacto_telefono,
-  contactoEmail: row.contacto_email,
-  activo: row.activo === 1,
-  createdAt: row.created_at,
-  updatedAt: row.updated_at
+// LOGICA PDF - COMPRADOR:
+// Datos por defecto del minimarket si el frontend no envia configuracion de boleta.
+const getDefaultComprador = () => ({
+  nombre: 'MINI MARKET',
+  ruc: '20599988877',
+  direccion: 'Av. America Sur',
+  telefono: '975929943'
 });
 
-const normalizeRucApiData = (inputRuc, data) => {
-  const numeroDocumento = String(data?.numero_documento || data?.ruc || data?.numero || inputRuc || '').trim();
-  const razonSocial = String(data?.razon_social || data?.nombre || data?.razonSocial || '').trim();
-  const estado = String(data?.estado || '').trim() || null;
-  const condicion = String(data?.condicion || '').trim() || null;
-  const direccion = String(data?.direccion || '').trim() || null;
-  const ubigeo = String(data?.ubigeo || '').trim() || null;
-  const viaTipo = String(data?.via_tipo || '').trim() || null;
-  const viaNombre = String(data?.via_nombre || '').trim() || null;
-  const zonaCodigo = String(data?.zona_codigo || '').trim() || null;
-  const zonaTipo = String(data?.zona_tipo || data?.zona_nombre || '').trim() || null;
-  const numero = String(data?.numero || '').trim() || null;
-  const interior = String(data?.interior || '').trim() || null;
-  const lote = String(data?.lote || '').trim() || null;
-  const dpto = String(data?.dpto || data?.departamento_numero || '').trim() || null;
-  const manzana = String(data?.manzana || '').trim() || null;
-  const kilometro = String(data?.kilometro || '').trim() || null;
-  const distrito = String(data?.distrito || '').trim() || null;
-  const provincia = String(data?.provincia || '').trim() || null;
-  const departamento = String(data?.departamento || '').trim() || null;
-  const tipo = String(data?.tipo || '').trim() || null;
-  const actividadEconomica = String(data?.actividad_economica || '').trim() || null;
-  const numeroTrabajadores = data?.numero_trabajadores !== undefined && data?.numero_trabajadores !== null
-    ? Number(String(data.numero_trabajadores).trim())
-    : null;
-  const tipoFacturacion = String(data?.tipo_facturacion || '').trim() || null;
-  const tipoContabilidad = String(data?.tipo_contabilidad || '').trim() || null;
-  const comercioExterior = String(data?.comercio_exterior || '').trim() || null;
-  const esAgenteRetencion =
-    typeof data?.es_agente_retencion === 'boolean' ? data.es_agente_retencion : null;
-  const esBuenContribuyente =
-    typeof data?.es_buen_contribuyente === 'boolean' ? data.es_buen_contribuyente : null;
-  const localesAnexos = data?.locales_anexos !== undefined ? data.locales_anexos : null;
-
-  return {
-    numero_documento: numeroDocumento,
-    razon_social: razonSocial,
-    estado,
-    condicion,
-    direccion,
-    ubigeo,
-    via_tipo: viaTipo,
-    via_nombre: viaNombre,
-    zona_codigo: zonaCodigo,
-    zona_tipo: zonaTipo,
-    numero,
-    interior,
-    lote,
-    dpto,
-    manzana,
-    kilometro,
-    distrito,
-    provincia,
-    departamento,
-    tipo,
-    actividad_economica: actividadEconomica,
-    numero_trabajadores: Number.isFinite(numeroTrabajadores) ? numeroTrabajadores : null,
-    tipo_facturacion: tipoFacturacion,
-    tipo_contabilidad: tipoContabilidad,
-    comercio_exterior: comercioExterior,
-    es_agente_retencion: esAgenteRetencion,
-    es_buen_contribuyente: esBuenContribuyente,
-    locales_anexos: localesAnexos
-  };
+// LOGICA PDF - FECHA:
+// Formatea la fecha de la orden en zona horaria de Peru.
+const formatPedidoFecha = (fecha) => {
+  const date = fecha ? new Date(fecha) : new Date();
+  return date.toLocaleString('es-PE', {
+    timeZone: 'America/Lima',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
 };
 
+// LOGICA PDF - LOGO:
+// Busca el logo configurado o el logo local del frontend para la cabecera del PDF.
+const findLogoPath = () => {
+  const configured = cleanText(process.env.ORDEN_COMPRA_LOGO_PATH, 500);
+  const candidates = [
+    configured,
+    path.resolve(__dirname, '../../../pos-frontend/public/images/Logo Market.png')
+  ].filter(Boolean);
+  return candidates.find((candidate) => fs.existsSync(candidate)) || null;
+};
+
+// LOGICA PDF - ROTULOS:
+// Dibuja pares etiqueta/valor usados en proveedor, comprador y solicitante.
+const drawKeyValue = (doc, label, value, x, y, options = {}) => {
+  const labelWidth = options.labelWidth || 90;
+  const valueWidth = options.valueWidth || 280;
+  doc.font('Helvetica-Bold').text(label, x, y, { width: labelWidth });
+  doc.font('Helvetica').text(value || '-', x + labelWidth, y, { width: valueWidth });
+  return Math.max(
+    doc.heightOfString(label, { width: labelWidth }),
+    doc.heightOfString(value || '-', { width: valueWidth })
+  );
+};
+
+// LOGICA PDF - DATOS:
+// Carga cabecera, proveedor e items necesarios para generar la orden de compra.
+const loadPedidoCompraPdfData = async (pedidoId) => {
+  const [pedidoRows] = await pool.query(
+    `SELECT pc.id, pc.proveedor_id, pc.estado, pc.notas, pc.fecha, pc.updated_at,
+            pc.solicitante_dni, pc.solicitante_nombre,
+            pc.comprador_nombre, pc.comprador_ruc, pc.comprador_direccion, pc.comprador_telefono,
+            p.numero_documento, p.razon_social, p.contacto_nombre, p.contacto_telefono, p.contacto_email, p.direccion
+       FROM pedidos_compra pc
+       JOIN proveedores p ON p.id = pc.proveedor_id
+      WHERE pc.id = ? LIMIT 1`,
+    [pedidoId]
+  );
+  if (pedidoRows.length === 0) return null;
+
+  const [items] = await pool.query(
+    `SELECT d.producto_id, d.cantidad, pr.nombre, pr.descripcion
+       FROM pedidos_compra_detalles d
+       JOIN productos pr ON pr.id = d.producto_id
+      WHERE d.pedido_compra_id = ?
+      ORDER BY pr.nombre`,
+    [pedidoId]
+  );
+
+  return { pedido: pedidoRows[0], items };
+};
+
+// LOGICA BACKEND: lista proveedores activos para la tabla del frontend.
 const listProveedores = async (_req, res) => {
   await ensureProveedoresSchema();
   const [rows] = await pool.query(
-    `SELECT id, numero_documento, razon_social, estado, condicion, direccion, ubigeo,
-            via_tipo, via_nombre, zona_codigo, zona_tipo, numero, interior, lote, dpto, manzana, kilometro,
-            distrito, provincia, departamento, tipo, actividad_economica, numero_trabajadores,
-            tipo_facturacion, tipo_contabilidad, comercio_exterior, es_agente_retencion, es_buen_contribuyente, locales_anexos,
-            contacto_nombre, contacto_telefono, contacto_email, activo, created_at, updated_at
+    `SELECT ${proveedorSelect}
        FROM proveedores
       WHERE activo = 1
       ORDER BY razon_social`
@@ -158,350 +127,115 @@ const listProveedores = async (_req, res) => {
   res.json(rows.map(normalizeProveedorRow));
 };
 
+// LOGICA BACKEND: busca un proveedor por RUC dentro de la base de datos local.
 const getProveedorByRuc = async (req, res) => {
   await ensureProveedoresSchema();
   const ruc = req.params.ruc || req.query.ruc;
-  if (!isRucValido(ruc)) {
-    return res.status(400).json({ message: 'El RUC debe tener 11 dígitos.' });
-  }
+  if (!isRucValido(ruc)) return res.status(400).json({ message: 'El RUC debe tener 11 dígitos.' });
+
   const [rows] = await pool.query(
-    `SELECT id, numero_documento, razon_social, estado, condicion, direccion, ubigeo,
-            via_tipo, via_nombre, zona_codigo, zona_tipo, numero, interior, lote, dpto, manzana, kilometro,
-            distrito, provincia, departamento, tipo, actividad_economica, numero_trabajadores,
-            tipo_facturacion, tipo_contabilidad, comercio_exterior, es_agente_retencion, es_buen_contribuyente, locales_anexos,
-            contacto_nombre, contacto_telefono, contacto_email, activo, created_at, updated_at
-       FROM proveedores
-      WHERE numero_documento = ? LIMIT 1`,
+    `SELECT ${proveedorSelect} FROM proveedores WHERE numero_documento = ? LIMIT 1`,
     [String(ruc).trim()]
   );
   if (rows.length === 0) return res.status(404).json({ message: 'Proveedor no encontrado.' });
   res.json(normalizeProveedorRow(rows[0]));
 };
 
+// LOGICA BACKEND: crea proveedor nuevo usando los datos enviados por el formulario.
 const createProveedor = async (req, res) => {
   await ensureProveedoresSchema();
-  const {
-    numeroDocumento,
-    razonSocial,
-    estado,
-    condicion,
-    direccion,
-    ubigeo,
-    viaTipo,
-    viaNombre,
-    zonaCodigo,
-    zonaTipo,
-    numero,
-    interior,
-    lote,
-    dpto,
-    manzana,
-    kilometro,
-    distrito,
-    provincia,
-    departamento,
-    tipo,
-    actividadEconomica,
-    numeroTrabajadores,
-    tipoFacturacion,
-    tipoContabilidad,
-    comercioExterior,
-    esAgenteRetencion,
-    esBuenContribuyente,
-    localesAnexos,
-    contactoNombre,
-	  contactoTelefono,
-	  contactoEmail
-	} = req.body || {};
+  const data = toDbProveedor(req.body);
+  if (!isRucValido(data.numero_documento)) return res.status(400).json({ message: 'numeroDocumento (RUC) debe tener 11 dígitos.' });
+  if (!data.razon_social) return res.status(400).json({ message: 'razonSocial es obligatorio.' });
 
-  if (!isRucValido(numeroDocumento)) {
-    return res.status(400).json({ message: 'numeroDocumento (RUC) debe tener 11 dígitos.' });
-  }
-	if (!razonSocial || String(razonSocial).trim() === '') {
-	  return res.status(400).json({ message: 'razonSocial es obligatorio.' });
-	}
-
-	const cleanContactoTelefono = normalizePhoneDigits(contactoTelefono);
-	if (cleanContactoTelefono && !/^\d{9}$/.test(cleanContactoTelefono)) {
-	  return res.status(400).json({ message: 'contactoTelefono debe tener 9 dígitos.' });
-	}
-
-	try {
-	  const [result] = await pool.execute(
+  try {
+    const [result] = await pool.execute(
       `INSERT INTO proveedores
-        (numero_documento, razon_social, estado, condicion, direccion, ubigeo,
-         via_tipo, via_nombre, zona_codigo, zona_tipo, numero, interior, lote, dpto, manzana, kilometro,
-         distrito, provincia, departamento, tipo, actividad_economica, numero_trabajadores,
-         tipo_facturacion, tipo_contabilidad, comercio_exterior, es_agente_retencion, es_buen_contribuyente, locales_anexos,
-         contacto_nombre, contacto_telefono, contacto_email, activo)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (numero_documento, razon_social, direccion, contacto_nombre, contacto_telefono, contacto_email,
+         estado, condicion, distrito, provincia, departamento, activo)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
       [
-        String(numeroDocumento).trim(),
-        String(razonSocial).trim(),
-        estado || null,
-        condicion || null,
-        direccion || null,
-        ubigeo || null,
-        viaTipo || null,
-        viaNombre || null,
-        zonaCodigo || null,
-        zonaTipo || null,
-        numero || null,
-        interior || null,
-        lote || null,
-        dpto || null,
-        manzana || null,
-        kilometro || null,
-        distrito || null,
-        provincia || null,
-        departamento || null,
-        tipo || null,
-        actividadEconomica || null,
-        toOptionalInt(numeroTrabajadores),
-        tipoFacturacion || null,
-        tipoContabilidad || null,
-        comercioExterior || null,
-        typeof esAgenteRetencion === 'boolean' ? (esAgenteRetencion ? 1 : 0) : null,
-	        typeof esBuenContribuyente === 'boolean' ? (esBuenContribuyente ? 1 : 0) : null,
-	        serializeOptionalJson(localesAnexos),
-	        contactoNombre || null,
-	        cleanContactoTelefono,
-	        contactoEmail || null,
-	        1
-	      ]
-	    );
-
-    const [rows] = await pool.query(
-      `SELECT id, numero_documento, razon_social, estado, condicion, direccion, ubigeo,
-              via_tipo, via_nombre, zona_codigo, zona_tipo, numero, interior, lote, dpto, manzana, kilometro,
-              distrito, provincia, departamento, tipo, actividad_economica, numero_trabajadores,
-              tipo_facturacion, tipo_contabilidad, comercio_exterior, es_agente_retencion, es_buen_contribuyente, locales_anexos,
-              contacto_nombre, contacto_telefono, contacto_email, activo, created_at, updated_at
-         FROM proveedores WHERE id = ?`,
-      [result.insertId]
+        data.numero_documento, data.razon_social, data.direccion, data.contacto_nombre, data.contacto_telefono,
+        data.contacto_email, data.estado, data.condicion, data.distrito, data.provincia, data.departamento
+      ]
     );
-
-    res.status(201).json(normalizeProveedorRow(rows[0]));
+    res.status(201).json(await getProveedorRowById(result.insertId));
   } catch (error) {
-    if (error && error.code === 'ER_DUP_ENTRY') {
-      return res.status(409).json({ message: 'Ya existe un proveedor con ese RUC.' });
-    }
+    if (error?.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: 'Ya existe un proveedor con ese RUC.' });
     throw error;
   }
 };
 
+// LOGICA BACKEND: actualiza proveedor existente desde el formulario de editar.
 const updateProveedor = async (req, res) => {
   await ensureProveedoresSchema();
   const { id } = req.params;
-  const {
-    numeroDocumento,
-    razonSocial,
-    estado,
-    condicion,
-    direccion,
-    ubigeo,
-    viaTipo,
-    viaNombre,
-    zonaCodigo,
-    zonaTipo,
-    numero,
-    interior,
-    lote,
-    dpto,
-    manzana,
-    kilometro,
-    distrito,
-    provincia,
-    departamento,
-    tipo,
-    actividadEconomica,
-    numeroTrabajadores,
-    tipoFacturacion,
-    tipoContabilidad,
-    comercioExterior,
-    esAgenteRetencion,
-    esBuenContribuyente,
-    localesAnexos,
-    contactoNombre,
-    contactoTelefono,
-    contactoEmail,
-    activo
-  } = req.body || {};
-
-  if (numeroDocumento !== undefined && !isRucValido(numeroDocumento)) {
+  const data = toDbProveedor(req.body);
+  if (data.numero_documento !== undefined && !isRucValido(data.numero_documento)) {
     return res.status(400).json({ message: 'numeroDocumento (RUC) debe tener 11 dígitos.' });
   }
+  if (data.razon_social !== undefined && !data.razon_social) {
+    return res.status(400).json({ message: 'razonSocial no puede estar vacío.' });
+  }
 
-	if (razonSocial !== undefined && String(razonSocial).trim() === '') {
-	  return res.status(400).json({ message: 'razonSocial no puede estar vacío.' });
-	}
-
-	const cleanContactoTelefono = contactoTelefono === undefined ? null : normalizePhoneDigits(contactoTelefono);
-	if (cleanContactoTelefono && !/^\d{9}$/.test(cleanContactoTelefono)) {
-	  return res.status(400).json({ message: 'contactoTelefono debe tener 9 dígitos.' });
-	}
-
-	try {
-	  const [result] = await pool.execute(
+  try {
+    const [result] = await pool.execute(
       `UPDATE proveedores SET
         numero_documento = COALESCE(?, numero_documento),
         razon_social = COALESCE(?, razon_social),
-        estado = COALESCE(?, estado),
-        condicion = COALESCE(?, condicion),
-        direccion = COALESCE(?, direccion),
-        ubigeo = COALESCE(?, ubigeo),
-        via_tipo = COALESCE(?, via_tipo),
-        via_nombre = COALESCE(?, via_nombre),
-        zona_codigo = COALESCE(?, zona_codigo),
-        zona_tipo = COALESCE(?, zona_tipo),
-        numero = COALESCE(?, numero),
-        interior = COALESCE(?, interior),
-        lote = COALESCE(?, lote),
-        dpto = COALESCE(?, dpto),
-        manzana = COALESCE(?, manzana),
-        kilometro = COALESCE(?, kilometro),
-        distrito = COALESCE(?, distrito),
-        provincia = COALESCE(?, provincia),
-        departamento = COALESCE(?, departamento),
-        tipo = COALESCE(?, tipo),
-        actividad_economica = COALESCE(?, actividad_economica),
-        numero_trabajadores = COALESCE(?, numero_trabajadores),
-        tipo_facturacion = COALESCE(?, tipo_facturacion),
-        tipo_contabilidad = COALESCE(?, tipo_contabilidad),
-        comercio_exterior = COALESCE(?, comercio_exterior),
-        es_agente_retencion = COALESCE(?, es_agente_retencion),
-        es_buen_contribuyente = COALESCE(?, es_buen_contribuyente),
-        locales_anexos = COALESCE(?, locales_anexos),
-        contacto_nombre = COALESCE(?, contacto_nombre),
-        contacto_telefono = COALESCE(?, contacto_telefono),
-        contacto_email = COALESCE(?, contacto_email),
+        direccion = ?, contacto_nombre = ?, contacto_telefono = ?, contacto_email = ?,
+        estado = ?, condicion = ?, distrito = ?, provincia = ?, departamento = ?,
         activo = COALESCE(?, activo)
        WHERE id = ?`,
       [
-        numeroDocumento === undefined ? null : String(numeroDocumento).trim(),
-        razonSocial === undefined ? null : String(razonSocial).trim(),
-        estado === undefined ? null : estado,
-        condicion === undefined ? null : condicion,
-        direccion === undefined ? null : direccion,
-        ubigeo === undefined ? null : ubigeo,
-        viaTipo === undefined ? null : viaTipo,
-        viaNombre === undefined ? null : viaNombre,
-        zonaCodigo === undefined ? null : zonaCodigo,
-        zonaTipo === undefined ? null : zonaTipo,
-        numero === undefined ? null : numero,
-        interior === undefined ? null : interior,
-        lote === undefined ? null : lote,
-        dpto === undefined ? null : dpto,
-        manzana === undefined ? null : manzana,
-        kilometro === undefined ? null : kilometro,
-        distrito === undefined ? null : distrito,
-        provincia === undefined ? null : provincia,
-        departamento === undefined ? null : departamento,
-        tipo === undefined ? null : tipo,
-        actividadEconomica === undefined ? null : actividadEconomica,
-        toOptionalInt(numeroTrabajadores),
-        tipoFacturacion === undefined ? null : tipoFacturacion,
-        tipoContabilidad === undefined ? null : tipoContabilidad,
-        comercioExterior === undefined ? null : comercioExterior,
-        typeof esAgenteRetencion === 'boolean' ? (esAgenteRetencion ? 1 : 0) : null,
-	        typeof esBuenContribuyente === 'boolean' ? (esBuenContribuyente ? 1 : 0) : null,
-	        serializeOptionalJson(localesAnexos),
-	        contactoNombre === undefined ? null : contactoNombre,
-	        contactoTelefono === undefined ? null : cleanContactoTelefono,
-	        contactoEmail === undefined ? null : contactoEmail,
-	        activo === undefined ? null : (activo ? 1 : 0),
-	        id
-	      ]
-	    );
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ message: 'Proveedor no encontrado.' });
-    }
-
-    const [rows] = await pool.query(
-      `SELECT id, numero_documento, razon_social, estado, condicion, direccion, ubigeo,
-              via_tipo, via_nombre, zona_codigo, zona_tipo, numero, interior, lote, dpto, manzana, kilometro,
-              distrito, provincia, departamento, tipo, actividad_economica, numero_trabajadores,
-              tipo_facturacion, tipo_contabilidad, comercio_exterior, es_agente_retencion, es_buen_contribuyente, locales_anexos,
-              contacto_nombre, contacto_telefono, contacto_email, activo, created_at, updated_at
-         FROM proveedores WHERE id = ?`,
-      [id]
+        data.numero_documento, data.razon_social, data.direccion, data.contacto_nombre, data.contacto_telefono,
+        data.contacto_email, data.estado, data.condicion, data.distrito, data.provincia, data.departamento,
+        req.body?.activo === undefined ? null : (req.body.activo ? 1 : 0),
+        id
+      ]
     );
-
-    res.json(normalizeProveedorRow(rows[0]));
+    if (result.affectedRows === 0) return res.status(404).json({ message: 'Proveedor no encontrado.' });
+    res.json(await getProveedorRowById(id));
   } catch (error) {
-    if (error && error.code === 'ER_DUP_ENTRY') {
-      return res.status(409).json({ message: 'Ya existe un proveedor con ese RUC.' });
-    }
+    if (error?.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: 'Ya existe un proveedor con ese RUC.' });
     throw error;
   }
 };
 
+// LOGICA BACKEND: baja logica; no borra la fila, solo marca activo = 0.
 const deleteProveedor = async (req, res) => {
   await ensureProveedoresSchema();
-  const { id } = req.params;
-  const [result] = await pool.execute('UPDATE proveedores SET activo = 0 WHERE id = ?', [id]);
-
-  if (result.affectedRows === 0) {
-    return res.status(404).json({ message: 'Proveedor no encontrado.' });
-  }
-
+  const [result] = await pool.execute('UPDATE proveedores SET activo = 0 WHERE id = ?', [req.params.id]);
+  if (result.affectedRows === 0) return res.status(404).json({ message: 'Proveedor no encontrado.' });
   res.status(204).send();
 };
 
+// LOGICA BACKEND: consulta RUC en servicio externo y devuelve datos normalizados.
 const consultarRucApi = async (req, res) => {
   const ruc = req.params.ruc || req.query.ruc;
-  if (!isRucValido(ruc)) {
-    return res.status(400).json({ message: 'El RUC debe tener 11 dígitos.' });
-  }
+  if (!isRucValido(ruc)) return res.status(400).json({ message: 'El RUC debe tener 11 dígitos.' });
 
   try {
     const data = await consultarRuc(String(ruc).trim());
     res.json(normalizeRucApiData(ruc, data));
   } catch (error) {
     if (axios.isAxiosError(error)) {
-      const status = error.response?.status || 500;
-      const message = error.response?.data?.message || 'No se pudo consultar RUC.';
-      return res.status(status).json({ message, details: error.response?.data });
+      return res.status(error.response?.status || 500).json({
+        message: error.response?.data?.message || 'No se pudo consultar RUC.',
+        details: error.response?.data
+      });
     }
-    const status = error.status || 500;
-    return res.status(status).json({ message: error.message || 'No se pudo consultar RUC.' });
+    res.status(error.status || 500).json({ message: error.message || 'No se pudo consultar RUC.' });
   }
 };
 
-const mapPedidoCompraRow = (row) => ({
-  id: row.id,
-  proveedorId: row.proveedor_id,
-  estado: row.estado,
-  notas: row.notas,
-  fecha: row.fecha,
-  updatedAt: row.updated_at,
-  itemsCount: row.items_count !== undefined ? Number(row.items_count) : undefined,
-  totalCantidad: row.total_cantidad !== undefined ? Number(row.total_cantidad) : undefined,
-  proveedor: {
-    id: row.proveedor_id,
-    numeroDocumento: row.numero_documento,
-    razonSocial: row.razon_social,
-    contactoNombre: row.contacto_nombre,
-    contactoTelefono: row.contacto_telefono,
-    contactoEmail: row.contacto_email,
-    direccion: row.direccion
-  }
-});
-
-const resetPedidosCompraAutoIncrementIfEmpty = async (runner = pool) => {
-  const [rows] = await runner.query('SELECT COUNT(*) AS total FROM pedidos_compra');
-  const total = Number(rows[0]?.total || 0);
-  if (total === 0) {
-    await runner.query('ALTER TABLE pedidos_compra AUTO_INCREMENT = 1');
-    await runner.query('ALTER TABLE pedidos_compra_detalles AUTO_INCREMENT = 1');
-  }
-};
-
+// LOGICA BACKEND: lista pedidos de compra mostrados en la pestana "Pedidos de compra".
 const listPedidosCompra = async (_req, res) => {
   await ensureProveedoresSchema();
   const [rows] = await pool.query(
     `SELECT pc.id, pc.proveedor_id, pc.estado, pc.notas, pc.fecha, pc.updated_at,
+            pc.solicitante_dni, pc.solicitante_nombre,
+            pc.comprador_nombre, pc.comprador_ruc, pc.comprador_direccion, pc.comprador_telefono,
             p.numero_documento, p.razon_social, p.contacto_nombre, p.contacto_telefono, p.contacto_email, p.direccion,
             (SELECT COUNT(*) FROM pedidos_compra_detalles d WHERE d.pedido_compra_id = pc.id) AS items_count,
             (SELECT COALESCE(SUM(d.cantidad), 0) FROM pedidos_compra_detalles d WHERE d.pedido_compra_id = pc.id) AS total_cantidad
@@ -513,90 +247,96 @@ const listPedidosCompra = async (_req, res) => {
   res.json(rows.map(mapPedidoCompraRow));
 };
 
+// LOGICA BACKEND: obtiene un pedido de compra con su proveedor e items.
 const getPedidoCompra = async (req, res) => {
   await ensureProveedoresSchema();
-  const { id } = req.params;
   const [rows] = await pool.query(
     `SELECT pc.id, pc.proveedor_id, pc.estado, pc.notas, pc.fecha, pc.updated_at,
+            pc.solicitante_dni, pc.solicitante_nombre,
+            pc.comprador_nombre, pc.comprador_ruc, pc.comprador_direccion, pc.comprador_telefono,
             p.numero_documento, p.razon_social, p.contacto_nombre, p.contacto_telefono, p.contacto_email, p.direccion
        FROM pedidos_compra pc
        JOIN proveedores p ON p.id = pc.proveedor_id
       WHERE pc.id = ? LIMIT 1`,
-    [id]
+    [req.params.id]
   );
   if (rows.length === 0) return res.status(404).json({ message: 'Pedido de compra no encontrado.' });
 
   const pedido = mapPedidoCompraRow(rows[0]);
-  const [detRows] = await pool.query(
+  const [items] = await pool.query(
     `SELECT d.id, d.producto_id, d.cantidad, pr.nombre, pr.stock_actual, pr.stock_minimo
        FROM pedidos_compra_detalles d
        JOIN productos pr ON pr.id = d.producto_id
       WHERE d.pedido_compra_id = ?
       ORDER BY pr.nombre`,
-    [id]
+    [req.params.id]
   );
-
-  pedido.items = detRows.map((r) => ({
-    id: r.id,
-    productoId: r.producto_id,
-    productoNombre: r.nombre,
-    cantidad: Number(r.cantidad),
-    stockActual: Number(r.stock_actual),
-    stockMinimo: Number(r.stock_minimo)
+  pedido.items = items.map((row) => ({
+    id: row.id,
+    productoId: row.producto_id,
+    productoNombre: row.nombre,
+    cantidad: Number(row.cantidad),
+    stockActual: Number(row.stock_actual),
+    stockMinimo: Number(row.stock_minimo)
   }));
-
   res.json(pedido);
 };
 
+// LOGICA BACKEND: crea pedido de compra con transaccion para guardar cabecera e items juntos.
 const createPedidoCompra = async (req, res) => {
   await ensureProveedoresSchema();
-  const { proveedorId, items, notas } = req.body || {};
-
-  if (!proveedorId) {
-    return res.status(400).json({ message: 'proveedorId es obligatorio.' });
-  }
-  if (!Array.isArray(items) || items.length === 0) {
-    return res.status(400).json({ message: 'items es obligatorio (lista de productos a pedir).' });
-  }
-
+  const proveedorId = Number(req.body?.proveedorId);
+  const items = Array.isArray(req.body?.items) ? req.body.items : [];
+  const compradorDefaults = getDefaultComprador();
+  const solicitanteDni = cleanDigits(req.body?.solicitanteDni, 8);
+  const solicitanteNombre = cleanText(req.body?.solicitanteNombre, 160);
+  const comprador = {
+    nombre: cleanText(req.body?.comprador?.nombre, 160) || compradorDefaults.nombre,
+    ruc: cleanDigits(req.body?.comprador?.ruc, 11) || compradorDefaults.ruc,
+    direccion: cleanText(req.body?.comprador?.direccion, 255) || compradorDefaults.direccion,
+    telefono: cleanText(req.body?.comprador?.telefono, 40) || compradorDefaults.telefono
+  };
   const normalizedItems = items
-    .map((it) => ({
-      productoId: Number(it?.productoId),
-      cantidad: Number(it?.cantidad)
-    }))
-    .filter((it) => Number.isFinite(it.productoId) && it.productoId > 0 && Number.isFinite(it.cantidad) && it.cantidad > 0);
+    .map((item) => ({ productoId: Number(item?.productoId), cantidad: Number(item?.cantidad) }))
+    .filter((item) => Number.isInteger(item.productoId) && item.productoId > 0 && Number.isFinite(item.cantidad) && item.cantidad > 0);
 
-  if (normalizedItems.length === 0) {
-    return res.status(400).json({ message: 'items no tiene productos válidos.' });
-  }
+  if (!Number.isInteger(proveedorId) || proveedorId <= 0) return res.status(400).json({ message: 'proveedorId es obligatorio.' });
+  if (normalizedItems.length === 0) return res.status(400).json({ message: 'items es obligatorio.' });
 
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-
-    const [provRows] = await conn.query('SELECT id FROM proveedores WHERE id = ? AND activo = 1 LIMIT 1', [proveedorId]);
-    if (provRows.length === 0) {
+    const [proveedores] = await conn.query('SELECT id FROM proveedores WHERE id = ? AND activo = 1 LIMIT 1', [proveedorId]);
+    if (proveedores.length === 0) {
       await conn.rollback();
       return res.status(404).json({ message: 'Proveedor no encontrado.' });
     }
 
-    const [pedidoResult] = await conn.execute(
-      'INSERT INTO pedidos_compra (proveedor_id, estado, notas) VALUES (?, ?, ?)',
-      [proveedorId, 'BORRADOR', notas || null]
+    const [result] = await conn.execute(
+      `INSERT INTO pedidos_compra
+        (proveedor_id, estado, notas, solicitante_dni, solicitante_nombre,
+         comprador_nombre, comprador_ruc, comprador_direccion, comprador_telefono)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        proveedorId,
+        'BORRADOR',
+        cleanText(req.body?.notas, 255),
+        solicitanteDni,
+        solicitanteNombre,
+        comprador.nombre,
+        comprador.ruc,
+        comprador.direccion,
+        comprador.telefono
+      ]
     );
-    const pedidoId = pedidoResult.insertId;
-
-    for (const it of normalizedItems) {
+    for (const item of normalizedItems) {
       await conn.execute(
         'INSERT INTO pedidos_compra_detalles (pedido_compra_id, producto_id, cantidad) VALUES (?, ?, ?)',
-        [pedidoId, it.productoId, it.cantidad]
+        [result.insertId, item.productoId, item.cantidad]
       );
     }
-
     await conn.commit();
-
-    // Reusar handler de detalle
-    req.params.id = String(pedidoId);
+    req.params.id = String(result.insertId);
     return getPedidoCompra(req, res);
   } catch (error) {
     try {
@@ -610,148 +350,183 @@ const createPedidoCompra = async (req, res) => {
   }
 };
 
+// LOGICA BACKEND: elimina un pedido de compra por ID.
 const deletePedidoCompra = async (req, res) => {
   await ensureProveedoresSchema();
-  const pedidoId = Number(req.params.id);
-  if (!Number.isInteger(pedidoId) || pedidoId <= 0) {
-    return res.status(400).json({ message: 'ID de pedido inválido.' });
-  }
-
-  const conn = await pool.getConnection();
-  try {
-    await conn.beginTransaction();
-
-    await conn.execute('DELETE FROM pedidos_compra_detalles WHERE pedido_compra_id = ?', [pedidoId]);
-    const [result] = await conn.execute('DELETE FROM pedidos_compra WHERE id = ?', [pedidoId]);
-    if (result.affectedRows === 0) {
-      await conn.rollback();
-      return res.status(404).json({ message: 'Pedido de compra no encontrado.' });
-    }
-
-    await resetPedidosCompraAutoIncrementIfEmpty(conn);
-    await conn.commit();
-    res.status(204).send();
-  } catch (error) {
-    try {
-      await conn.rollback();
-    } catch {
-      // ignore
-    }
-    throw error;
-  } finally {
-    conn.release();
-  }
+  const [result] = await pool.execute('DELETE FROM pedidos_compra WHERE id = ?', [req.params.id]);
+  if (result.affectedRows === 0) return res.status(404).json({ message: 'Pedido de compra no encontrado.' });
+  res.status(204).send();
 };
 
+// LOGICA BACKEND: elimina varios pedidos seleccionados desde la tabla.
 const deletePedidosCompraBatch = async (req, res) => {
   await ensureProveedoresSchema();
-  const rawIds = req.body?.ids;
-  if (!Array.isArray(rawIds) || rawIds.length === 0) {
-    return res.status(400).json({ message: 'Debes enviar un arreglo de IDs.' });
-  }
-
-  const ids = [...new Set(
-    rawIds
-      .map((value) => Number(value))
-      .filter((value) => Number.isInteger(value) && value > 0)
-  )];
-
-  if (ids.length === 0) {
-    return res.status(400).json({ message: 'No se recibieron IDs válidos.' });
-  }
-
-  const conn = await pool.getConnection();
-  try {
-    await conn.beginTransaction();
-    await conn.query('DELETE FROM pedidos_compra_detalles WHERE pedido_compra_id IN (?)', [ids]);
-    const [result] = await conn.query('DELETE FROM pedidos_compra WHERE id IN (?)', [ids]);
-    await resetPedidosCompraAutoIncrementIfEmpty(conn);
-    await conn.commit();
-    return res.json({ deleted: Number(result.affectedRows || 0), ids });
-  } catch (error) {
-    try {
-      await conn.rollback();
-    } catch {
-      // ignore
-    }
-    throw error;
-  } finally {
-    conn.release();
-  }
+  const ids = [...new Set((Array.isArray(req.body?.ids) ? req.body.ids : []).map(Number).filter((id) => Number.isInteger(id) && id > 0))];
+  if (ids.length === 0) return res.status(400).json({ message: 'Debes enviar IDs válidos.' });
+  const [result] = await pool.query('DELETE FROM pedidos_compra WHERE id IN (?)', [ids]);
+  res.json({ deleted: Number(result.affectedRows || 0), ids });
 };
 
-const csvEscape = (value) => {
-  const raw = value === null || value === undefined ? '' : String(value);
-  const needsQuotes = /[;"\n\r]/.test(raw);
-  const escaped = raw.replaceAll('"', '""');
-  return needsQuotes ? `"${escaped}"` : escaped;
-};
-
+// LOGICA BACKEND: genera CSV para descargar/enviar el pedido al proveedor.
 const downloadPedidoCsv = async (req, res) => {
   await ensureProveedoresSchema();
-  const { id } = req.params;
-
   const [pedidoRows] = await pool.query(
-    `SELECT pc.id, pc.proveedor_id, pc.estado, pc.notas, pc.fecha, pc.updated_at,
-            p.numero_documento, p.razon_social, p.contacto_nombre, p.contacto_telefono, p.contacto_email, p.direccion
+    `SELECT pc.id, pc.fecha, p.numero_documento, p.razon_social, p.contacto_nombre, p.contacto_telefono, p.contacto_email, p.direccion
        FROM pedidos_compra pc
        JOIN proveedores p ON p.id = pc.proveedor_id
       WHERE pc.id = ? LIMIT 1`,
-    [id]
+    [req.params.id]
   );
   if (pedidoRows.length === 0) return res.status(404).json({ message: 'Pedido de compra no encontrado.' });
 
-  const [detRows] = await pool.query(
+  const [items] = await pool.query(
     `SELECT d.producto_id, d.cantidad, pr.nombre
        FROM pedidos_compra_detalles d
        JOIN productos pr ON pr.id = d.producto_id
       WHERE d.pedido_compra_id = ?
       ORDER BY pr.nombre`,
-    [id]
+    [req.params.id]
   );
 
   const pedido = pedidoRows[0];
-  const lines = [];
-  // Excel-friendly separator
-  lines.push('sep=;');
-  lines.push(
-    [
-      'pedido_id',
-      'fecha',
-      'proveedor_ruc',
-      'proveedor_razon_social',
-      'proveedor_contacto',
-      'proveedor_telefono',
-      'proveedor_email',
-      'proveedor_direccion',
-      'producto_id',
-      'producto_nombre',
-      'cantidad'
-    ].join(';')
-  );
+  const lines = [
+    'sep=;',
+    'pedido_id;fecha;proveedor_ruc;proveedor_razon_social;proveedor_contacto;proveedor_telefono;proveedor_email;proveedor_direccion;producto_id;producto_nombre;cantidad'
+  ];
+  items.forEach((item) => {
+    lines.push([
+      pedido.id,
+      pedido.fecha,
+      pedido.numero_documento,
+      pedido.razon_social,
+      pedido.contacto_nombre,
+      pedido.contacto_telefono,
+      pedido.contacto_email,
+      pedido.direccion,
+      item.producto_id,
+      item.nombre,
+      item.cantidad
+    ].map(csvEscape).join(';'));
+  });
 
-  for (const d of detRows) {
-    lines.push(
-      [
-        csvEscape(pedido.id),
-        csvEscape(pedido.fecha),
-        csvEscape(pedido.numero_documento),
-        csvEscape(pedido.razon_social),
-        csvEscape(pedido.contacto_nombre),
-        csvEscape(pedido.contacto_telefono),
-        csvEscape(pedido.contacto_email),
-        csvEscape(pedido.direccion),
-        csvEscape(d.producto_id),
-        csvEscape(d.nombre),
-        csvEscape(d.cantidad)
-      ].join(';')
-    );
-  }
-
-  const csv = `\ufeff${lines.join('\n')}`;
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="pedido_compra_${pedido.id}.csv"`);
-  res.send(csv);
+  res.send(`\ufeff${lines.join('\n')}`);
+};
+
+// LOGICA BACKEND: genera PDF formal de orden de compra para proveedores.
+const downloadPedidoPdf = async (req, res) => {
+  await ensureProveedoresSchema();
+  const data = await loadPedidoCompraPdfData(req.params.id);
+  if (!data) return res.status(404).json({ message: 'Pedido de compra no encontrado.' });
+
+  const { pedido, items } = data;
+  const compradorDefaults = getDefaultComprador();
+  const comprador = {
+    nombre: pedido.comprador_nombre || compradorDefaults.nombre,
+    ruc: pedido.comprador_ruc || compradorDefaults.ruc,
+    direccion: pedido.comprador_direccion || compradorDefaults.direccion,
+    telefono: pedido.comprador_telefono || compradorDefaults.telefono
+  };
+
+  const doc = new PDFDocument({ size: 'A4', margin: 36, info: { Title: `Orden de compra ${pedido.id}` } });
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="orden_compra_${pedido.id}.pdf"`);
+  doc.pipe(res);
+
+  const pageWidth = doc.page.width;
+  const contentWidth = pageWidth - 72;
+  const logoX = 40;
+  const logoY = 38;
+  const logoSize = 62;
+  const logoPath = findLogoPath();
+
+  doc.rect(logoX, logoY, logoSize, logoSize).stroke('#c8c8c8');
+  if (logoPath) {
+    try {
+      doc.image(logoPath, logoX + 4, logoY + 4, { fit: [logoSize - 8, logoSize - 8], align: 'center', valign: 'center' });
+    } catch {
+      doc.fontSize(8).fillColor('#777').text('LOGO', logoX, logoY + 25, { width: logoSize, align: 'center' });
+    }
+  } else {
+    doc.fontSize(8).fillColor('#777').text('LOGO', logoX, logoY + 25, { width: logoSize, align: 'center' });
+  }
+
+  doc.fillColor('#111').font('Helvetica-Bold').fontSize(15).text(comprador.nombre, 116, 42, { width: 235 });
+  doc.font('Helvetica').fontSize(9);
+  doc.text(`RUC: ${comprador.ruc || '-'}`, 116, 62);
+  doc.text(`Tel: ${comprador.telefono || '-'}`, 116, 76);
+  doc.text(`Dir: ${comprador.direccion || '-'}`, 116, 90, { width: 250 });
+
+  doc.font('Helvetica-Bold').fontSize(15).text('ORDEN DE COMPRA', 380, 42, { width: 160, align: 'right' });
+  doc.font('Helvetica').fontSize(10).text(`N° ${pedido.id}`, 380, 62, { width: 160, align: 'right' });
+  doc.text(`Fecha: ${formatPedidoFecha(pedido.fecha)}`, 330, 80, { width: 210, align: 'right' });
+  doc.moveTo(36, 118).lineTo(pageWidth - 36, 118).stroke('#1e88e5');
+
+  let y = 132;
+  doc.font('Helvetica-Bold').fontSize(11).fillColor('#111').text('Proveedor', 36, y);
+  y += 18;
+  doc.fontSize(9);
+  [
+    ['Razon social:', pedido.razon_social],
+    ['RUC:', pedido.numero_documento],
+    ['Direccion:', pedido.direccion],
+    ['Contacto:', pedido.contacto_nombre],
+    ['Telefono:', pedido.contacto_telefono],
+    ['Email:', pedido.contacto_email]
+  ].forEach(([label, value]) => {
+    const height = drawKeyValue(doc, label, value, 36, y, { labelWidth: 88, valueWidth: 380 });
+    y += Math.max(16, height + 4);
+  });
+
+  y += 8;
+  doc.font('Helvetica-Bold').fontSize(11).text('Condiciones / observaciones', 36, y);
+  y += 16;
+  drawKeyValue(doc, 'Notas:', pedido.notas || 'Pedido generado desde gestion de productos', 36, y, { labelWidth: 88, valueWidth: 420 });
+  y += Math.max(22, doc.heightOfString(pedido.notas || 'Pedido generado desde gestion de productos', { width: 420 }) + 10);
+
+  y += 10;
+  doc.rect(36, y, contentWidth, 22).fill('#1976d2');
+  doc.fillColor('#fff').font('Helvetica-Bold').fontSize(8);
+  doc.text('N°', 44, y + 7, { width: 24 });
+  doc.text('Producto', 72, y + 7, { width: 360 });
+  doc.text('Cantidad', 482, y + 7, { width: 58, align: 'right' });
+  y += 22;
+
+  doc.fillColor('#111').font('Helvetica').fontSize(8);
+  items.forEach((item, index) => {
+    if (y > 720) {
+      doc.addPage();
+      y = 48;
+    }
+    const rowHeight = 22;
+    doc.rect(36, y, contentWidth, rowHeight).stroke('#eeeeee');
+    doc.text(String(index + 1), 44, y + 7, { width: 24 });
+    doc.font('Helvetica').text(item.nombre || '-', 72, y + 7, { width: 360 });
+    doc.text(String(item.cantidad), 482, y + 7, { width: 58, align: 'right' });
+    y += rowHeight;
+  });
+
+  const totalCantidad = items.reduce((sum, item) => sum + Number(item.cantidad || 0), 0);
+  y += 10;
+  doc.font('Helvetica-Bold').fontSize(9).text(`Total items: ${items.length} | Total cantidad: ${totalCantidad}`, 36, y);
+
+  y += 30;
+  doc.font('Helvetica-Bold').fontSize(10).text('Solicitante', 36, y);
+  y += 16;
+  drawKeyValue(doc, 'Nombre:', pedido.solicitante_nombre, 36, y, { labelWidth: 70, valueWidth: 260 });
+  drawKeyValue(doc, 'DNI:', pedido.solicitante_dni, 36, y + 16, { labelWidth: 70, valueWidth: 180 });
+  doc.moveTo(350, y + 34).lineTo(530, y + 34).stroke('#777');
+  doc.font('Helvetica').fontSize(8).text('Firma / conformidad', 350, y + 39, { width: 180, align: 'center' });
+
+  doc.fontSize(7).fillColor('#777').text(
+    'Documento interno de solicitud de compra. La factura o comprobante emitido por el proveedor debe consignar los datos tributarios correspondientes.',
+    36,
+    790,
+    { width: contentWidth, align: 'center' }
+  );
+
+  doc.end();
 };
 
 module.exports = {
@@ -766,5 +541,6 @@ module.exports = {
   createPedidoCompra,
   deletePedidoCompra,
   deletePedidosCompraBatch,
-  downloadPedidoCsv
+  downloadPedidoCsv,
+  downloadPedidoPdf
 };

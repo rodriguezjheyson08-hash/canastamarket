@@ -1,5 +1,13 @@
+/*
+ * MAPA DEL ARCHIVO: UTILIDAD FRONTEND
+ * UBICACION: pos-frontend/src/utils/auth.ts
+ * QUE HACE: Funciones auxiliares reutilizables.
+ * GUIA: usa comentarios DISEÑO/LOGICA/RUTA/SERVICIO para ubicar rapido donde cambiar algo.
+ */
+// UTILIDAD FRONTEND - TOKEN AUTH:
+// Guarda, lee y elimina token/datos de usuario en localStorage.
+// LOGICA FRONTEND - CAMBIOS: aqui se modifica como se guarda/lee/cierra sesion .
 const ADMIN_TOKEN_STORAGE_KEY = 'token';
-const CLIENTE_TOKEN_STORAGE_KEY = 'cliente_token';
 
 const parseStoredToken = (storedValue: string): string | null => {
   try {
@@ -12,7 +20,7 @@ const parseStoredToken = (storedValue: string): string | null => {
 };
 
 const getStoredToken = (storageKey: string): string | null => {
-  const storedValue = localStorage.getItem(storageKey);
+  const storedValue = globalThis.localStorage.getItem(storageKey);
   if (!storedValue) return null;
 
   const token = parseStoredToken(storedValue);
@@ -22,12 +30,4 @@ const getStoredToken = (storageKey: string): string | null => {
 
 export function getToken(): string | null {
   return getStoredToken(ADMIN_TOKEN_STORAGE_KEY);
-}
-
-export function getAdminToken(): string | null {
-  return getStoredToken(ADMIN_TOKEN_STORAGE_KEY);
-}
-
-export function getClienteToken(): string | null {
-  return getStoredToken(CLIENTE_TOKEN_STORAGE_KEY);
 }

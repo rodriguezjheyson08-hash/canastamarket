@@ -1,3 +1,11 @@
+/*
+ * MAPA DEL ARCHIVO: UTILIDAD FRONTEND
+ * UBICACION: pos-backend/src/utils/requireAuth.js
+ * QUE HACE: Funciones auxiliares reutilizables.
+ * GUIA: usa comentarios DISEÑO/LOGICA/RUTA/SERVICIO para ubicar rapido donde cambiar algo.
+ */
+// UTILIDAD BACKEND - AUTENTICACION:
+// Middleware que valida token JWT y permisos antes de permitir usar rutas protegidas.
 const { verifyToken } = require('./tokens');
 
 const parseBearerToken = (req) => {
@@ -6,6 +14,7 @@ const parseBearerToken = (req) => {
   return raw.slice(7).trim();
 };
 
+// LOGICA: require Auth concentra una operacion de este archivo.
 const requireAuth = (options = {}) => (req, res, next) => {
   const token = parseBearerToken(req);
   if (!token) {

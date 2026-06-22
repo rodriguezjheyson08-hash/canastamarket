@@ -1,3 +1,9 @@
+/*
+ * MAPA DEL ARCHIVO: SERVICIO BACKEND
+ * UBICACION: pos-backend/src/apidni/dniService.js
+ * QUE HACE: Consulta DNI en un servicio externo desde el backend.
+ * GUIA: usa comentarios DISEÑO/LOGICA/RUTA/SERVICIO para ubicar rapido donde cambiar algo.
+ */
 const axios = require('axios');
 const env = require('../config/env');
 
@@ -6,6 +12,8 @@ const dniClient = axios.create({
   headers: { 'Content-Type': 'application/json' }
 });
 
+// SERVICIO BACKEND - CONFIGURACION RENIEC:
+// Lee URL y token de RENIEC desde env; si faltan, corta la consulta con error controlado.
 const getReniecConfig = () => {
   const baseUrl = env.reniec?.baseUrl || process.env.RENIEC_BASE_URL;
   const token = env.reniec?.token || process.env.RENIEC_TOKEN;
@@ -25,6 +33,8 @@ const getReniecConfig = () => {
   return { baseUrl, token };
 };
 
+// SERVICIO BACKEND - URL RENIEC:
+// Construye la URL final agregando el parametro numero=<dni> sin duplicarlo.
 const buildReniecUrl = (baseUrl, dni) => {
   let parsed;
   try {
@@ -42,6 +52,8 @@ const buildReniecUrl = (baseUrl, dni) => {
   return parsed.toString();
 };
 
+// SERVICIO BACKEND - CONSULTA DNI:
+// Valida que el DNI tenga 8 digitos, llama RENIEC y devuelve la respuesta cruda al controller.
 const consultarDni = async (dni) => {
   const cleanedDni = String(dni || '').trim();
   if (!/^\d{8}$/.test(cleanedDni)) {

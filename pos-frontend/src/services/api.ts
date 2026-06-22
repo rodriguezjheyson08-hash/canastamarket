@@ -1,14 +1,33 @@
+/*
+ * MAPA DEL ARCHIVO: SERVICIO FRONTEND
+ * UBICACION: pos-frontend/src/services/api.ts
+ * QUE HACE: Funciones HTTP que conectan React con el backend.
+ * GUIA: usa comentarios DISEÑO/LOGICA/RUTA/SERVICIO para ubicar rapido donde cambiar algo.
+ */
 import axios from 'axios';
 import { getToken } from '../utils/auth';
 import { API_URL } from '../utils/apiBase';
 import { AppConfig } from '../utils/appConfig';
 import { BoletaConfig } from '../utils/boletaConfig';
-import { Venta, VentaCreatePayload, DashboardStats, LoginData, User, RegisterData, UserPermissions } from '../types';
+// IMPORTACIONES FRONTEND: librerias, helpers y tipos que usa este archivo.
+import {
+  Venta,
+  VentaCreatePayload,
+  DashboardStats,
+  LoginData,
+  AuthResponse,
+  UsuarioItem,
+  UsuarioPayload,
+  PedidoOnline,
+  PedidoOnlineCreatePayload
+} from '../types';
 
+// SERVICIO: build Auth Headers comunica este modulo con una API o backend.
 const buildAuthHeaders = (token?: string | null) =>
   token ? { Authorization: `Bearer ${token}` } : {};
 
 // Productos
+// SERVICIO FRONTEND: get Productos llama al backend y devuelve la respuesta a React.
 export const getProductos = async (token?: string | null) => {
   const authToken = token ?? getToken();
   const res = await axios.get(`${API_URL}/productos`, {
@@ -17,6 +36,7 @@ export const getProductos = async (token?: string | null) => {
   return res.data;
 };
 
+// SERVICIO FRONTEND: create Producto llama al backend y devuelve la respuesta a React.
 export const createProducto = async (productoData: any, token?: string | null) => {
   const authToken = token ?? getToken();
   const res = await axios.post(`${API_URL}/productos`, productoData, {
@@ -25,6 +45,7 @@ export const createProducto = async (productoData: any, token?: string | null) =
   return res.data;
 };
 
+// SERVICIO FRONTEND: update Producto llama al backend y devuelve la respuesta a React.
 export const updateProducto = async (id: number, productoData: any, token?: string | null) => {
   const authToken = token ?? getToken();
   const res = await axios.put(`${API_URL}/productos/${id}`, productoData, {
@@ -33,6 +54,7 @@ export const updateProducto = async (id: number, productoData: any, token?: stri
   return res.data;
 };
 
+// SERVICIO FRONTEND: delete Producto llama al backend y devuelve la respuesta a React.
 export const deleteProducto = async (id: number, token?: string | null) => {
   const authToken = token ?? getToken();
   await axios.delete(`${API_URL}/productos/${id}`, {
@@ -41,6 +63,7 @@ export const deleteProducto = async (id: number, token?: string | null) => {
 };
 
 // Categorías
+// SERVICIO FRONTEND: get Categorias llama al backend y devuelve la respuesta a React.
 export const getCategorias = async (token?: string | null) => {
   const authToken = token ?? getToken();
   const res = await axios.get(`${API_URL}/categorias`, {
@@ -49,6 +72,7 @@ export const getCategorias = async (token?: string | null) => {
   return res.data;
 };
 
+// SERVICIO FRONTEND: create Categoria llama al backend y devuelve la respuesta a React.
 export const createCategoria = async (categoriaData: any, token?: string | null) => {
   const authToken = token ?? getToken();
   const res = await axios.post(`${API_URL}/categorias`, categoriaData, {
@@ -57,6 +81,7 @@ export const createCategoria = async (categoriaData: any, token?: string | null)
   return res.data;
 };
 
+// SERVICIO FRONTEND: update Categoria llama al backend y devuelve la respuesta a React.
 export const updateCategoria = async (id: number, categoriaData: any, token?: string | null) => {
   const authToken = token ?? getToken();
   const res = await axios.put(`${API_URL}/categorias/${id}`, categoriaData, {
@@ -65,6 +90,7 @@ export const updateCategoria = async (id: number, categoriaData: any, token?: st
   return res.data;
 };
 
+// SERVICIO FRONTEND: delete Categoria llama al backend y devuelve la respuesta a React.
 export const deleteCategoria = async (id: number, token?: string | null) => {
   const authToken = token ?? getToken();
   await axios.delete(`${API_URL}/categorias/${id}`, {
@@ -72,7 +98,84 @@ export const deleteCategoria = async (id: number, token?: string | null) => {
   });
 };
 
+// Usuarios
+// SERVICIO FRONTEND: get Usuarios llama al backend y devuelve la respuesta a React.
+export const getUsuarios = async (token?: string | null): Promise<UsuarioItem[]> => {
+  const authToken = token ?? getToken();
+  const res = await axios.get(`${API_URL}/usuarios`, {
+    headers: buildAuthHeaders(authToken)
+  });
+  return res.data;
+};
+
+// SERVICIO FRONTEND: create Usuario llama al backend y devuelve la respuesta a React.
+export const createUsuario = async (payload: UsuarioPayload, token?: string | null): Promise<UsuarioItem> => {
+  const authToken = token ?? getToken();
+  const res = await axios.post(`${API_URL}/usuarios`, payload, {
+    headers: buildAuthHeaders(authToken)
+  });
+  return res.data;
+};
+
+// SERVICIO FRONTEND: update Usuario llama al backend y devuelve la respuesta a React.
+export const updateUsuario = async (id: number, payload: UsuarioPayload, token?: string | null): Promise<UsuarioItem> => {
+  const authToken = token ?? getToken();
+  const res = await axios.put(`${API_URL}/usuarios/${id}`, payload, {
+    headers: buildAuthHeaders(authToken)
+  });
+  return res.data;
+};
+
+// SERVICIO FRONTEND: unlock Usuario llama al backend y devuelve la respuesta a React.
+export const unlockUsuario = async (id: number, token?: string | null): Promise<UsuarioItem> => {
+  const authToken = token ?? getToken();
+  const res = await axios.put(`${API_URL}/usuarios/${id}/unlock`, {}, {
+    headers: buildAuthHeaders(authToken)
+  });
+  return res.data;
+};
+
+// SERVICIO FRONTEND: delete Usuario llama al backend y devuelve la respuesta a React.
+export const deleteUsuario = async (id: number, token?: string | null): Promise<void> => {
+  const authToken = token ?? getToken();
+  await axios.delete(`${API_URL}/usuarios/${id}`, {
+    headers: buildAuthHeaders(authToken)
+  });
+};
+
+export interface ConfiguracionSistemaPayload {
+  personalizacion?: AppConfig;
+  boleta?: BoletaConfig;
+}
+
+export interface ConfiguracionSistemaResponse {
+  personalizacion: AppConfig | null;
+  boleta: BoletaConfig | null;
+}
+
+// SERVICIO FRONTEND: get Configuracion Sistema lee Personalizacion y Boleta desde la base de datos.
+export const getConfiguracionSistema = async (token?: string | null): Promise<ConfiguracionSistemaResponse> => {
+  const authToken = token ?? getToken();
+  const res = await axios.get(`${API_URL}/configuracion`, {
+    headers: buildAuthHeaders(authToken)
+  });
+  return res.data;
+};
+
+// SERVICIO FRONTEND: save Configuracion Sistema guarda Personalizacion y Boleta en la base de datos.
+export const saveConfiguracionSistema = async (
+  payload: ConfiguracionSistemaPayload,
+  token?: string | null
+): Promise<ConfiguracionSistemaResponse> => {
+  const authToken = token ?? getToken();
+  const res = await axios.put(`${API_URL}/configuracion`, payload, {
+    headers: buildAuthHeaders(authToken)
+  });
+  return res.data;
+};
+
 // Ventas
+// SERVICIO FRONTEND: get Ventas llama al backend y devuelve la respuesta a React.
 export const getVentas = async (): Promise<Venta[]> => {
     const token = getToken();
     const res = await axios.get(`${API_URL}/ventas`, {
@@ -81,6 +184,7 @@ export const getVentas = async (): Promise<Venta[]> => {
     return res.data;
 };
 
+// SERVICIO FRONTEND: create Venta llama al backend y devuelve la respuesta a React.
 export const createVenta = async (ventaData: VentaCreatePayload, token?: string | null): Promise<Venta> => {
     const authToken = token ?? getToken();
     const res = await axios.post(`${API_URL}/ventas`, ventaData, {
@@ -89,26 +193,46 @@ export const createVenta = async (ventaData: VentaCreatePayload, token?: string 
     return res.data;
 };
 
-export const deleteVentas = async (token?: string | null): Promise<void> => {
-    const authToken = token ?? getToken();
-    await axios.delete(`${API_URL}/ventas`, {
-        headers: buildAuthHeaders(authToken)
-    });
+// Pedidos online
+// SERVICIO FRONTEND PUBLICO: registra en MySQL una compra hecha desde la tienda de clientes.
+export const createPedidoOnlinePublic = async (payload: PedidoOnlineCreatePayload): Promise<PedidoOnline> => {
+  const res = await axios.post(`${API_URL}/pedidos-online/public`, payload);
+  return res.data;
 };
 
-export const deleteVentasByIds = async (ids: number[], token?: string | null): Promise<{ deleted: number; ids: number[] }> => {
-    const authToken = token ?? getToken();
-    const res = await axios.post(
-      `${API_URL}/ventas/delete-batch`,
-      { ids },
-      {
-        headers: buildAuthHeaders(authToken)
-      }
-    );
-    return res.data;
+// SERVICIO FRONTEND ADMIN: lista pedidos web para que admin/cajero los atienda desde el POS.
+export const getPedidosOnline = async (estado?: PedidoOnline['estado'], token?: string | null): Promise<PedidoOnline[]> => {
+  const authToken = token ?? getToken();
+  const res = await axios.get(`${API_URL}/pedidos-online`, {
+    headers: buildAuthHeaders(authToken),
+    params: estado ? { estado } : undefined
+  });
+  return res.data;
+};
+
+// SERVICIO FRONTEND PUBLICO: consulta pedidos del cliente por correo para ver su estado actualizado.
+export const getPedidosOnlinePublic = async (email: string): Promise<PedidoOnline[]> => {
+  const res = await axios.get(`${API_URL}/pedidos-online/public`, {
+    params: { email }
+  });
+  return res.data;
+};
+
+// SERVICIO FRONTEND ADMIN: cambia el estado de un pedido web cuando se atiende o se recoge.
+export const updatePedidoOnlineEstado = async (
+  id: number,
+  estado: PedidoOnline['estado'],
+  token?: string | null
+): Promise<PedidoOnline> => {
+  const authToken = token ?? getToken();
+  const res = await axios.patch(`${API_URL}/pedidos-online/${id}/estado`, { estado }, {
+    headers: buildAuthHeaders(authToken)
+  });
+  return res.data;
 };
 
 // Pagos - Mercado Pago
+// SERVICIO FRONTEND: create Mercado Pago Preference llama al backend y devuelve la respuesta a React.
 export const createMercadoPagoPreference = async (payload: {
   items: Array<{
     title: string;
@@ -130,6 +254,27 @@ export const createMercadoPagoPreference = async (payload: {
   return res.data;
 };
 
+// SERVICIO FRONTEND PUBLICO: crea preferencia Mercado Pago para compras de clientes.
+export const createPublicMercadoPagoPreference = async (payload: {
+  items: Array<{
+    title: string;
+    quantity: number;
+    unit_price: number;
+  }>;
+  backUrls?: {
+    success?: string;
+    failure?: string;
+    pending?: string;
+  };
+  notificationUrl?: string;
+  externalReference?: string;
+  metadata?: Record<string, any>;
+}): Promise<{ id: string; init_point: string; sandbox_init_point?: string }> => {
+  const res = await axios.post(`${API_URL}/pagos/public/mercadopago/preference`, payload);
+  return res.data;
+};
+
+// SERVICIO FRONTEND: get Mercado Pago Payment llama al backend y devuelve la respuesta a React.
 export const getMercadoPagoPayment = async (paymentId: string, token?: string | null): Promise<{
   id: number;
   status: string;
@@ -143,23 +288,8 @@ export const getMercadoPagoPayment = async (paymentId: string, token?: string | 
   return res.data;
 };
 
-export const searchMercadoPagoPayment = async (externalReference: string, token?: string | null): Promise<{
-  payment: null | {
-    id: number;
-    status: string;
-    status_detail?: string;
-    transaction_amount?: number;
-    currency_id?: string;
-  };
-}> => {
-  const res = await axios.get(`${API_URL}/pagos/mercadopago/payments/search`, {
-    params: { external_reference: externalReference },
-    headers: buildAuthHeaders(token ?? getToken())
-  });
-  return res.data;
-};
-
-// Estadísticas y reportes
+// Estadísticas
+// SERVICIO FRONTEND: get Dashboard Stats llama al backend y devuelve la respuesta a React.
 export const getDashboardStats = async (): Promise<DashboardStats> => {
     const res = await axios.get(`${API_URL}/dashboard/stats`, {
       headers: buildAuthHeaders(getToken())
@@ -167,16 +297,8 @@ export const getDashboardStats = async (): Promise<DashboardStats> => {
     return res.data;
 };
 
-export const getVentasDeHoy = async (): Promise<Venta[]> => {
-    const token = getToken();
-    const res = await axios.get(`${API_URL}/ventas`, {
-        headers: buildAuthHeaders(token)
-    });
-    const hoy = new Date().toISOString().slice(0, 10);
-    return res.data.filter((v: Venta) => v.fecha && v.fecha.startsWith(hoy));
-};
-
 // DNI (autocompletar datos)
+// SERVICIO FRONTEND: get Persona Por Dni llama al backend y devuelve la respuesta a React.
 export const getPersonaPorDni = async (dni: string): Promise<{
   dni: string;
   nombres?: string;
@@ -191,166 +313,45 @@ export const getPersonaPorDni = async (dni: string): Promise<{
 };
 
 // Autenticación
-export const login = async (credentials: LoginData): Promise<{ token: string, user: User }> => {
+// SERVICIO: save Auth Token comunica este modulo con una API o backend.
+const saveAuthToken = (token: string) => {
+  localStorage.setItem('token', token);
+};
+
+// SERVICIO: get Auth Error Message comunica este modulo con una API o backend.
+const getAuthErrorMessage = (error: unknown, fallback: string) => {
+  if (axios.isAxiosError(error)) {
+    if (!error.response) {
+      return `No se pudo conectar con el backend (${API_URL}). Inicia el backend y, si usas ngrok, reinicia el frontend para activar el proxy.`;
+    }
+    return error.response?.data?.message || fallback;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return fallback;
+};
+
+// SERVICIO FRONTEND: login llama al backend y devuelve la respuesta a React.
+export const login = async (credentials: LoginData): Promise<AuthResponse> => {
     try {
         const res = await axios.post(`${API_URL}/auth/login`, credentials);
         const { token, user } = res.data;
-        localStorage.setItem('token', token);
+        saveAuthToken(token);
         return { token, user };
     } catch (error) {
-        if (axios.isAxiosError(error)) {
-            const message = error.response?.data?.message || 'Error de autenticación';
-            throw new Error(message);
-        }
-        throw error;
+        throw new Error(getAuthErrorMessage(error, 'Error de autenticación'));
     }
 };
 
-export const register = async (userData: RegisterData): Promise<User> => {
-    // Simulación de registro
-    if (userData.password !== userData.confirmPassword) {
-        throw new Error('Las contraseñas no coinciden');
-    }
-
-    return {
-        nombreUsuario: userData.nombreUsuario,
-        nombreCompleto: userData.nombreCompleto,
-        rol: userData.rol
-    };
-};
-
-// Usuarios (gestión)
-export interface UsuarioItem {
-  id: number;
-  nombre_usuario: string;
-  nombre_completo: string;
-  rol: 'ADMINISTRADOR' | 'CAJERO' | 'REPARTIDOR';
-  dni?: string | null;
-  telefono?: string | null;
-  email?: string | null;
-  foto_url?: string | null;
-  permisos?: Partial<UserPermissions> | null;
-  moto_matricula?: string | null;
-  repartidor_estado?: string | null;
-  last_lat?: number | null;
-  last_lng?: number | null;
-  last_seen_at?: string | null;
-  failed_attempts?: number | null;
-  lockouts?: number | null;
-  lock_until?: string | null;
-  is_blocked?: number | null;
-  is_active?: number | null;
-}
-
-const parsePermisos = (value: unknown): Partial<UserPermissions> | null => {
-  if (!value) return null;
-  if (typeof value === 'object') return value as Partial<UserPermissions>;
-  if (typeof value === 'string') {
+// SERVICIO FRONTEND: login With Google llama al backend y devuelve la respuesta a React.
+export const loginWithGoogle = async (credential: string): Promise<AuthResponse> => {
     try {
-      const parsed = JSON.parse(value);
-      if (parsed && typeof parsed === 'object') return parsed as Partial<UserPermissions>;
-      return null;
-    } catch {
-      return null;
+        const res = await axios.post(`${API_URL}/auth/google`, { credential });
+        const { token, user } = res.data;
+        saveAuthToken(token);
+        return { token, user };
+    } catch (error) {
+        throw new Error(getAuthErrorMessage(error, 'Continúa con un correo válido.'));
     }
-  }
-  return null;
-};
-
-const normalizeUsuarioItem = (item: any): UsuarioItem => ({
-  ...item,
-  permisos: parsePermisos(item?.permisos)
-});
-
-export const getUsuarios = async (): Promise<UsuarioItem[]> => {
-  const token = getToken();
-  const res = await axios.get(`${API_URL}/usuarios`, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  return (res.data || []).map(normalizeUsuarioItem);
-};
-
-export const createUsuario = async (payload: {
-  nombreUsuario: string;
-  nombreCompleto: string;
-  rol: 'ADMINISTRADOR' | 'CAJERO' | 'REPARTIDOR';
-  password: string;
-  telefono?: string;
-  email?: string;
-  fotoUrl?: string;
-  permisos?: Partial<UserPermissions> | null;
-  motoMatricula?: string;
-  repartidorEstado?: 'libre' | 'ocupado' | 'inactivo' | string;
-}): Promise<UsuarioItem> => {
-  const token = getToken();
-  const res = await axios.post(`${API_URL}/usuarios`, payload, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  return normalizeUsuarioItem(res.data);
-};
-
-export const updateUsuario = async (
-  id: number,
-  payload: {
-    nombreUsuario?: string;
-    nombreCompleto?: string;
-    rol?: 'ADMINISTRADOR' | 'CAJERO' | 'REPARTIDOR';
-    password?: string;
-    telefono?: string;
-    email?: string;
-    fotoUrl?: string;
-    isActive?: boolean;
-    permisos?: Partial<UserPermissions> | null;
-    motoMatricula?: string;
-    repartidorEstado?: 'libre' | 'ocupado' | 'inactivo' | string;
-  }
-): Promise<UsuarioItem> => {
-  const token = getToken();
-  const res = await axios.put(`${API_URL}/usuarios/${id}`, payload, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  return normalizeUsuarioItem(res.data);
-};
-
-export const unlockUsuario = async (id: number): Promise<UsuarioItem> => {
-  const token = getToken();
-  const res = await axios.put(`${API_URL}/usuarios/${id}/unlock`, null, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  return normalizeUsuarioItem(res.data);
-};
-
-export const deleteUsuario = async (id: number): Promise<void> => {
-  const token = getToken();
-  await axios.delete(`${API_URL}/usuarios/${id}`, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-};
-
-export interface ConfiguracionSistemaPayload {
-  personalizacion?: AppConfig;
-  boleta?: BoletaConfig;
-}
-
-export interface ConfiguracionSistemaResponse {
-  personalizacion: AppConfig | null;
-  boleta: BoletaConfig | null;
-}
-
-export const getConfiguracionSistema = async (): Promise<ConfiguracionSistemaResponse> => {
-  const token = getToken();
-  const res = await axios.get(`${API_URL}/configuracion`, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  return res.data;
-};
-
-export const saveConfiguracionSistema = async (
-  payload: ConfiguracionSistemaPayload
-): Promise<ConfiguracionSistemaResponse> => {
-  const token = getToken();
-  const res = await axios.put(`${API_URL}/configuracion`, payload, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  return res.data;
 };

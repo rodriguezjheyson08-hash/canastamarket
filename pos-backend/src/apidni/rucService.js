@@ -1,3 +1,9 @@
+/*
+ * MAPA DEL ARCHIVO: SERVICIO BACKEND
+ * UBICACION: pos-backend/src/apidni/rucService.js
+ * QUE HACE: Consulta RUC en un servicio externo desde el backend.
+ * GUIA: usa comentarios DISEÑO/LOGICA/RUTA/SERVICIO para ubicar rapido donde cambiar algo.
+ */
 const axios = require('axios');
 const env = require('../config/env');
 
@@ -6,19 +12,8 @@ const rucClient = axios.create({
   headers: { 'Content-Type': 'application/json' }
 });
 
-const getRucConfig = () => {
-  const baseUrl = env.ruc?.baseUrl || process.env.RUC_BASE_URL;
-  const token = env.ruc?.token || process.env.RUC_TOKEN;
-
-  if (!baseUrl) {
-    const error = new Error('RUC_BASE_URL no está configurado.');
-    error.status = 500;
-    throw error;
-  }
-
-  return { baseUrl, token };
-};
-
+// SERVICIO BACKEND - URL RUC:
+// Construye la URL final. Acepta plantillas con {ruc} o agrega parametro numero=<ruc>.
 const buildRucUrl = (baseUrl, ruc) => {
   const raw = String(baseUrl || '').trim();
   if (!raw) {
@@ -45,6 +40,8 @@ const buildRucUrl = (baseUrl, ruc) => {
   return parsed.toString();
 };
 
+// SERVICIO BACKEND - CONSULTA RUC:
+// Valida que el RUC tenga 11 digitos, llama la API configurada y devuelve sus datos.
 const consultarRuc = async (ruc) => {
   const cleanedRuc = String(ruc || '').trim();
   if (!/^\d{11}$/.test(cleanedRuc)) {
@@ -53,13 +50,10 @@ const consultarRuc = async (ruc) => {
     throw error;
   }
 
-  const { baseUrl, token } = getRucConfig();
+  const baseUrl = env.ruc?.baseUrl || process.env.RUC_BASE_URL;
+  const token = env.ruc?.token || process.env.RUC_TOKEN;
   const requestUrl = buildRucUrl(baseUrl, cleanedRuc);
-
-  const headers = {};
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
   const response = await rucClient.get(requestUrl, { headers });
   return response.data;
@@ -68,4 +62,3 @@ const consultarRuc = async (ruc) => {
 module.exports = {
   consultarRuc
 };
-

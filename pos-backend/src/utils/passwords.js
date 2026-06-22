@@ -1,3 +1,9 @@
+/*
+ * MAPA DEL ARCHIVO: UTILIDAD FRONTEND
+ * UBICACION: pos-backend/src/utils/passwords.js
+ * QUE HACE: Funciones auxiliares reutilizables.
+ * GUIA: usa comentarios DISEÑO/LOGICA/RUTA/SERVICIO para ubicar rapido donde cambiar algo.
+ */
 const crypto = require('crypto');
 
 const SCRYPT_PREFIX = 'scrypt';
@@ -12,6 +18,7 @@ const hashPassword = (rawPassword) => {
   return `${SCRYPT_PREFIX}$${salt}$${hash}`;
 };
 
+// LOGICA: verify Password concentra una operacion de este archivo.
 const verifyPassword = (storedPassword, rawPassword) => {
   const stored = String(storedPassword || '');
   const password = String(rawPassword || '');
@@ -28,6 +35,7 @@ const verifyPassword = (storedPassword, rawPassword) => {
   return crypto.timingSafeEqual(Buffer.from(actualHash, 'hex'), Buffer.from(expectedHash, 'hex'));
 };
 
+// LOGICA: needs Password Rehash concentra una operacion de este archivo.
 const needsPasswordRehash = (storedPassword) => {
   return !String(storedPassword || '').startsWith(`${SCRYPT_PREFIX}$`);
 };

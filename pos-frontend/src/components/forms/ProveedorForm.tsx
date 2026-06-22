@@ -1,63 +1,46 @@
+/*
+ * MAPA DEL ARCHIVO: FORMULARIO FRONTEND
+ * UBICACION: pos-frontend/src/components/forms/ProveedorForm.tsx
+ * QUE HACE: Contiene campos, validaciones visuales y envio de datos de un formulario.
+ * GUIA: usa comentarios DISEÑO/LOGICA/RUTA/SERVICIO para ubicar rapido donde cambiar algo.
+ */
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
   Alert,
   Box,
   Button,
-  Checkbox,
   CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
-  FormControlLabel,
   IconButton,
   InputAdornment,
-  Typography,
   TextField
 } from '@mui/material';
+// IMPORTACIONES FRONTEND: librerias, helpers y tipos que usa este archivo.
 import SearchIcon from '@mui/icons-material/Search';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { Proveedor } from '../../types';
 import { useI18n } from '../../hooks/useI18n';
 import { consultarRuc } from '../../services/proveedores';
+import { proveedorFormGridStyles, proveedorFormWarningStyles } from '../../features/proveedores/styles';
 
+// TIPOS FRONTEND: alias ProveedorFormData para ordenar datos internos.
 type ProveedorFormData = {
   numeroDocumento: string;
   razonSocial: string;
   direccion: string;
   estado: string;
   condicion: string;
-  ubigeo: string;
-  viaTipo: string;
-  viaNombre: string;
-  zonaCodigo: string;
-  zonaTipo: string;
-  numero: string;
-  interior: string;
-  lote: string;
-  dpto: string;
-  manzana: string;
-  kilometro: string;
   distrito: string;
   provincia: string;
   departamento: string;
-  tipo: string;
-  actividadEconomica: string;
-  numeroTrabajadores: string;
-  tipoFacturacion: string;
-  tipoContabilidad: string;
-  comercioExterior: string;
-  esAgenteRetencion: boolean;
-  esBuenContribuyente: boolean;
-  localesAnexos: any;
   contactoNombre: string;
   contactoTelefono: string;
   contactoEmail: string;
 };
 
+// TIPOS FRONTEND: props/datos ProveedorFormProps usados por este componente.
 interface ProveedorFormProps {
   open: boolean;
   onClose: () => void;
@@ -66,35 +49,16 @@ interface ProveedorFormProps {
   loading?: boolean;
 }
 
+// LOGICA: valores iniciales del formulario cuando se crea un proveedor nuevo.
 const emptyForm = (): ProveedorFormData => ({
   numeroDocumento: '',
   razonSocial: '',
   direccion: '',
   estado: '',
   condicion: '',
-  ubigeo: '',
-  viaTipo: '',
-  viaNombre: '',
-  zonaCodigo: '',
-  zonaTipo: '',
-  numero: '',
-  interior: '',
-  lote: '',
-  dpto: '',
-  manzana: '',
-  kilometro: '',
   distrito: '',
   provincia: '',
   departamento: '',
-  tipo: '',
-  actividadEconomica: '',
-  numeroTrabajadores: '',
-  tipoFacturacion: '',
-  tipoContabilidad: '',
-  comercioExterior: '',
-  esAgenteRetencion: false,
-  esBuenContribuyente: false,
-  localesAnexos: null,
   contactoNombre: '',
   contactoTelefono: '',
   contactoEmail: ''
@@ -106,6 +70,7 @@ const ProveedorForm: React.FC<ProveedorFormProps> = ({ open, onClose, onSubmit, 
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupError, setLookupError] = useState('');
 
+  // LOGICA: cuando se edita un proveedor carga sus datos; si es nuevo, limpia el formulario.
   useEffect(() => {
     if (proveedor) {
       setFormData({
@@ -114,32 +79,9 @@ const ProveedorForm: React.FC<ProveedorFormProps> = ({ open, onClose, onSubmit, 
         direccion: proveedor.direccion || '',
         estado: proveedor.estado || '',
         condicion: proveedor.condicion || '',
-        ubigeo: proveedor.ubigeo || '',
-        viaTipo: proveedor.viaTipo || '',
-        viaNombre: proveedor.viaNombre || '',
-        zonaCodigo: proveedor.zonaCodigo || '',
-        zonaTipo: proveedor.zonaTipo || '',
-        numero: proveedor.numero || '',
-        interior: proveedor.interior || '',
-        lote: proveedor.lote || '',
-        dpto: proveedor.dpto || '',
-        manzana: proveedor.manzana || '',
-        kilometro: proveedor.kilometro || '',
         distrito: proveedor.distrito || '',
         provincia: proveedor.provincia || '',
         departamento: proveedor.departamento || '',
-        tipo: proveedor.tipo || '',
-        actividadEconomica: proveedor.actividadEconomica || '',
-        numeroTrabajadores:
-          proveedor.numeroTrabajadores === null || proveedor.numeroTrabajadores === undefined
-            ? ''
-            : String(proveedor.numeroTrabajadores),
-        tipoFacturacion: proveedor.tipoFacturacion || '',
-        tipoContabilidad: proveedor.tipoContabilidad || '',
-        comercioExterior: proveedor.comercioExterior || '',
-        esAgenteRetencion: Boolean(proveedor.esAgenteRetencion),
-        esBuenContribuyente: Boolean(proveedor.esBuenContribuyente),
-        localesAnexos: proveedor.localesAnexos ?? null,
         contactoNombre: proveedor.contactoNombre || '',
         contactoTelefono: proveedor.contactoTelefono || '',
         contactoEmail: proveedor.contactoEmail || ''
@@ -151,27 +93,28 @@ const ProveedorForm: React.FC<ProveedorFormProps> = ({ open, onClose, onSubmit, 
     setLookupLoading(false);
   }, [proveedor, open]);
 
+  // LOGICA: valida que el RUC tenga exactamente 11 digitos para habilitar busqueda/guardado.
   const isRucValid = useMemo(() => /^\d{11}$/.test(formData.numeroDocumento.trim()), [formData.numeroDocumento]);
   const telefonoError = useMemo(() => {
-    const v = formData.contactoTelefono.trim();
-    return v !== '' && !/^\d{9}$/.test(v);
+    const value = formData.contactoTelefono.trim();
+    return value !== '' && !/^\d{9}$/.test(value);
   }, [formData.contactoTelefono]);
 
+  // LOGICA: controla lo que se escribe en cada campo; RUC y telefono solo aceptan numeros.
   const handleChange = (field: keyof ProveedorFormData) => (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
     if (field === 'numeroDocumento') {
-      const digits = value.replace(/\D/g, '').slice(0, 11);
-      setFormData((prev) => ({ ...prev, numeroDocumento: digits }));
+      setFormData((prev) => ({ ...prev, numeroDocumento: value.replace(/\D/g, '').slice(0, 11) }));
       return;
     }
     if (field === 'contactoTelefono') {
-      const digits = value.replace(/\D/g, '').slice(0, 9);
-      setFormData((prev) => ({ ...prev, contactoTelefono: digits }));
+      setFormData((prev) => ({ ...prev, contactoTelefono: value.replace(/\D/g, '').slice(0, 9) }));
       return;
     }
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  // LOGICA: boton de lupa del campo RUC; consulta datos SUNAT y rellena razon social/direccion.
   const handleLookup = async () => {
     setLookupError('');
     const ruc = formData.numeroDocumento.trim();
@@ -179,6 +122,7 @@ const ProveedorForm: React.FC<ProveedorFormProps> = ({ open, onClose, onSubmit, 
       setLookupError(t('El RUC debe tener 11 dígitos.', 'RUC must have 11 digits.'));
       return;
     }
+
     setLookupLoading(true);
     try {
       const data = await consultarRuc(ruc);
@@ -189,92 +133,51 @@ const ProveedorForm: React.FC<ProveedorFormProps> = ({ open, onClose, onSubmit, 
         direccion: String(data?.direccion || prev.direccion || ''),
         estado: String(data?.estado || prev.estado || ''),
         condicion: String(data?.condicion || prev.condicion || ''),
-        ubigeo: String(data?.ubigeo || prev.ubigeo || ''),
-        viaTipo: String(data?.via_tipo || prev.viaTipo || ''),
-        viaNombre: String(data?.via_nombre || prev.viaNombre || ''),
-        zonaCodigo: String(data?.zona_codigo || prev.zonaCodigo || ''),
-        zonaTipo: String(data?.zona_tipo || prev.zonaTipo || ''),
-        numero: String(data?.numero || prev.numero || ''),
-        interior: String(data?.interior || prev.interior || ''),
-        lote: String(data?.lote || prev.lote || ''),
-        dpto: String(data?.dpto || prev.dpto || ''),
-        manzana: String(data?.manzana || prev.manzana || ''),
-        kilometro: String(data?.kilometro || prev.kilometro || ''),
         distrito: String(data?.distrito || prev.distrito || ''),
         provincia: String(data?.provincia || prev.provincia || ''),
-        departamento: String(data?.departamento || prev.departamento || ''),
-        tipo: String(data?.tipo || prev.tipo || ''),
-        actividadEconomica: String(data?.actividad_economica || prev.actividadEconomica || ''),
-        numeroTrabajadores:
-          data?.numero_trabajadores === null || data?.numero_trabajadores === undefined
-            ? prev.numeroTrabajadores
-            : String(data?.numero_trabajadores),
-        tipoFacturacion: String(data?.tipo_facturacion || prev.tipoFacturacion || ''),
-        tipoContabilidad: String(data?.tipo_contabilidad || prev.tipoContabilidad || ''),
-        comercioExterior: String(data?.comercio_exterior || prev.comercioExterior || ''),
-        esAgenteRetencion: Boolean(data?.es_agente_retencion),
-        esBuenContribuyente: Boolean(data?.es_buen_contribuyente),
-        localesAnexos: data?.locales_anexos ?? prev.localesAnexos
+        departamento: String(data?.departamento || prev.departamento || '')
       }));
-    } catch (err: any) {
-      const message = String(err?.response?.data?.message || err?.message || '').trim();
+    } catch (error: any) {
+      const message = String(error?.response?.data?.message || error?.message || '').trim();
       setLookupError(message || t('No se pudo consultar RUC.', 'Could not look up RUC.'));
     } finally {
       setLookupLoading(false);
     }
   };
 
+  // LOGICA: boton Crear/Actualizar; envia los datos del formulario a la pagina principal.
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     if (telefonoError) {
-      setLookupError(t('El teléfono debe tener 9 dígitos.', 'Phone must be 9 digits.'));
+      setLookupError(t('El teléfono debe tener 9 dígitos.', 'Phone must have 9 digits.'));
       return;
     }
-    setLookupError('');
-    const payload: Partial<Proveedor> = {
+
+    onSubmit({
       numeroDocumento: formData.numeroDocumento.trim(),
       razonSocial: formData.razonSocial.trim(),
       direccion: formData.direccion.trim() || null,
       estado: formData.estado.trim() || null,
       condicion: formData.condicion.trim() || null,
-      ubigeo: formData.ubigeo.trim() || null,
-      viaTipo: formData.viaTipo.trim() || null,
-      viaNombre: formData.viaNombre.trim() || null,
-      zonaCodigo: formData.zonaCodigo.trim() || null,
-      zonaTipo: formData.zonaTipo.trim() || null,
-      numero: formData.numero.trim() || null,
-      interior: formData.interior.trim() || null,
-      lote: formData.lote.trim() || null,
-      dpto: formData.dpto.trim() || null,
-      manzana: formData.manzana.trim() || null,
-      kilometro: formData.kilometro.trim() || null,
       distrito: formData.distrito.trim() || null,
       provincia: formData.provincia.trim() || null,
       departamento: formData.departamento.trim() || null,
-      tipo: formData.tipo.trim() || null,
-      actividadEconomica: formData.actividadEconomica.trim() || null,
-      numeroTrabajadores: formData.numeroTrabajadores.trim() ? Number(formData.numeroTrabajadores) : null,
-      tipoFacturacion: formData.tipoFacturacion.trim() || null,
-      tipoContabilidad: formData.tipoContabilidad.trim() || null,
-      comercioExterior: formData.comercioExterior.trim() || null,
-      esAgenteRetencion: formData.esAgenteRetencion,
-      esBuenContribuyente: formData.esBuenContribuyente,
-      localesAnexos: formData.localesAnexos ?? null,
-	      contactoNombre: formData.contactoNombre.trim() || null,
-	      contactoTelefono: formData.contactoTelefono.trim() || null,
-	      contactoEmail: formData.contactoEmail.trim() || null
-	    };
-	    onSubmit(payload);
-	  };
+      contactoNombre: formData.contactoNombre.trim() || null,
+      contactoTelefono: formData.contactoTelefono.trim() || null,
+      contactoEmail: formData.contactoEmail.trim() || null
+    });
+  };
 
   return (
+    // DISENO: ventana emergente que se abre con "+ Nuevo" o con el icono de editar.
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <form onSubmit={handleSubmit}>
         <DialogTitle>
           {proveedor ? t('Editar Proveedor', 'Edit Supplier') : t('Nuevo Proveedor', 'New Supplier')}
         </DialogTitle>
         <DialogContent>
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2, mt: 1 }}>
+          {/* DISENO: espacio de campos; una columna en celular y dos columnas en pantallas medianas. */}
+          <Box sx={proveedorFormGridStyles}>
             <TextField
               label={t('RUC', 'RUC')}
               value={formData.numeroDocumento}
@@ -286,6 +189,7 @@ const ProveedorForm: React.FC<ProveedorFormProps> = ({ open, onClose, onSubmit, 
               InputProps={{
                 endAdornment: (
                   <InputAdornment position="end">
+                    {/* DISENO: icono de lupa. LOGICA: llama handleLookup para buscar el RUC ingresado. */}
                     <IconButton
                       aria-label={t('Buscar RUC', 'Search RUC')}
                       onClick={handleLookup}
@@ -298,145 +202,40 @@ const ProveedorForm: React.FC<ProveedorFormProps> = ({ open, onClose, onSubmit, 
                 )
               }}
             />
+            <TextField label={t('Razón social', 'Business name')} value={formData.razonSocial} onChange={handleChange('razonSocial')} required fullWidth />
+            <TextField label={t('Dirección', 'Address')} value={formData.direccion} onChange={handleChange('direccion')} fullWidth />
+            <TextField label={t('Contacto', 'Contact')} value={formData.contactoNombre} onChange={handleChange('contactoNombre')} fullWidth />
             <TextField
-              label={t('Razón social', 'Business name')}
-              value={formData.razonSocial}
-              onChange={handleChange('razonSocial')}
-              required
+              label={t('Teléfono', 'Phone')}
+              value={formData.contactoTelefono}
+              onChange={handleChange('contactoTelefono')}
               fullWidth
+              type="tel"
+              error={telefonoError}
+              helperText={telefonoError ? t('Debe tener 9 dígitos.', 'Must be 9 digits.') : t('9 dígitos', '9 digits')}
+              inputProps={{ inputMode: 'numeric', pattern: '[0-9]*', maxLength: 9 }}
             />
-            <TextField
-              label={t('Dirección', 'Address')}
-              value={formData.direccion}
-              onChange={handleChange('direccion')}
-              fullWidth
-            />
-            <TextField
-              label={t('Contacto', 'Contact')}
-              value={formData.contactoNombre}
-              onChange={handleChange('contactoNombre')}
-              fullWidth
-            />
-	            <TextField
-	              label={t('Teléfono', 'Phone')}
-	              value={formData.contactoTelefono}
-	              onChange={handleChange('contactoTelefono')}
-	              fullWidth
-	              type="tel"
-	              error={telefonoError}
-	              helperText={telefonoError ? t('Debe tener 9 dígitos.', 'Must be 9 digits.') : t('9 dígitos', '9 digits')}
-	              inputProps={{ inputMode: 'numeric', pattern: '[0-9]*', maxLength: 9 }}
-	            />
-            <TextField
-              label={t('Email', 'Email')}
-              value={formData.contactoEmail}
-              onChange={handleChange('contactoEmail')}
-              fullWidth
-              type="email"
-            />
-            <TextField
-              label={t('Estado', 'Status')}
-              value={formData.estado}
-              onChange={handleChange('estado')}
-              fullWidth
-            />
-            <TextField
-              label={t('Condición', 'Condition')}
-              value={formData.condicion}
-              onChange={handleChange('condicion')}
-              fullWidth
-            />
+            <TextField label={t('Email', 'Email')} value={formData.contactoEmail} onChange={handleChange('contactoEmail')} fullWidth type="email" />
+            <TextField label={t('Estado', 'Status')} value={formData.estado} onChange={handleChange('estado')} fullWidth />
+            <TextField label={t('Condición', 'Condition')} value={formData.condicion} onChange={handleChange('condicion')} fullWidth />
             <TextField label={t('Distrito', 'District')} value={formData.distrito} onChange={handleChange('distrito')} fullWidth />
             <TextField label={t('Provincia', 'Province')} value={formData.provincia} onChange={handleChange('provincia')} fullWidth />
             <TextField label={t('Departamento', 'Region')} value={formData.departamento} onChange={handleChange('departamento')} fullWidth />
-            <TextField label={t('Ubigeo', 'Ubigeo')} value={formData.ubigeo} onChange={handleChange('ubigeo')} fullWidth />
           </Box>
 
-          <Accordion sx={{ mt: 2 }} variant="outlined">
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Typography variant="subtitle2">{t('Datos SUNAT (opcional)', 'SUNAT data (optional)')}</Typography>
-            </AccordionSummary>
-            <AccordionDetails>
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
-                <TextField label={t('Vía tipo', 'Road type')} value={formData.viaTipo} onChange={handleChange('viaTipo')} fullWidth />
-                <TextField label={t('Vía nombre', 'Road name')} value={formData.viaNombre} onChange={handleChange('viaNombre')} fullWidth />
-                <TextField label={t('Zona código', 'Zone code')} value={formData.zonaCodigo} onChange={handleChange('zonaCodigo')} fullWidth />
-                <TextField label={t('Zona tipo', 'Zone')} value={formData.zonaTipo} onChange={handleChange('zonaTipo')} fullWidth />
-                <TextField label={t('Número', 'Number')} value={formData.numero} onChange={handleChange('numero')} fullWidth />
-                <TextField label={t('Interior', 'Interior')} value={formData.interior} onChange={handleChange('interior')} fullWidth />
-                <TextField label={t('Lote', 'Lot')} value={formData.lote} onChange={handleChange('lote')} fullWidth />
-                <TextField label={t('Dpto', 'Apt')} value={formData.dpto} onChange={handleChange('dpto')} fullWidth />
-                <TextField label={t('Manzana', 'Block')} value={formData.manzana} onChange={handleChange('manzana')} fullWidth />
-                <TextField label={t('Kilómetro', 'Km')} value={formData.kilometro} onChange={handleChange('kilometro')} fullWidth />
-                <TextField label={t('Tipo', 'Type')} value={formData.tipo} onChange={handleChange('tipo')} fullWidth />
-                <TextField
-                  label={t('Actividad económica', 'Economic activity')}
-                  value={formData.actividadEconomica}
-                  onChange={handleChange('actividadEconomica')}
-                  fullWidth
-                />
-                <TextField
-                  label={t('N° trabajadores', 'Workers')}
-                  value={formData.numeroTrabajadores}
-                  onChange={handleChange('numeroTrabajadores')}
-                  fullWidth
-                  inputProps={{ inputMode: 'numeric' }}
-                />
-                <TextField
-                  label={t('Tipo facturación', 'Billing type')}
-                  value={formData.tipoFacturacion}
-                  onChange={handleChange('tipoFacturacion')}
-                  fullWidth
-                />
-                <TextField
-                  label={t('Tipo contabilidad', 'Accounting type')}
-                  value={formData.tipoContabilidad}
-                  onChange={handleChange('tipoContabilidad')}
-                  fullWidth
-                />
-                <TextField
-                  label={t('Comercio exterior', 'Foreign trade')}
-                  value={formData.comercioExterior}
-                  onChange={handleChange('comercioExterior')}
-                  fullWidth
-                />
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={formData.esAgenteRetencion}
-                      onChange={(_e, checked) => setFormData((prev) => ({ ...prev, esAgenteRetencion: checked }))}
-                    />
-                  }
-                  label={t('Agente de retención', 'Withholding agent')}
-                />
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={formData.esBuenContribuyente}
-                      onChange={(_e, checked) => setFormData((prev) => ({ ...prev, esBuenContribuyente: checked }))}
-                    />
-                  }
-                  label={t('Buen contribuyente', 'Good taxpayer')}
-                />
-              </Box>
-            </AccordionDetails>
-          </Accordion>
-
+          {/* DISENO: mensaje de advertencia. LOGICA: aparece cuando lookupError tiene texto. */}
           {lookupError && (
-            <Alert severity="warning" sx={{ mt: 2 }}>
+            <Alert severity="warning" sx={proveedorFormWarningStyles}>
               {lookupError}
             </Alert>
           )}
         </DialogContent>
+        {/* DISENO: botones inferiores del modal: Cancelar y Crear/Actualizar. */}
         <DialogActions>
           <Button onClick={onClose} disabled={loading || lookupLoading}>
             {t('Cancelar', 'Cancel')}
           </Button>
-          <Button
-            type="submit"
-            variant="contained"
-            disabled={loading || lookupLoading || !isRucValid || !formData.razonSocial.trim() || telefonoError}
-          >
+          <Button type="submit" variant="contained" disabled={loading || lookupLoading || !isRucValid || !formData.razonSocial.trim() || telefonoError}>
             {loading ? t('Guardando...', 'Saving...') : proveedor ? t('Actualizar', 'Update') : t('Crear', 'Create')}
           </Button>
         </DialogActions>

@@ -1,77 +1,53 @@
+/*
+ * MAPA DEL ARCHIVO: UTILIDAD FRONTEND
+ * UBICACION: pos-frontend/src/utils/permissions.ts
+ * QUE HACE: Funciones auxiliares reutilizables.
+ * GUIA: usa comentarios DISEÑO/LOGICA/RUTA/SERVICIO para ubicar rapido donde cambiar algo.
+ */
 import { PermissionKey, User, UserPermissions } from '../types';
 
 export const PERMISSION_KEYS: PermissionKey[] = [
   'ventas',
-  'pedidos',
-  'reparto',
-  'mesas',
   'productos',
-  'proveedores',
   'categorias',
-  'reportes',
-  'detalleCajero',
+  'proveedores',
   'configuracion'
 ];
 
+// CONSTANTE: PERMISSION_LABELS guarda un valor fijo usado por este bloque.
 export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   ventas: 'Ventas',
-  pedidos: 'Pedidos',
-  reparto: 'Reparto',
-  mesas: 'Mesas',
   productos: 'Productos',
+  categorias: 'Categorías',
   proveedores: 'Proveedores',
-  categorias: 'Categorias',
-  reportes: 'Reportes',
-  detalleCajero: 'Detalle cajero',
-  configuracion: 'Configuracion'
+  configuracion: 'Configuración'
 };
 
+// CONSTANTE: DEFAULT_ADMIN_PERMISSIONS guarda un valor fijo usado por este bloque.
 export const DEFAULT_ADMIN_PERMISSIONS: UserPermissions = {
   ventas: true,
-  pedidos: true,
-  reparto: true,
-  mesas: true,
   productos: true,
-  proveedores: true,
   categorias: true,
-  reportes: true,
-  detalleCajero: true,
+  proveedores: true,
   configuracion: true
 };
 
+// CONSTANTE: DEFAULT_CAJERO_PERMISSIONS guarda un valor fijo usado por este bloque.
 export const DEFAULT_CAJERO_PERMISSIONS: UserPermissions = {
   ventas: true,
-  pedidos: true,
-  reparto: false,
-  mesas: true,
   productos: false,
-  proveedores: false,
   categorias: false,
-  reportes: false,
-  detalleCajero: false,
-  configuracion: true
+  proveedores: false,
+  configuracion: false
 };
 
-export const DEFAULT_REPARTIDOR_PERMISSIONS: UserPermissions = {
-  ventas: false,
-  pedidos: false,
-  reparto: true,
-  mesas: false,
-  productos: false,
-  proveedores: false,
-  categorias: false,
-  reportes: false,
-  detalleCajero: false,
-  configuracion: true
-};
-
+// LOGICA: normalize Permissions encapsula una operacion reutilizable.
 export const normalizePermissions = (
-  rol: 'ADMINISTRADOR' | 'CAJERO' | 'REPARTIDOR' | string | undefined,
+  rol: 'ADMINISTRADOR' | 'CAJERO' | string | undefined,
   permissions?: Partial<UserPermissions> | null
 ): UserPermissions => {
   const isAdmin = String(rol || '').toUpperCase() === 'ADMINISTRADOR';
-  const isRepartidor = String(rol || '').toUpperCase() === 'REPARTIDOR';
-  const base = isAdmin ? DEFAULT_ADMIN_PERMISSIONS : (isRepartidor ? DEFAULT_REPARTIDOR_PERMISSIONS : DEFAULT_CAJERO_PERMISSIONS);
+  const base = isAdmin ? DEFAULT_ADMIN_PERMISSIONS : DEFAULT_CAJERO_PERMISSIONS;
   const normalized: UserPermissions = { ...base };
   const source = permissions || {};
 
@@ -90,27 +66,9 @@ export const normalizePermissions = (
   return normalized;
 };
 
+// LOGICA: can Access encapsula una operacion reutilizable.
 export const canAccess = (user: User | null | undefined, permission: PermissionKey): boolean => {
   if (!user) return false;
   const permissions = normalizePermissions(user.rol, user.permisos || null);
   return Boolean(permissions[permission]);
-};
-
-export const getPermissionLabel = (permission: PermissionKey, idioma: string): string => {
-  if (idioma !== 'en') return PERMISSION_LABELS[permission];
-
-  const englishLabels: Record<PermissionKey, string> = {
-    ventas: 'Sales',
-    pedidos: 'Orders',
-    reparto: 'Delivery',
-    mesas: 'Tables',
-    productos: 'Products',
-    proveedores: 'Suppliers',
-    categorias: 'Categories',
-    reportes: 'Reports',
-    detalleCajero: 'Cashier Details',
-    configuracion: 'Settings'
-  };
-
-  return englishLabels[permission];
 };

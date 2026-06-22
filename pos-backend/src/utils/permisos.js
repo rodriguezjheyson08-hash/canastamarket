@@ -1,55 +1,36 @@
+/*
+ * MAPA DEL ARCHIVO: UTILIDAD FRONTEND
+ * UBICACION: pos-backend/src/utils/permisos.js
+ * QUE HACE: Funciones auxiliares reutilizables.
+ * GUIA: usa comentarios DISEÑO/LOGICA/RUTA/SERVICIO para ubicar rapido donde cambiar algo.
+ */
 const PERMISSION_KEYS = [
   'ventas',
-  'pedidos',
-  'reparto',
-  'mesas',
   'productos',
-  'proveedores',
   'categorias',
-  'reportes',
-  'detalleCajero',
+  'proveedores',
   'configuracion'
 ];
 
+// CONSTANTE: DEFAULT_ADMIN_PERMISOS guarda configuracion o valor fijo del archivo.
 const DEFAULT_ADMIN_PERMISOS = {
   ventas: true,
-  pedidos: true,
-  reparto: true,
-  mesas: true,
   productos: true,
-  proveedores: true,
   categorias: true,
-  reportes: true,
-  detalleCajero: true,
+  proveedores: true,
   configuracion: true
 };
 
+// CONSTANTE: DEFAULT_CAJERO_PERMISOS guarda configuracion o valor fijo del archivo.
 const DEFAULT_CAJERO_PERMISOS = {
   ventas: true,
-  pedidos: true,
-  reparto: false,
-  mesas: true,
   productos: false,
-  proveedores: false,
   categorias: false,
-  reportes: false,
-  detalleCajero: false,
-  configuracion: true
+  proveedores: false,
+  configuracion: false
 };
 
-const DEFAULT_REPARTIDOR_PERMISOS = {
-  ventas: false,
-  pedidos: false,
-  reparto: true,
-  mesas: false,
-  productos: false,
-  proveedores: false,
-  categorias: false,
-  reportes: false,
-  detalleCajero: false,
-  configuracion: true
-};
-
+// LOGICA: parse Permisos concentra una operacion de este archivo.
 const parsePermisos = (permisos) => {
   if (!permisos) return {};
   if (typeof permisos === 'object') return permisos;
@@ -62,10 +43,10 @@ const parsePermisos = (permisos) => {
   }
 };
 
+// LOGICA: normalize Permisos concentra una operacion de este archivo.
 const normalizePermisos = (rol, permisos) => {
   const isAdmin = String(rol || '').toUpperCase() === 'ADMINISTRADOR';
-  const isRepartidor = String(rol || '').toUpperCase() === 'REPARTIDOR';
-  const base = isAdmin ? DEFAULT_ADMIN_PERMISOS : (isRepartidor ? DEFAULT_REPARTIDOR_PERMISOS : DEFAULT_CAJERO_PERMISOS);
+  const base = isAdmin ? DEFAULT_ADMIN_PERMISOS : DEFAULT_CAJERO_PERMISOS;
   const input = parsePermisos(permisos);
   const normalized = { ...base };
 
@@ -85,9 +66,5 @@ const normalizePermisos = (rol, permisos) => {
 };
 
 module.exports = {
-  PERMISSION_KEYS,
-  DEFAULT_ADMIN_PERMISOS,
-  DEFAULT_CAJERO_PERMISOS,
-  DEFAULT_REPARTIDOR_PERMISOS,
   normalizePermisos
 };

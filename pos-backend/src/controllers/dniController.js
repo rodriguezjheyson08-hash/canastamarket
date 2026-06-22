@@ -1,3 +1,11 @@
+/*
+ * MAPA DEL ARCHIVO: CONTROLADOR BACKEND
+ * UBICACION: pos-backend/src/controllers/dniController.js
+ * QUE HACE: Recibe req/res, ejecuta logica de negocio y responde al frontend.
+ * GUIA: usa comentarios DISEÑO/LOGICA/RUTA/SERVICIO para ubicar rapido donde cambiar algo.
+ */
+// CONTROLADOR BACKEND - DNI:
+// Recibe el DNI desde la URL, llama el servicio RENIEC y responde datos normalizados al frontend.
 const axios = require('axios');
 const { consultarDni } = require('../apidni/dniService');
 
@@ -17,6 +25,7 @@ const normalizeDniData = (inputDni, data) => {
   };
 };
 
+// CONTROLADOR BACKEND: get Persona Por Dni procesa request/respuesta de este flujo.
 const getPersonaPorDni = async (req, res) => {
   const dni = req.params.dni || req.query.dni;
   if (!dni) {

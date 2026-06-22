@@ -1,8 +1,17 @@
+/*
+ * MAPA DEL ARCHIVO: UTILIDAD FRONTEND
+ * UBICACION: pos-backend/src/utils/ensurePasswordColumnSchema.js
+ * QUE HACE: Funciones auxiliares reutilizables.
+ * GUIA: usa comentarios DISEÑO/LOGICA/RUTA/SERVICIO para ubicar rapido donde cambiar algo.
+ */
+// UTILIDAD BACKEND - ESQUEMA PASSWORD:
+// Verifica que las columnas de password/login existan y tengan tipo correcto.
 const pool = require('../db/pool');
 
 const checkedColumns = new Set();
 const PASSWORD_LENGTH = 255;
 
+// LOGICA: ensure Password Column Schema concentra una operacion de este archivo.
 const ensurePasswordColumnSchema = async ({ tableName, nullable = false, runner = pool }) => {
   const cacheKey = `${tableName}:${nullable ? 'null' : 'not-null'}`;
   if (checkedColumns.has(cacheKey)) return;

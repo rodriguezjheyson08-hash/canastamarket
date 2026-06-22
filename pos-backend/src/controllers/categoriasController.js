@@ -1,14 +1,34 @@
+/*
+ * MAPA DEL ARCHIVO: CONTROLADOR BACKEND
+ * UBICACION: pos-backend/src/controllers/categoriasController.js
+ * QUE HACE: Recibe req/res, ejecuta logica de negocio y responde al frontend.
+ * GUIA: usa comentarios DISEÑO/LOGICA/RUTA/SERVICIO para ubicar rapido donde cambiar algo.
+ */
 const pool = require('../db/pool');
+const {
+  categoryAvailabilitySql,
+  isRemovedCategoryName
+} = require('../utils/catalogAvailability');
 
+// CONTROLADOR BACKEND: list Categorias procesa request/respuesta de este flujo.
 const listCategorias = async (_req, res) => {
-  const [rows] = await pool.query('SELECT id, nombre, descripcion FROM categorias ORDER BY nombre');
+  const [rows] = await pool.query(
+    `SELECT id, nombre, descripcion
+       FROM categorias c
+      WHERE ${categoryAvailabilitySql('c')}
+      ORDER BY nombre`
+  );
   res.json(rows);
 };
 
+// CONTROLADOR BACKEND: create Categoria procesa request/respuesta de este flujo.
 const createCategoria = async (req, res) => {
   const { nombre, descripcion } = req.body;
   if (!nombre) {
     return res.status(400).json({ message: 'El nombre es obligatorio.' });
+  }
+  if (isRemovedCategoryName(nombre)) {
+    return res.status(400).json({ message: 'Esta categoría no está disponible.' });
   }
 
   const [result] = await pool.execute(
@@ -22,9 +42,14 @@ const createCategoria = async (req, res) => {
   res.status(201).json(rows[0]);
 };
 
+// CONTROLADOR BACKEND: update Categoria procesa request/respuesta de este flujo.
 const updateCategoria = async (req, res) => {
   const { id } = req.params;
   const { nombre, descripcion } = req.body;
+
+  if (nombre !== undefined && isRemovedCategoryName(nombre)) {
+    return res.status(400).json({ message: 'Esta categoría no está disponible.' });
+  }
 
   const [result] = await pool.execute(
     'UPDATE categorias SET nombre = COALESCE(?, nombre), descripcion = COALESCE(?, descripcion) WHERE id = ?',
@@ -42,6 +67,7 @@ const updateCategoria = async (req, res) => {
   res.json(rows[0]);
 };
 
+// CONTROLADOR BACKEND: delete Categoria procesa request/respuesta de este flujo.
 const deleteCategoria = async (req, res) => {
   const { id } = req.params;
   const [result] = await pool.execute('DELETE FROM categorias WHERE id = ?', [id]);

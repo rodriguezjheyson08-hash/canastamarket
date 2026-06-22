@@ -1,14 +1,22 @@
+/*
+ * MAPA DEL ARCHIVO: CONTEXTO FRONTEND
+ * UBICACION: pos-frontend/src/contexts/AuthContext.tsx
+ * QUE HACE: Estado global compartido con React Context.
+ * GUIA: usa comentarios DISEÑO/LOGICA/RUTA/SERVICIO para ubicar rapido donde cambiar algo.
+ */
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, LoginData } from '../types';
-import { login as apiLogin } from '../services/api';
-import { getUserPermissionsForId, setUserPermissionsForId } from '../utils/userPermissionsMap';
+import { login as apiLogin, loginWithGoogle as apiLoginWithGoogle } from '../services/api';
+
+// TIPOS FRONTEND: alias LoginResult para ordenar datos internos.
+type LoginResult = { ok: boolean; message?: string; user?: User };
 
 interface AuthContextType {
   isAuthenticated: boolean;
   loading: boolean;
-  login: (credentials: LoginData) => Promise<{ ok: boolean; message?: string }>;
+  login: (credentials: LoginData) => Promise<LoginResult>;
+  loginWithGoogle: (credential: string) => Promise<LoginResult>;
   logout: () => void;
-  updateUser: (user: User) => void;
   user: User | null;
 }
 
@@ -16,8 +24,8 @@ const AuthContext = createContext<AuthContextType>({
   isAuthenticated: false,
   loading: false,
   login: async () => ({ ok: false }),
+  loginWithGoogle: async () => ({ ok: false }),
   logout: () => {},
-  updateUser: () => {},
   user: null,
 });
 
@@ -32,12 +40,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (token && userData) {
       setIsAuthenticated(true);
       try {
-        const parsedUser = JSON.parse(userData) as User;
-        const localPermissions = getUserPermissionsForId(parsedUser?.id);
-        setUser({
-          ...parsedUser,
-          permisos: localPermissions || parsedUser?.permisos || null
-        });
+        setUser(JSON.parse(userData) as User);
       } catch {
         setUser(null);
       }
@@ -45,27 +48,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(false);
   }, []);
 
+// LOGICA: persist Authenticated User concentra una operacion de este archivo.
+  const persistAuthenticatedUser = (authenticatedUser: User) => {
+    localStorage.setItem('user', JSON.stringify(authenticatedUser));
+    setIsAuthenticated(true);
+    setUser(authenticatedUser);
+  };
+
+// LOGICA: login concentra una operacion de este archivo.
   const login = async (credentials: LoginData) => {
     try {
       const { user } = await apiLogin(credentials);
-      const localPermissions = getUserPermissionsForId(user?.id);
-      const normalizedUser = {
-        ...user,
-        permisos: localPermissions || user?.permisos || null
-      };
-      if (normalizedUser.id && normalizedUser.permisos) {
-        setUserPermissionsForId(normalizedUser.id, normalizedUser.permisos);
-      }
-      localStorage.setItem('user', JSON.stringify(normalizedUser));
-      setIsAuthenticated(true);
-      setUser(normalizedUser);
-      return { ok: true };
+      persistAuthenticatedUser(user);
+      return { ok: true, user };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Error al iniciar sesión';
       return { ok: false, message };
     }
   };
 
+// LOGICA: login With Google concentra una operacion de este archivo.
+  const loginWithGoogle = async (credential: string) => {
+    try {
+      const { user } = await apiLoginWithGoogle(credential);
+      persistAuthenticatedUser(user);
+      return { ok: true, user };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Continúa con un correo válido.';
+      return { ok: false, message };
+    }
+  };
+
+// LOGICA: logout concentra una operacion de este archivo.
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -73,20 +87,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
   };
 
-  const updateUser = (updatedUser: User) => {
-    if (updatedUser.id && updatedUser.permisos) {
-      setUserPermissionsForId(updatedUser.id, updatedUser.permisos);
-    }
-    localStorage.setItem('user', JSON.stringify(updatedUser));
-    setUser(updatedUser);
-    setIsAuthenticated(true);
-  };
-
   return (
-    <AuthContext.Provider value={{ isAuthenticated, loading, login, logout, updateUser, user }}>
+    <AuthContext.Provider value={{ isAuthenticated, loading, login, loginWithGoogle, logout, user }}>
       {children}
     </AuthContext.Provider>
   );
 };
 
+// CONTEXTO FRONTEND: bloque use Auth.
 export const useAuth = () => useContext(AuthContext); 

@@ -1,43 +1,68 @@
 USE licoreria_pos;
 
+-- ESQUEMA PROVEEDORES:
+-- Tabla limpia con solo los campos que aparecen en el formulario/lista de proveedores.
 CREATE TABLE IF NOT EXISTS proveedores (
   id INT AUTO_INCREMENT PRIMARY KEY,
   numero_documento VARCHAR(11) NOT NULL UNIQUE,
   razon_social VARCHAR(180) NOT NULL,
-  estado VARCHAR(30) NULL,
-  condicion VARCHAR(30) NULL,
   direccion VARCHAR(255) NULL,
-  ubigeo VARCHAR(10) NULL,
-  via_tipo VARCHAR(20) NULL,
-  via_nombre VARCHAR(120) NULL,
-  zona_codigo VARCHAR(20) NULL,
-  zona_tipo VARCHAR(80) NULL,
-  numero VARCHAR(20) NULL,
-  interior VARCHAR(20) NULL,
-  lote VARCHAR(20) NULL,
-  dpto VARCHAR(20) NULL,
-  manzana VARCHAR(20) NULL,
-  kilometro VARCHAR(20) NULL,
-  distrito VARCHAR(80) NULL,
-  provincia VARCHAR(80) NULL,
-  departamento VARCHAR(80) NULL,
-  tipo VARCHAR(120) NULL,
-  actividad_economica VARCHAR(255) NULL,
-  numero_trabajadores INT NULL,
-  tipo_facturacion VARCHAR(80) NULL,
-  tipo_contabilidad VARCHAR(80) NULL,
-  comercio_exterior VARCHAR(80) NULL,
-  es_agente_retencion TINYINT(1) NULL,
-  es_buen_contribuyente TINYINT(1) NULL,
-  locales_anexos LONGTEXT NULL,
   contacto_nombre VARCHAR(120) NULL,
   contacto_telefono VARCHAR(30) NULL,
   contacto_email VARCHAR(180) NULL,
+  estado VARCHAR(30) NULL,
+  condicion VARCHAR(30) NULL,
+  distrito VARCHAR(80) NULL,
+  provincia VARCHAR(80) NULL,
+  departamento VARCHAR(80) NULL,
   activo TINYINT(1) NOT NULL DEFAULT 1,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
+-- LIMPIEZA PROVEEDORES:
+-- Si la tabla ya tenia campos antiguos de SUNAT que ya no usa el formulario, se eliminan.
+-- DROP COLUMN IF EXISTS requiere MySQL 8.0.29+.
+ALTER TABLE proveedores
+  DROP COLUMN IF EXISTS ubigeo,
+  DROP COLUMN IF EXISTS via_tipo,
+  DROP COLUMN IF EXISTS via_nombre,
+  DROP COLUMN IF EXISTS zona_codigo,
+  DROP COLUMN IF EXISTS zona_tipo,
+  DROP COLUMN IF EXISTS numero,
+  DROP COLUMN IF EXISTS interior,
+  DROP COLUMN IF EXISTS lote,
+  DROP COLUMN IF EXISTS dpto,
+  DROP COLUMN IF EXISTS manzana,
+  DROP COLUMN IF EXISTS kilometro,
+  DROP COLUMN IF EXISTS tipo,
+  DROP COLUMN IF EXISTS actividad_economica,
+  DROP COLUMN IF EXISTS numero_trabajadores,
+  DROP COLUMN IF EXISTS tipo_facturacion,
+  DROP COLUMN IF EXISTS tipo_contabilidad,
+  DROP COLUMN IF EXISTS comercio_exterior,
+  DROP COLUMN IF EXISTS es_agente_retencion,
+  DROP COLUMN IF EXISTS es_buen_contribuyente,
+  DROP COLUMN IF EXISTS locales_anexos;
+
+-- COMPATIBILIDAD PROVEEDORES:
+-- Agrega los campos actuales si la tabla ya existia y le falta alguno.
+ALTER TABLE proveedores
+  ADD COLUMN IF NOT EXISTS direccion VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS contacto_nombre VARCHAR(120) NULL,
+  ADD COLUMN IF NOT EXISTS contacto_telefono VARCHAR(30) NULL,
+  ADD COLUMN IF NOT EXISTS contacto_email VARCHAR(180) NULL,
+  ADD COLUMN IF NOT EXISTS estado VARCHAR(30) NULL,
+  ADD COLUMN IF NOT EXISTS condicion VARCHAR(30) NULL,
+  ADD COLUMN IF NOT EXISTS distrito VARCHAR(80) NULL,
+  ADD COLUMN IF NOT EXISTS provincia VARCHAR(80) NULL,
+  ADD COLUMN IF NOT EXISTS departamento VARCHAR(80) NULL,
+  ADD COLUMN IF NOT EXISTS activo TINYINT(1) NOT NULL DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+
+-- PEDIDOS DE COMPRA:
+-- Se mantienen porque la pantalla proveedores tiene la pestana "Pedidos de compra".
 CREATE TABLE IF NOT EXISTS pedidos_compra (
   id INT AUTO_INCREMENT PRIMARY KEY,
   proveedor_id INT NOT NULL,

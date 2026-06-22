@@ -1,8 +1,15 @@
+/*
+ * MAPA DEL ARCHIVO: PAGOS BACKEND
+ * UBICACION: pos-backend/src/pagos/mercadopagoService.js
+ * QUE HACE: Logica de pagos e integracion con Mercado Pago.
+ * GUIA: usa comentarios DISEÑO/LOGICA/RUTA/SERVICIO para ubicar rapido donde cambiar algo.
+ */
 const axios = require('axios');
 const env = require('../config/env');
 
 const MP_BASE_URL = 'https://api.mercadopago.com';
 
+// LOGICA: get Access Token concentra una operacion de este archivo.
 const getAccessToken = () => {
   const token = env.mercadoPago?.accessToken || process.env.MP_ACCESS_TOKEN;
   if (!token) {
@@ -19,6 +26,7 @@ const mpClient = axios.create({
   timeout: 10000
 });
 
+// LOGICA: create Preference concentra una operacion de este archivo.
 const createPreference = async (payload) => {
   const token = getAccessToken();
   const res = await mpClient.post('/checkout/preferences', payload, {
@@ -27,6 +35,7 @@ const createPreference = async (payload) => {
   return res.data;
 };
 
+// LOGICA: get Payment concentra una operacion de este archivo.
 const getPayment = async (paymentId) => {
   const token = getAccessToken();
   const res = await mpClient.get(`/v1/payments/${paymentId}`, {
@@ -35,22 +44,7 @@ const getPayment = async (paymentId) => {
   return res.data;
 };
 
-const searchPaymentsByExternalReference = async (externalReference, limit = 10) => {
-  const token = getAccessToken();
-  const res = await mpClient.get('/v1/payments/search', {
-    params: {
-      external_reference: externalReference,
-      sort: 'date_created',
-      criteria: 'desc',
-      limit
-    },
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  return res.data;
-};
-
 module.exports = {
   createPreference,
-  getPayment,
-  searchPaymentsByExternalReference
+  getPayment
 };
