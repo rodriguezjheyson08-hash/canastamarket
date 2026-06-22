@@ -93,9 +93,13 @@ app.use((err, _req, res, _next) => {
   });
 });
 
-app.listen(env.port, '0.0.0.0', () => {
-  if (String(env.auth?.secret || '').trim() === DEFAULT_AUTH_SECRET) {
-    console.warn('AUTH_SECRET no está configurado. Cambia esa clave antes de producción.');
-  }
-  logServerUrls(env.port);
-});
+if (require.main === module) {
+  app.listen(env.port, '0.0.0.0', () => {
+    if (String(env.auth?.secret || '').trim() === DEFAULT_AUTH_SECRET) {
+      console.warn('AUTH_SECRET no está configurado. Cambia esa clave antes de producción.');
+    }
+    logServerUrls(env.port);
+  });
+}
+
+module.exports = app;

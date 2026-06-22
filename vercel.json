@@ -1,0 +1,18 @@
+{
+  "installCommand": "cd pos-backend && npm ci && cd ../pos-frontend && npm ci",
+  "buildCommand": "cd pos-frontend && npm run build",
+  "outputDirectory": "pos-frontend/build",
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/index.js"
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ]
+}
