@@ -7,7 +7,7 @@
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import ReportesPage from '../../pages/09-ReportesPage';
-import { getDashboardStats, getVentas } from '../../services/api';
+import { getDashboardStats, getPedidosOnline, getVentas } from '../../services/api';
 import { DashboardStats, User, Venta } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -15,7 +15,8 @@ import { useAuth } from '../../contexts/AuthContext';
 // Evita llamadas reales al backend y permite controlar las estadisticas y ventas.
 jest.mock('../../services/api', () => ({
   getDashboardStats: jest.fn(),
-  getVentas: jest.fn()
+  getVentas: jest.fn(),
+  getPedidosOnline: jest.fn()
 }));
 
 // MOCK REPORTES - AUTENTICACION:
@@ -123,6 +124,7 @@ const ventasBase: Venta[] = [
 const mockedUseAuth = useAuth as jest.MockedFunction<typeof useAuth>;
 const mockedGetDashboardStats = getDashboardStats as jest.MockedFunction<typeof getDashboardStats>;
 const mockedGetVentas = getVentas as jest.MockedFunction<typeof getVentas>;
+const mockedGetPedidosOnline = getPedidosOnline as jest.MockedFunction<typeof getPedidosOnline>;
 const originalConsoleError = console.error;
 
 // HELPER TEST - WARNINGS CONOCIDOS:
@@ -163,6 +165,7 @@ const renderAsAdmin = async (ventas: Venta[] = ventasBase, stats: DashboardStats
   });
   mockedGetDashboardStats.mockResolvedValue(stats);
   mockedGetVentas.mockResolvedValue(ventas);
+  mockedGetPedidosOnline.mockResolvedValue([]);
 
   render(<ReportesPage />);
 
@@ -265,8 +268,10 @@ describe('ReportesPage ventas', () => {
     await renderAsAdmin();
 
     // TEST DETALLE - ACCION:
-    // Presiona el primer boton "Ver detalles", que corresponde a la venta #10.
-    fireEvent.click(screen.getAllByRole('button', { name: /ver detalles/i })[0]);
+    // Busca la fila por su ID: el orden puede cambiar porque las ventas se ordenan por fecha.
+    const ventaRow = screen.getByText('#10').closest('tr');
+    expect(ventaRow).not.toBeNull();
+    fireEvent.click(within(ventaRow as HTMLTableRowElement).getByRole('button', { name: /ver detalles/i }));
 
     const dialog = await screen.findByRole('dialog');
     expectTextContentWithin(dialog, 'Detalle de Venta #10');

@@ -52,7 +52,9 @@ app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
     authConfigured: String(env.auth?.secret || '').trim() !== DEFAULT_AUTH_SECRET,
-    corsConfigured: corsOrigins.length > 0
+    corsConfigured: corsOrigins.length > 0,
+    environment: env.runtime.hosted ? 'hosted' : 'local',
+    databaseTarget: env.runtime.databaseTarget
   });
 });
 

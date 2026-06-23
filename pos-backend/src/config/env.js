@@ -21,6 +21,36 @@ const resolveEnvPath = () => {
 
 require('dotenv').config({ path: resolveEnvPath() });
 
+const isLocalDatabaseHost = (host) => {
+  const normalized = String(host || '').trim().toLowerCase();
+  return ['localhost', '127.0.0.1', '::1'].includes(normalized);
+};
+
+const validateDatabaseIsolation = ({ host, hosted, allowRemoteDevelopment }) => {
+  const localHost = isLocalDatabaseHost(host);
+
+  if (hosted && localHost) {
+    throw new Error('Configuracion insegura: un despliegue no puede conectarse a una base de datos local.');
+  }
+
+  if (!hosted && !localHost && !allowRemoteDevelopment) {
+    throw new Error(
+      'Configuracion bloqueada: el entorno local no puede usar una base remota. ' +
+      'Usa MySQL local o define ALLOW_REMOTE_DB_IN_DEVELOPMENT=true de forma consciente.'
+    );
+  }
+};
+
+const hosted = Boolean(
+  process.env.VERCEL ||
+  process.env.VERCEL_ENV ||
+  String(process.env.NODE_ENV || '').toLowerCase() === 'production'
+);
+const allowRemoteDevelopment = process.env.ALLOW_REMOTE_DB_IN_DEVELOPMENT === 'true';
+const dbHost = process.env.DB_HOST || 'localhost';
+
+validateDatabaseIsolation({ host: dbHost, hosted, allowRemoteDevelopment });
+
 const env = {
   port: Number(process.env.PORT) || 8083,
   auth: {
@@ -30,13 +60,20 @@ const env = {
     origin: process.env.CORS_ORIGIN || ''
   },
   db: {
-    host: process.env.DB_HOST || 'localhost',
+    host: dbHost,
     port: Number(process.env.DB_PORT) || 3306,
     user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
+    password: isLocalDatabaseHost(dbHost)
+      ? (process.env.DB_LOCAL_PASSWORD || process.env.DB_PASSWORD || '')
+      : (process.env.DB_PASSWORD || ''),
     name: process.env.DB_NAME || 'licoreria_pos',
     ssl: process.env.DB_SSL === 'true',
-    caPath: process.env.DB_CA_PATH || ''
+    caPath: process.env.DB_CA_PATH || '',
+    timeZone: process.env.DB_TIME_ZONE || '-05:00'
+  },
+  runtime: {
+    hosted,
+    databaseTarget: isLocalDatabaseHost(dbHost) ? 'local' : 'hosted'
   },
   mercadoPago: {
     accessToken: process.env.MP_ACCESS_TOKEN || ''
@@ -55,3 +92,5 @@ const env = {
 };
 
 module.exports = env;
+module.exports.isLocalDatabaseHost = isLocalDatabaseHost;
+module.exports.validateDatabaseIsolation = validateDatabaseIsolation;

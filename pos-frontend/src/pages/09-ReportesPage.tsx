@@ -32,6 +32,7 @@ import { getDashboardStats, getPedidosOnline, getVentas } from '../services/api'
 import { DashboardStats, PedidoOnline, Venta, VentaProducto } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useI18n } from '../hooks/useI18n';
+import { formatBusinessDateTime, getBusinessDateValue } from '../utils/businessTime';
 
 type ReportStatCardProps = {
   icon: React.ReactNode;
@@ -64,19 +65,11 @@ const formatCurrency = (value: number | undefined | null) =>
 
 // LOGICA REPORTES - FORMATO DE FECHA:
 // Muestra la fecha y hora de cada venta dentro de la tabla y del modal de detalle.
-const formatDateTime = (value: string) =>
-  new Intl.DateTimeFormat('es-PE', {
-    dateStyle: 'short',
-    timeStyle: 'medium'
-  }).format(new Date(value));
+const formatDateTime = formatBusinessDateTime;
 
 // LOGICA REPORTES - FILTRO POR FECHA:
 // Convierte la fecha de la venta a yyyy-mm-dd para compararla con el campo "Fecha de ventas".
-const getSaleDateValue = (value: string) => {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toISOString().slice(0, 10);
-};
+const getSaleDateValue = getBusinessDateValue;
 
 // LOGICA REPORTES - CLIENTE:
 // Si la venta no tiene cliente registrado, muestra "Publico en general".
