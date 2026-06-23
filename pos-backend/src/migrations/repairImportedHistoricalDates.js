@@ -105,10 +105,16 @@ const hasMigrationRun = async (connection) => {
 
 const backupTables = async (connection) => {
   await connection.query(
-    'CREATE TABLE IF NOT EXISTS _codex_backup_dashboard_dates_20260623_ventas AS SELECT * FROM ventas'
+    'CREATE TABLE IF NOT EXISTS _codex_backup_dashboard_dates_20260623_ventas LIKE ventas'
   );
   await connection.query(
-    'CREATE TABLE IF NOT EXISTS _codex_backup_dashboard_dates_20260623_pedidos_online AS SELECT * FROM pedidos_online'
+    'INSERT IGNORE INTO _codex_backup_dashboard_dates_20260623_ventas SELECT * FROM ventas'
+  );
+  await connection.query(
+    'CREATE TABLE IF NOT EXISTS _codex_backup_dashboard_dates_20260623_pedidos_online LIKE pedidos_online'
+  );
+  await connection.query(
+    'INSERT IGNORE INTO _codex_backup_dashboard_dates_20260623_pedidos_online SELECT * FROM pedidos_online'
   );
 };
 
