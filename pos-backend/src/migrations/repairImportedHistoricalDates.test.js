@@ -21,8 +21,8 @@ describe('repairImportedHistoricalDates', () => {
 
     const backupSql = connection.query.mock.calls.map(([sql]) => String(sql)).join('\n');
     expect(backupSql).toContain('LIKE ventas');
-    expect(backupSql).toContain('INSERT IGNORE INTO _codex_backup_dashboard_dates_20260623_ventas');
-    expect(backupSql).not.toContain('CREATE TABLE IF NOT EXISTS _codex_backup_dashboard_dates_20260623_ventas AS');
+    expect(backupSql).toContain('INSERT IGNORE INTO _codex_backup_dashboard_dates_20260623_v2_ventas');
+    expect(backupSql).not.toContain('CREATE TABLE IF NOT EXISTS _codex_backup_dashboard_dates_20260623_v2_ventas AS');
     expect(result).toEqual({ updatedSales: 61, updatedOnlineOrders: 17 });
     expect(connection.commit).toHaveBeenCalledTimes(1);
     expect(connection.rollback).not.toHaveBeenCalled();

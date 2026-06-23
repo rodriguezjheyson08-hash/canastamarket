@@ -1,6 +1,6 @@
 const env = require('../config/env');
 
-const MIGRATION_KEY = 'repair_imported_dates_20260623';
+const MIGRATION_KEY = 'repair_imported_dates_20260623_v2';
 
 const SALES_DATES = [
   [1, '2026-02-16 15:41:13'],
@@ -105,16 +105,16 @@ const hasMigrationRun = async (connection) => {
 
 const backupTables = async (connection) => {
   await connection.query(
-    'CREATE TABLE IF NOT EXISTS _codex_backup_dashboard_dates_20260623_ventas LIKE ventas'
+    'CREATE TABLE IF NOT EXISTS _codex_backup_dashboard_dates_20260623_v2_ventas LIKE ventas'
   );
   await connection.query(
-    'INSERT IGNORE INTO _codex_backup_dashboard_dates_20260623_ventas SELECT * FROM ventas'
+    'INSERT IGNORE INTO _codex_backup_dashboard_dates_20260623_v2_ventas SELECT * FROM ventas'
   );
   await connection.query(
-    'CREATE TABLE IF NOT EXISTS _codex_backup_dashboard_dates_20260623_pedidos_online LIKE pedidos_online'
+    'CREATE TABLE IF NOT EXISTS _codex_backup_dashboard_dates_20260623_v2_pedidos_online LIKE pedidos_online'
   );
   await connection.query(
-    'INSERT IGNORE INTO _codex_backup_dashboard_dates_20260623_pedidos_online SELECT * FROM pedidos_online'
+    'INSERT IGNORE INTO _codex_backup_dashboard_dates_20260623_v2_pedidos_online SELECT * FROM pedidos_online'
   );
 };
 
@@ -134,9 +134,7 @@ const repairImportedHistoricalDates = async (connection) => {
       const [result] = await connection.execute(
         `UPDATE ventas
             SET fecha = ?
-          WHERE id = ?
-            AND TIME(fecha) = '20:26:40'
-            AND DATE(fecha) = '2026-06-22'`,
+          WHERE id = ?`,
         [fecha, id]
       );
       updatedSales += Number(result.affectedRows || 0);
@@ -147,9 +145,7 @@ const repairImportedHistoricalDates = async (connection) => {
         `UPDATE pedidos_online
             SET fecha = ?
           WHERE id = ?
-            AND codigo = ?
-            AND TIME(fecha) = '20:26:42'
-            AND DATE(fecha) = '2026-06-22'`,
+            AND codigo = ?`,
         [fecha, id, codigo]
       );
       updatedOnlineOrders += Number(result.affectedRows || 0);
