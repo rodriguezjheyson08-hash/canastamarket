@@ -18,6 +18,7 @@ jest.mock('../utils/ensureConfiguracionSistemaSchema', () => ({
 const pool = require('../db/pool');
 const { ensureConfiguracionSistemaSchema } = require('../utils/ensureConfiguracionSistemaSchema');
 const {
+  getConfiguracionPublica,
   getConfiguracionSistema,
   saveConfiguracionSistema
 } = require('./configuracionController');
@@ -83,6 +84,27 @@ describe('configuracionController', () => {
       expect(res.json).toHaveBeenCalledWith({
         personalizacion: {},
         boleta: null
+      });
+    });
+  });
+
+  describe('getConfiguracionPublica', () => {
+    test('devuelve solo la personalizacion global sin datos de boleta', async () => {
+      pool.query.mockResolvedValueOnce([[
+        { valor: JSON.stringify({ appName: 'ECOMARKET', idioma: 'es' }) }
+      ]]);
+      const res = createResponse();
+      res.set = jest.fn();
+
+      await getConfiguracionPublica({}, res);
+
+      expect(pool.query).toHaveBeenCalledWith(
+        'SELECT valor FROM configuracion_sistema WHERE clave = ? LIMIT 1',
+        ['personalizacion']
+      );
+      expect(res.set).toHaveBeenCalledWith('Cache-Control', 'no-store, max-age=0');
+      expect(res.json).toHaveBeenCalledWith({
+        personalizacion: { appName: 'ECOMARKET', idioma: 'es' }
       });
     });
   });

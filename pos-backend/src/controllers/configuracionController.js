@@ -49,6 +49,20 @@ const getConfiguracionSistema = async (_req, res) => {
   res.json(data);
 };
 
+// CONFIGURACION PUBLICA: permite que cualquier dispositivo cargue el nombre y la imagen
+// globales sin exponer la configuracion privada de boleta ni requerir una sesion iniciada.
+const getConfiguracionPublica = async (_req, res) => {
+  await ensureConfiguracionSistemaSchema();
+  const [rows] = await pool.query(
+    'SELECT valor FROM configuracion_sistema WHERE clave = ? LIMIT 1',
+    ['personalizacion']
+  );
+  res.set?.('Cache-Control', 'no-store, max-age=0');
+  res.json({
+    personalizacion: rows.length > 0 ? parseConfigValue(rows[0].valor) : null
+  });
+};
+
 // CONTROLADOR BACKEND: save Configuracion Sistema persiste ambos formularios de configuracion.
 const saveConfiguracionSistema = async (req, res) => {
   await ensureConfiguracionSistemaSchema();
@@ -88,6 +102,7 @@ const saveConfiguracionSistema = async (req, res) => {
 };
 
 module.exports = {
+  getConfiguracionPublica,
   getConfiguracionSistema,
   saveConfiguracionSistema
 };

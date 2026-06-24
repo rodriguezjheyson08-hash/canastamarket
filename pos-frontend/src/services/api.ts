@@ -153,6 +153,18 @@ export interface ConfiguracionSistemaResponse {
   boleta: BoletaConfig | null;
 }
 
+export interface ConfiguracionPublicaResponse {
+  personalizacion: AppConfig | null;
+}
+
+// SERVICIO PUBLICO: obtiene el nombre y apariencia globales para login y pagina inicial.
+export const getConfiguracionPublica = async (): Promise<ConfiguracionPublicaResponse> => {
+  const res = await axios.get(`${API_URL}/configuracion/public`, {
+    headers: { 'Cache-Control': 'no-cache' }
+  });
+  return res.data;
+};
+
 // SERVICIO FRONTEND: get Configuracion Sistema lee Personalizacion y Boleta desde la base de datos.
 export const getConfiguracionSistema = async (token?: string | null): Promise<ConfiguracionSistemaResponse> => {
   const authToken = token ?? getToken();
