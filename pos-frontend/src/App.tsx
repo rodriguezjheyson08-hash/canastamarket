@@ -118,7 +118,7 @@ const App: React.FC = () => {
                         <Route
                           path="pedidos-online"
                           element={
-                            <FeatureRoute permission="ventas">
+                            <FeatureRoute permission="pedidosOnline">
                               <PedidosOnlinePage />
                             </FeatureRoute>
                           }
@@ -133,7 +133,11 @@ const App: React.FC = () => {
                         />
                         <Route
                           path="reportes"
-                          element={<ReportesPage />}
+                          element={
+                            <FeatureRoute permission="reportes">
+                              <ReportesPage />
+                            </FeatureRoute>
+                          }
                         />
                         <Route
                           path="configuracion"

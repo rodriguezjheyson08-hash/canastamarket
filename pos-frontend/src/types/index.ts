@@ -11,6 +11,8 @@ export type PermissionKey =
   | 'productos'
   | 'categorias'
   | 'proveedores'
+  | 'pedidosOnline'
+  | 'reportes'
   | 'configuracion';
 
 // TIPOS FRONTEND: alias UserPermissions que limita valores o forma de datos.

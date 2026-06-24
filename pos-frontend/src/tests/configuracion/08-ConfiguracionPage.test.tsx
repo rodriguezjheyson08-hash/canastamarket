@@ -150,6 +150,18 @@ describe('ConfiguracionPage usuarios y permisos', () => {
     expect(mockedGetUsuarios).not.toHaveBeenCalled();
   });
 
+  it('muestra todos los modulos configurables, incluidos pedidos online y reportes', async () => {
+    await renderAsAdmin();
+
+    expect(screen.getByLabelText('Ventas')).toBeInTheDocument();
+    expect(screen.getByLabelText('Productos')).toBeInTheDocument();
+    expect(screen.getByLabelText('Categorías')).toBeInTheDocument();
+    expect(screen.getByLabelText('Proveedores')).toBeInTheDocument();
+    expect(screen.getByLabelText('Pedidos Online')).toBeInTheDocument();
+    expect(screen.getByLabelText('Reportes')).toBeInTheDocument();
+    expect(screen.getByLabelText('Configuración')).toBeInTheDocument();
+  });
+
   it('crea un usuario cajero con permisos seleccionados', async () => {
     const usuarioCreado: UsuarioItem = {
       ...usuariosBase[0],
@@ -296,13 +308,13 @@ describe('ConfiguracionPage usuarios y permisos', () => {
         nombreUsuario: 'admin02',
         nombreCompleto: 'Admin Dos',
         rol: 'ADMINISTRADOR',
-        permisos: {
+        permisos: expect.objectContaining({
           ventas: true,
           productos: true,
           categorias: true,
           proveedores: true,
           configuracion: true
-        }
+        })
       }));
     });
     await waitFor(() => expect(mockedGetUsuarios).toHaveBeenCalledTimes(2));

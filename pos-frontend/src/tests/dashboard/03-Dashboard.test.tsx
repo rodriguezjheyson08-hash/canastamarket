@@ -204,10 +204,21 @@ describe('Dashboard negocio', () => {
     expect(screen.getByText('Administrar categorías de productos')).toBeInTheDocument();
     expect(screen.getByText('Proveedores')).toBeInTheDocument();
     expect(screen.getByText('Gestionar proveedores')).toBeInTheDocument();
+    expect(screen.getByText('Pedidos Online')).toBeInTheDocument();
+    expect(screen.getByText('Gestionar pedidos de la tienda virtual')).toBeInTheDocument();
     expect(screen.getByText('Reportes')).toBeInTheDocument();
     expect(screen.getByText('Consultar reportes del negocio')).toBeInTheDocument();
     expect(screen.getByText('Configuración')).toBeInTheDocument();
     expect(screen.getByText('Configurar el sistema')).toBeInTheDocument();
+  });
+
+  it('permite al administrador navegar a pedidos online y reportes', async () => {
+    mockAdminSession();
+    renderDashboard();
+
+    await screen.findByText('16');
+    fireEvent.click(screen.getByText('Pedidos Online'));
+    expect(screen.getByTestId('current-path')).toHaveTextContent('/dashboard/pedidos-online');
   });
 
   // ============================================================

@@ -22,6 +22,8 @@ describe('permisos de usuarios', () => {
       productos: true,
       categorias: true,
       proveedores: true,
+      pedidosOnline: true,
+      reportes: true,
       configuracion: true
     });
   });
@@ -34,6 +36,8 @@ describe('permisos de usuarios', () => {
       productos: false,
       categorias: false,
       proveedores: false,
+      pedidosOnline: false,
+      reportes: false,
       configuracion: false
     });
   });
@@ -47,6 +51,8 @@ describe('permisos de usuarios', () => {
     expect(permisos.productos).toBe(true);
     expect(permisos.proveedores).toBe(true);
     expect(permisos.ventas).toBe(true);
+    expect(permisos.pedidosOnline).toBe(false);
+    expect(permisos.reportes).toBe(false);
     expect(permisos.configuracion).toBe(false);
   });
 
@@ -72,5 +78,6 @@ describe('permisos de usuarios', () => {
     expect(canAccess(user, 'ventas')).toBe(true);
     expect(canAccess(user, 'productos')).toBe(false);
     expect(canAccess(user, 'categorias')).toBe(true);
+    expect(canAccess(user, 'reportes')).toBe(false);
   });
 });
