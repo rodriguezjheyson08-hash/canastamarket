@@ -7,7 +7,7 @@
 const pool = require('../db/pool');
 const { ensureConfiguracionSistemaSchema } = require('../utils/ensureConfiguracionSistemaSchema');
 
-const ALLOWED_KEYS = ['personalizacion', 'boleta'];
+const ALLOWED_KEYS = ['personalizacion', 'boleta', 'vueltos'];
 const MAX_JSON_LENGTH = 1024 * 1024 * 4;
 
 // LOGICA: parse Config Value evita que un JSON invalido rompa la pantalla.
@@ -34,13 +34,14 @@ const normalizeConfigPayload = (body = {}) => {
 const getConfiguracionSistema = async (_req, res) => {
   await ensureConfiguracionSistemaSchema();
   const [rows] = await pool.query(
-    'SELECT clave, valor FROM configuracion_sistema WHERE clave IN (?, ?)',
+    'SELECT clave, valor FROM configuracion_sistema WHERE clave IN (?, ?, ?)',
     ALLOWED_KEYS
   );
 
   const data = {
     personalizacion: null,
-    boleta: null
+    boleta: null,
+    vueltos: null
   };
   for (const row of rows) {
     data[row.clave] = parseConfigValue(row.valor);
@@ -87,12 +88,13 @@ const saveConfiguracionSistema = async (req, res) => {
   }
 
   const [rows] = await pool.query(
-    'SELECT clave, valor FROM configuracion_sistema WHERE clave IN (?, ?)',
+    'SELECT clave, valor FROM configuracion_sistema WHERE clave IN (?, ?, ?)',
     ALLOWED_KEYS
   );
   const saved = {
     personalizacion: null,
-    boleta: null
+    boleta: null,
+    vueltos: null
   };
   for (const row of rows) {
     saved[row.clave] = parseConfigValue(row.valor);

@@ -9,6 +9,7 @@ import { getToken } from '../utils/auth';
 import { API_URL } from '../utils/apiBase';
 import { AppConfig } from '../utils/appConfig';
 import { BoletaConfig } from '../utils/boletaConfig';
+import { VueltoConfig } from '../utils/vueltoConfig';
 // IMPORTACIONES FRONTEND: librerias, helpers y tipos que usa este archivo.
 import {
   Venta,
@@ -147,11 +148,13 @@ export const deleteUsuario = async (id: number, token?: string | null): Promise<
 export interface ConfiguracionSistemaPayload {
   personalizacion?: AppConfig;
   boleta?: BoletaConfig;
+  vueltos?: VueltoConfig;
 }
 
 export interface ConfiguracionSistemaResponse {
   personalizacion: AppConfig | null;
   boleta: BoletaConfig | null;
+  vueltos: VueltoConfig | null;
 }
 
 export interface ConfiguracionPublicaResponse {
@@ -365,4 +368,3 @@ export const getCurrentUser = async (token?: string | null): Promise<User> => {
     });
     return res.data.user;
 };
-

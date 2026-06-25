@@ -59,12 +59,13 @@ describe('configuracionController', () => {
 
       expect(ensureConfiguracionSistemaSchema).toHaveBeenCalledTimes(1);
       expect(pool.query).toHaveBeenCalledWith(
-        'SELECT clave, valor FROM configuracion_sistema WHERE clave IN (?, ?)',
-        ['personalizacion', 'boleta']
+        'SELECT clave, valor FROM configuracion_sistema WHERE clave IN (?, ?, ?)',
+        ['personalizacion', 'boleta', 'vueltos']
       );
       expect(res.json).toHaveBeenCalledWith({
         personalizacion: { appName: 'MINI MARKET', logo: 'logo.png' },
-        boleta: { nombre: 'SISTEMA POS', ruc: '20599988877' }
+        boleta: { nombre: 'SISTEMA POS', ruc: '20599988877' },
+        vueltos: null
       });
     });
 
@@ -83,7 +84,8 @@ describe('configuracionController', () => {
 
       expect(res.json).toHaveBeenCalledWith({
         personalizacion: {},
-        boleta: null
+        boleta: null,
+        vueltos: null
       });
     });
   });
@@ -159,7 +161,8 @@ describe('configuracionController', () => {
       );
       expect(res.json).toHaveBeenCalledWith({
         personalizacion: req.body.personalizacion,
-        boleta: req.body.boleta
+        boleta: req.body.boleta,
+        vueltos: null
       });
     });
 

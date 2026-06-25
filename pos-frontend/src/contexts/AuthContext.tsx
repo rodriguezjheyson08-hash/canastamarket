@@ -59,13 +59,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const freshUser = await getCurrentUser(token);
         persistAuthenticatedUser(freshUser);
-      } catch {
-        // Si hay una falla temporal de red, se conserva la sesion actual.
+      } catch (error: any) {
+        const status = error?.response?.status;
+        if ([401, 403, 404].includes(status)) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          setIsAuthenticated(false);
+          setUser(null);
+        }
       }
     };
 
     void refreshAuthenticatedUser();
-    const intervalId = window.setInterval(refreshAuthenticatedUser, 15000);
+    const intervalId = window.setInterval(refreshAuthenticatedUser, 5000);
     window.addEventListener('focus', refreshAuthenticatedUser);
     document.addEventListener('visibilitychange', refreshAuthenticatedUser);
 

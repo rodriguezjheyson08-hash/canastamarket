@@ -10,7 +10,6 @@ const { hashPassword, verifyPassword, needsPasswordRehash } = require('../utils/
 const { createToken } = require('../utils/tokens');
 
 let usuariosPermisosColumnChecked = false;
-const MAX_LOGIN_ATTEMPTS = 3;
 
 const USER_SELECT = `SELECT id, nombre_usuario, nombre_completo, rol, password, dni, telefono, email, foto_url,
             permisos, failed_attempts, lockouts, lock_until, is_blocked, is_active
@@ -104,31 +103,6 @@ const resetLoginAttempts = async (userId) => {
   );
 };
 
-const registerFailedAttempt = async (row, res) => {
-  const nextAttempts = Number(row.failed_attempts || 0) + 1;
-
-  if (nextAttempts >= MAX_LOGIN_ATTEMPTS) {
-    await pool.execute(
-      'UPDATE usuarios SET is_blocked = 1, failed_attempts = 0, lock_until = NULL WHERE id = ?',
-      [row.id]
-    );
-    return res.status(403).json({
-      message: 'Cuenta bloqueada. Te quedan 0 intentos. Contacta al administrador.',
-      remaining_attempts: 0
-    });
-  }
-
-  const remainingAttempts = Math.max(0, MAX_LOGIN_ATTEMPTS - nextAttempts);
-  await pool.execute(
-    'UPDATE usuarios SET failed_attempts = ? WHERE id = ?',
-    [nextAttempts, row.id]
-  );
-
-  return res.status(401).json({
-    message: `Credenciales invÃ¡lidas. Te quedan ${remainingAttempts} intentos.`,
-    remaining_attempts: remainingAttempts
-  });
-};
 
 const login = async (req, res) => {
   await ensureUsuariosPermisosColumn();
@@ -155,7 +129,7 @@ const login = async (req, res) => {
 
   const passwordOk = verifyPassword(row.password, password);
   if (!passwordOk) {
-    return registerFailedAttempt(row, res);
+    return res.status(401).json({ message: 'Credenciales inválidas.' });
   }
 
   await resetLoginAttempts(row.id);

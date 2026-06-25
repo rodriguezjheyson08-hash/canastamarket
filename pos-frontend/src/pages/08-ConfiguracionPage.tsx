@@ -32,11 +32,12 @@ import {
   Typography
 } from '@mui/material';
 // IMPORTACIONES FRONTEND: librerias, helpers y tipos que usa este archivo.
-import { Add, Block, Delete, Edit, LockOpen, People, Refresh, Save, Settings, Visibility, VisibilityOff } from '@mui/icons-material';
+import { Add, Block, Delete, Edit, LockOpen, People, Refresh, Save, Search, Settings, Visibility, VisibilityOff } from '@mui/icons-material';
 import {
   createUsuario,
   deleteUsuario,
   getConfiguracionSistema,
+  getPersonaPorDni,
   getUsuarios,
   saveConfiguracionSistema,
   unlockUsuario,
@@ -53,6 +54,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useI18n } from '../hooks/useI18n';
 import { AppConfig, loadAppConfig, saveAppConfig } from '../utils/appConfig';
 import { BoletaConfig, loadBoletaConfig, saveBoletaConfig } from '../utils/boletaConfig';
+import { VueltoConfig, loadVueltoConfig, saveVueltoConfig } from '../utils/vueltoConfig';
 
 // TIPOS FRONTEND: alias UserFormState para ordenar datos internos.
 type UserFormState = {
@@ -78,7 +80,7 @@ const createDefaultUserForm = (): UserFormState => ({
 // LOGICA: is Usuario Active concentra una operacion de este archivo.
 const isUsuarioActive = (usuario: UsuarioItem) => usuario.is_active !== 0 && usuario.is_active !== false;
 
-type ConfigPanel = 'personalizacion' | 'boleta';
+type ConfigPanel = 'personalizacion' | 'boleta' | 'vueltos';
 
 const ConfiguracionPage: React.FC = () => {
   const { t } = useI18n();
@@ -88,9 +90,11 @@ const ConfiguracionPage: React.FC = () => {
   const [editingUserId, setEditingUserId] = useState<number | null>(null);
   const [userForm, setUserForm] = useState<UserFormState>(createDefaultUserForm());
   const [showPassword, setShowPassword] = useState(false);
+  const [dniLoading, setDniLoading] = useState(false);
   const [activeConfigPanel, setActiveConfigPanel] = useState<ConfigPanel>('personalizacion');
   const [appConfigForm, setAppConfigForm] = useState<AppConfig>(() => loadAppConfig());
   const [boletaConfigForm, setBoletaConfigForm] = useState<BoletaConfig>(() => loadBoletaConfig());
+  const [vueltoConfigForm, setVueltoConfigForm] = useState<VueltoConfig>(() => loadVueltoConfig());
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
@@ -102,6 +106,11 @@ const ConfiguracionPage: React.FC = () => {
     () => usuarios.find((usuario) => usuario.id === editingUserId) || null,
     [editingUserId, usuarios]
   );
+  const adminExistente = useMemo(
+    () => usuarios.find((usuario) => String(usuario.rol || '').toUpperCase() === 'ADMINISTRADOR') || null,
+    [usuarios]
+  );
+  const puedeSeleccionarAdministrador = !adminExistente || adminExistente.id === editingUserId;
 
   const showSnackbar = useCallback((message: string, severity: 'success' | 'error') => {
     setSnackbar({ open: true, message, severity });
@@ -118,7 +127,7 @@ const ConfiguracionPage: React.FC = () => {
 // LOGICA: handle Image Upload centraliza la carga de logo/app y logo de boleta.
   const handleImageUpload = async (
     event: React.ChangeEvent<HTMLInputElement>,
-    target: 'appLogo' | 'userImg' | 'boletaLogo'
+    target: 'appLogo' | 'boletaLogo'
   ) => {
     const file = event.target.files?.[0];
     event.target.value = '';
@@ -128,8 +137,6 @@ const ConfiguracionPage: React.FC = () => {
       const dataUrl = await readFileAsDataUrl(file);
       if (target === 'appLogo') {
         setAppConfigForm((prev) => ({ ...prev, logo: dataUrl }));
-      } else if (target === 'userImg') {
-        setAppConfigForm((prev) => ({ ...prev, userImg: dataUrl }));
       } else {
         setBoletaConfigForm((prev) => ({ ...prev, logo: dataUrl }));
       }
@@ -143,7 +150,7 @@ const ConfiguracionPage: React.FC = () => {
     const saved = saveAppConfig(appConfigForm);
     setAppConfigForm(saved);
     try {
-      await saveConfiguracionSistema({ personalizacion: saved, boleta: boletaConfigForm });
+      await saveConfiguracionSistema({ personalizacion: saved, boleta: boletaConfigForm, vueltos: vueltoConfigForm });
       showSnackbar('Personalización guardada correctamente.', 'success');
     } catch {
       showSnackbar('Personalización guardada localmente, pero no se pudo guardar en la base de datos.', 'error');
@@ -155,10 +162,21 @@ const ConfiguracionPage: React.FC = () => {
     const saved = saveBoletaConfig(boletaConfigForm);
     setBoletaConfigForm(saved);
     try {
-      await saveConfiguracionSistema({ personalizacion: appConfigForm, boleta: saved });
+      await saveConfiguracionSistema({ personalizacion: appConfigForm, boleta: saved, vueltos: vueltoConfigForm });
       showSnackbar('Boleta guardada correctamente.', 'success');
     } catch {
       showSnackbar('Boleta guardada localmente, pero no se pudo guardar en la base de datos.', 'error');
+    }
+  };
+
+  const handleSaveVueltoConfig = async () => {
+    const saved = saveVueltoConfig(vueltoConfigForm);
+    setVueltoConfigForm(saved);
+    try {
+      await saveConfiguracionSistema({ personalizacion: appConfigForm, boleta: boletaConfigForm, vueltos: saved });
+      showSnackbar('Monto para vueltos guardado correctamente.', 'success');
+    } catch {
+      showSnackbar('Monto para vueltos guardado localmente, pero no se pudo guardar en la base de datos.', 'error');
     }
   };
 
@@ -194,6 +212,10 @@ const ConfiguracionPage: React.FC = () => {
         if (data.boleta) {
           const savedBoletaConfig = saveBoletaConfig(data.boleta);
           setBoletaConfigForm(savedBoletaConfig);
+        }
+        if (data.vueltos) {
+          const savedVueltoConfig = saveVueltoConfig(data.vueltos);
+          setVueltoConfigForm(savedVueltoConfig);
         }
       } catch {
         // Si el backend no esta disponible, se mantiene la configuracion local para no bloquear la pantalla.
@@ -237,6 +259,34 @@ const ConfiguracionPage: React.FC = () => {
       return;
     }
     setUserForm((prev) => ({ ...prev, [field]: rawValue }));
+  };
+
+  const handleBuscarDniUsuario = async () => {
+    const dni = userForm.dni.trim();
+    if (!/^\d{8}$/.test(dni)) {
+      showSnackbar('Ingrese un DNI válido de 8 dígitos.', 'error');
+      return;
+    }
+
+    setDniLoading(true);
+    try {
+      const persona = await getPersonaPorDni(dni);
+      const nombreCompleto = (persona.nombreCompleto || [persona.nombres, persona.apellidos].filter(Boolean).join(' ')).trim();
+      if (!nombreCompleto) {
+        showSnackbar('No se encontraron datos para ese DNI.', 'error');
+        return;
+      }
+      setUserForm((prev) => ({
+        ...prev,
+        dni: persona.dni || dni,
+        nombreCompleto
+      }));
+      showSnackbar('Datos cargados desde DNI.', 'success');
+    } catch (error: any) {
+      showSnackbar(error?.response?.data?.message || 'No se pudo consultar el DNI.', 'error');
+    } finally {
+      setDniLoading(false);
+    }
   };
 
 // LOGICA: handle Permiso Toggle concentra una operacion de este archivo.
@@ -411,19 +461,32 @@ const ConfiguracionPage: React.FC = () => {
               {/* DISEÑO: Campo Rol (dropdown) */}
               <Grid item xs={12} md={2}>
                 <TextField label={t('Rol', 'Role')} select value={userForm.rol} onChange={(event) => handleTextChange('rol', event.target.value)} fullWidth>
-                  <MenuItem value="ADMINISTRADOR">{t('ADMINISTRADOR', 'ADMINISTRATOR')}</MenuItem>
+                  <MenuItem value="ADMINISTRADOR" disabled={!puedeSeleccionarAdministrador}>{t('ADMINISTRADOR', 'ADMINISTRATOR')}</MenuItem>
                   <MenuItem value="CAJERO">{t('CAJERO', 'CASHIER')}</MenuItem>
                 </TextField>
               </Grid>
               {/* DISEÑO: Campo DNI */}
               <Grid item xs={12} md={2}>
-                <TextField label="DNI" value={userForm.dni} onChange={(event) => handleTextChange('dni', event.target.value)} inputProps={{ maxLength: 8, inputMode: 'numeric' }} fullWidth />
+                <TextField
+                  label="DNI"
+                  value={userForm.dni}
+                  onChange={(event) => handleTextChange('dni', event.target.value)}
+                  inputProps={{ maxLength: 8, inputMode: 'numeric' }}
+                  fullWidth
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton size="small" onClick={handleBuscarDniUsuario} disabled={dniLoading || userForm.dni.length !== 8}>
+                          <Search fontSize="small" />
+                        </IconButton>
+                      </InputAdornment>
+                    )
+                  }}
+                />
               </Grid>
               {/* DISEÑO: Campo Celular */}
               <Grid item xs={12} md={2}>
                 <TextField label={t('Celular', 'Phone')} value={userForm.telefono} onChange={(event) => handleTextChange('telefono', event.target.value)} inputProps={{ maxLength: 9, inputMode: 'numeric' }} fullWidth />
-              </Grid>
-              <Grid item xs={12} md={4}>
               </Grid>
               {/* DISEÑO: Campo Contraseña (con ojo para ver/ocultar) */}
               <Grid item xs={12} md={4}>
@@ -592,6 +655,14 @@ const ConfiguracionPage: React.FC = () => {
               >
                 {activeConfigPanel === 'boleta' ? 'Cerrar boleta' : 'Abrir boleta'}
               </Button>
+              <Button
+                size="small"
+                fullWidth
+                variant={activeConfigPanel === 'vueltos' ? 'contained' : 'outlined'}
+                onClick={() => setActiveConfigPanel('vueltos')}
+              >
+                {activeConfigPanel === 'vueltos' ? 'Cerrar vueltos' : 'Abrir vueltos'}
+              </Button>
             </Stack>
 
             <Divider sx={{ mb: 2 }} />
@@ -669,25 +740,6 @@ const ConfiguracionPage: React.FC = () => {
                       </Button>
                     </Box>
                   </Grid>
-                  {/* DISEÑO: Fila de imagen de usuario con preview, campo de URL y boton Subir. */}
-                  <Grid item xs={12}>
-                    <Box display="flex" alignItems="center" gap={1.5}>
-                      {/* DISEÑO: Avatar de preview para la imagen de usuario por defecto. */}
-                      <Avatar src={appConfigForm.userImg} alt="Usuario" sx={{ width: 48, height: 48, bgcolor: '#f5f5f5' }} />
-                      {/* DISEÑO: Campo para pegar o mostrar la URL/base64 de la imagen de usuario. */}
-                      <TextField
-                        label="URL de imagen de usuario"
-                        value={appConfigForm.userImg}
-                        onChange={(event) => setAppConfigForm((prev) => ({ ...prev, userImg: event.target.value }))}
-                        fullWidth
-                      />
-                      {/* DISEÑO: Boton externo para subir la imagen de usuario. */}
-                      <Button variant="outlined" component="label" size="small">
-                        Subir
-                        <input hidden accept="image/*" type="file" onChange={(event) => handleImageUpload(event, 'userImg')} />
-                      </Button>
-                    </Box>
-                  </Grid>
                   {/* DISEÑO: Fila final de acciones, alineada a la derecha. */}
                   <Grid item xs={12} display="flex" justifyContent="flex-end" gap={1}>
                     {/* DISEÑO: Boton secundario de cierre/cancelacion visual. */}
@@ -701,7 +753,7 @@ const ConfiguracionPage: React.FC = () => {
                   </Grid>
                 </Grid>
               </Box>
-            ) : (
+            ) : activeConfigPanel === 'boleta' ? (
               <Box>
                 {/* DISEÑO: Subtitulo interno del formulario de Boleta. */}
                 <Typography variant="subtitle1" fontWeight={700} gutterBottom>
@@ -795,6 +847,39 @@ const ConfiguracionPage: React.FC = () => {
                     {/* DISEÑO: Boton principal azul para guardar la configuracion de boleta. */}
                     <Button variant="contained" onClick={handleSaveBoletaConfig}>
                       Guardar boleta
+                    </Button>
+                  </Grid>
+                </Grid>
+              </Box>
+            ) : (
+              <Box>
+                <Typography variant="subtitle1" fontWeight={700} gutterBottom>
+                  Vueltos
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Define el fondo de efectivo disponible para dar cambio en caja.
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12}>
+                    <TextField
+                      label="Monto base para vueltos"
+                      type="number"
+                      value={vueltoConfigForm.montoBase}
+                      onChange={(event) => setVueltoConfigForm({ montoBase: Math.max(0, Number(event.target.value) || 0) })}
+                      inputProps={{ min: 0, step: '0.10' }}
+                      InputProps={{
+                        startAdornment: <InputAdornment position="start">{appConfigForm.moneda || 'S/'}</InputAdornment>
+                      }}
+                      helperText="Ejemplo: efectivo separado en caja para entregar cambio."
+                      fullWidth
+                    />
+                  </Grid>
+                  <Grid item xs={12} display="flex" justifyContent="flex-end" gap={1}>
+                    <Button variant="outlined" onClick={() => setVueltoConfigForm(loadVueltoConfig())}>
+                      Cerrar
+                    </Button>
+                    <Button variant="contained" onClick={handleSaveVueltoConfig}>
+                      Guardar vueltos
                     </Button>
                   </Grid>
                 </Grid>

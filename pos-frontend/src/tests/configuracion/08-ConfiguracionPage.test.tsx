@@ -18,7 +18,8 @@ import { useAuth } from '../../contexts/AuthContext';
 jest.mock('../../services/api', () => ({
   createUsuario: jest.fn(),
   deleteUsuario: jest.fn(),
-  getConfiguracionSistema: jest.fn().mockResolvedValue({ personalizacion: null, boleta: null }),
+  getConfiguracionSistema: jest.fn().mockResolvedValue({ personalizacion: null, boleta: null, vueltos: null }),
+  getPersonaPorDni: jest.fn(),
   getUsuarios: jest.fn(),
   saveConfiguracionSistema: jest.fn(),
   unlockUsuario: jest.fn(),
@@ -337,9 +338,10 @@ describe('ConfiguracionPage usuarios y permisos', () => {
         idioma: 'es',
         moneda: 'S/',
         logo: '/imagenes/logo-prueba.png',
-        userImg: ''
+        userImg: '',
       },
-      boleta: null
+      boleta: null,
+      vueltos: null
     });
 
     // TEST SISTEMA - RENDER:
@@ -400,7 +402,8 @@ describe('ConfiguracionPage usuarios y permisos', () => {
         telefono: '987654321',
         serie: '002',
         logo: '/imagenes/boleta-prueba.png'
-      }
+      },
+      vueltos: null
     });
 
     // TEST BOLETA - RENDER:
@@ -456,6 +459,27 @@ describe('ConfiguracionPage usuarios y permisos', () => {
           serie: '002',
           logo: '/imagenes/boleta-prueba.png'
         })
+      }));
+    });
+  });
+  it('guarda el monto base para vueltos', async () => {
+    mockedSaveConfiguracionSistema.mockResolvedValue({
+      personalizacion: null,
+      boleta: null,
+      vueltos: { montoBase: 150 }
+    });
+
+    await renderAsAdmin();
+
+    fireEvent.click(screen.getByRole('button', { name: /abrir vueltos/i }));
+    fireEvent.change(screen.getByLabelText('Monto base para vueltos'), {
+      target: { value: '150' }
+    });
+    fireEvent.click(screen.getByRole('button', { name: /guardar vueltos/i }));
+
+    await waitFor(() => {
+      expect(mockedSaveConfiguracionSistema).toHaveBeenCalledWith(expect.objectContaining({
+        vueltos: expect.objectContaining({ montoBase: 150 })
       }));
     });
   });

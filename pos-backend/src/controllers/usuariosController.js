@@ -77,6 +77,17 @@ const isEmailValido = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email 
 // CONTROLADOR BACKEND: is Rol Valido procesa request/respuesta de este flujo.
 const isRolValido = (rol) => ['ADMINISTRADOR', 'CAJERO'].includes(String(rol || '').toUpperCase());
 
+const countAdministradores = async (excludeId = null) => {
+  const params = [];
+  let sql = "SELECT COUNT(*) AS total FROM usuarios WHERE UPPER(rol) = 'ADMINISTRADOR'";
+  if (excludeId !== null && excludeId !== undefined) {
+    sql += ' AND id <> ?';
+    params.push(excludeId);
+  }
+  const [rows] = await pool.query(sql, params);
+  return Number(rows[0]?.total || 0);
+};
+
 const normalizeUsuarioPayload = (body = {}) => {
   const rol = String(body.rol || '').trim().toUpperCase();
   const email = String(body.email || '').trim().toLowerCase();
@@ -133,6 +144,9 @@ const createUsuario = async (req, res) => {
   const data = normalizeUsuarioPayload(req.body);
   const validationError = validateUsuarioPayload(data, { creating: true });
   if (validationError) return res.status(400).json({ message: validationError });
+  if (data.rol === 'ADMINISTRADOR' && await countAdministradores() > 0) {
+    return res.status(409).json({ message: 'Solo puede existir un administrador en el sistema.' });
+  }
 
   try {
     const [result] = await pool.execute(
@@ -173,6 +187,17 @@ const updateUsuario = async (req, res) => {
 
   const [currentRows] = await pool.query('SELECT id, rol FROM usuarios WHERE id = ?', [id]);
   if (currentRows.length === 0) return res.status(404).json({ message: 'Usuario no encontrado.' });
+  const currentRol = String(currentRows[0].rol || '').toUpperCase();
+  const otherAdmins = await countAdministradores(id);
+  if (data.rol === 'ADMINISTRADOR' && otherAdmins > 0) {
+    return res.status(409).json({ message: 'Solo puede existir un administrador en el sistema.' });
+  }
+  if (currentRol === 'ADMINISTRADOR' && data.rol !== 'ADMINISTRADOR' && otherAdmins === 0) {
+    return res.status(409).json({ message: 'Debe existir un administrador activo en el sistema.' });
+  }
+  if (currentRol === 'ADMINISTRADOR' && data.isActive === false && otherAdmins === 0) {
+    return res.status(409).json({ message: 'Debe existir un administrador activo en el sistema.' });
+  }
 
   const hasPassword = data.password.trim() !== '';
   const hasPermisos = Object.prototype.hasOwnProperty.call(req.body || {}, 'permisos');

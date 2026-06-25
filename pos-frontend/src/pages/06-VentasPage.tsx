@@ -44,6 +44,7 @@ import {
   createMercadoPagoPreference,
   createVenta,
   getCategorias,
+  getConfiguracionSistema,
   getMercadoPagoPayment,
   getProductos
 } from '../services/api';
@@ -51,6 +52,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { ClienteDniData, buscarClientePorDni } from '../apidni/dniService';
 import { consultarRuc } from '../services/proveedores';
 import { BOLETA_CONFIG_UPDATE_EVENT, BoletaConfig, loadBoletaConfig } from '../utils/boletaConfig';
+import { VUELTO_CONFIG_UPDATE_EVENT, VueltoConfig, loadVueltoConfig, saveVueltoConfig } from '../utils/vueltoConfig';
 import { saveVentaClienteInfo } from '../utils/ventasClienteMap';
 import { saveVentaVendedorInfo } from '../utils/ventasVendedorMap';
 import { useAuth } from '../contexts/AuthContext';
@@ -123,6 +125,7 @@ const VentasPage: React.FC = () => {
   const [categoriaFiltro, setCategoriaFiltro] = useState(0);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [boletaEmpresa, setBoletaEmpresa] = useState<BoletaConfig>(() => loadBoletaConfig());
+  const [vueltoConfig, setVueltoConfig] = useState<VueltoConfig>(() => loadVueltoConfig());
   const [mpLoading, setMpLoading] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
@@ -135,6 +138,23 @@ const VentasPage: React.FC = () => {
     vendedorUsuario: user?.nombreUsuario || null,
     vendedorNombre: user?.nombreCompleto || user?.nombreUsuario || null
   }), [user?.id, user?.nombreCompleto, user?.nombreUsuario]);
+
+  useEffect(() => {
+    const refreshVueltoConfig = () => setVueltoConfig(loadVueltoConfig());
+    window.addEventListener('storage', refreshVueltoConfig);
+    window.addEventListener(VUELTO_CONFIG_UPDATE_EVENT, refreshVueltoConfig);
+    getConfiguracionSistema()
+      .then((data) => {
+        if (data.vueltos) setVueltoConfig(saveVueltoConfig(data.vueltos));
+      })
+      .catch(() => {
+        // Si no se puede leer la configuracion remota, se conserva el dato local.
+      });
+    return () => {
+      window.removeEventListener('storage', refreshVueltoConfig);
+      window.removeEventListener(VUELTO_CONFIG_UPDATE_EVENT, refreshVueltoConfig);
+    };
+  }, []);
 
   const showSnackbar = useCallback((message: string, severity: 'success' | 'error') => {
     setSnackbar({ open: true, message, severity });
@@ -1698,6 +1718,14 @@ const VentasPage: React.FC = () => {
               <Typography variant="body2">
                 Vuelto: <b style={{ color: vuelto < 0 ? 'red' : 'green' }}>{formatCurrency(vuelto ?? 0)}</b>
               </Typography>
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                Fondo para vueltos: {formatCurrency(vueltoConfig.montoBase)} · Saldo estimado: {formatCurrency(Math.max(0, vueltoConfig.montoBase - Math.max(0, vuelto || 0)))}
+              </Typography>
+              {vuelto > vueltoConfig.montoBase && (
+                <Alert severity="warning" sx={{ mt: 1 }}>
+                  El vuelto supera el fondo configurado para caja.
+                </Alert>
+              )}
             </>
           ) : metodoPago === 'yape' ? (
             <Box textAlign="center" sx={{ mt: 2 }}>
