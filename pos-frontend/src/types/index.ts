@@ -75,6 +75,7 @@ export interface Producto {
     descripcion: string;
     precioVenta: number;
     codigoBarras?: string | null;
+    fechaVencimiento?: string | null;
     stockActual: number;
     stockMinimo?: number;
     categoriaId: number;

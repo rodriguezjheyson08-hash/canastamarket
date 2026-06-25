@@ -12,8 +12,50 @@ const {
 } = require('../utils/catalogAvailability');
 const {
   validateCodigoBarras,
+  validateFechaVencimiento,
   validateProductoNumbers
 } = require('../features/productos/validators');
+
+const PRODUCTO_SELECT = [
+  'id',
+  'nombre',
+  'descripcion',
+  'precio_venta',
+  'precio_compra',
+  'codigo_barras',
+  'fecha_vencimiento',
+  'stock_actual',
+  'stock_minimo',
+  'categoria_id',
+  'imagen',
+  'activo'
+].join(', ');
+
+const PRODUCTO_SELECT_ALIAS = PRODUCTO_SELECT.split(', ').map((column) => `p.${column}`).join(', ');
+
+const formatDateOnly = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return String(value).slice(0, 10);
+};
+
+let productosFechaVencimientoChecked = false;
+
+const ensureProductosFechaVencimientoColumn = async (runner = pool) => {
+  if (productosFechaVencimientoChecked) return;
+  const [rows] = await runner.query(
+    `SELECT COLUMN_NAME
+       FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'productos'
+        AND COLUMN_NAME = 'fecha_vencimiento'
+      LIMIT 1`
+  );
+  if (rows.length === 0) {
+    await runner.query('ALTER TABLE productos ADD COLUMN fecha_vencimiento DATE NULL AFTER codigo_barras');
+  }
+  productosFechaVencimientoChecked = true;
+};
 
 // CONTROLADOR BACKEND: map Producto procesa request/respuesta de este flujo.
 const mapProducto = (row) => ({
@@ -23,6 +65,7 @@ const mapProducto = (row) => ({
   precioVenta: Number(row.precio_venta),
   precioCompra: row.precio_compra !== null ? Number(row.precio_compra) : null,
   codigoBarras: row.codigo_barras,
+  fechaVencimiento: formatDateOnly(row.fecha_vencimiento),
   stockActual: Number(row.stock_actual),
   stockMinimo: Number(row.stock_minimo),
   categoriaId: row.categoria_id,
@@ -68,8 +111,9 @@ const validateProductoAvailable = async ({ nombre, descripcion, categoriaId }) =
 
 // CONTROLADOR BACKEND: fetch Producto For Update procesa request/respuesta de este flujo.
 const fetchProductoForUpdate = async (id) => {
+  await ensureProductosFechaVencimientoColumn();
   const [rows] = await pool.query(
-    `SELECT p.id, p.nombre, p.descripcion, p.codigo_barras, p.categoria_id, c.nombre AS categoria_nombre
+    `SELECT p.id, p.nombre, p.descripcion, p.codigo_barras, p.fecha_vencimiento, p.categoria_id, c.nombre AS categoria_nombre
        FROM productos p
        LEFT JOIN categorias c ON c.id = p.categoria_id
       WHERE p.id = ?`,
@@ -80,9 +124,9 @@ const fetchProductoForUpdate = async (id) => {
 
 // CONTROLADOR BACKEND: list Productos procesa request/respuesta de este flujo.
 const listProductos = async (_req, res) => {
+  await ensureProductosFechaVencimientoColumn();
   const [rows] = await pool.query(
-    `SELECT p.id, p.nombre, p.descripcion, p.precio_venta, p.precio_compra, p.codigo_barras,
-            p.stock_actual, p.stock_minimo, p.categoria_id, p.imagen, p.activo
+    `SELECT ${PRODUCTO_SELECT_ALIAS}
        FROM productos p
        LEFT JOIN categorias c ON c.id = p.categoria_id
       WHERE ${productAvailabilitySql('p', 'c')}
@@ -93,12 +137,14 @@ const listProductos = async (_req, res) => {
 
 // CONTROLADOR BACKEND: create Producto procesa request/respuesta de este flujo.
 const createProducto = async (req, res) => {
+  await ensureProductosFechaVencimientoColumn();
   const {
     nombre,
     descripcion,
     precioVenta,
     precioCompra,
     codigoBarras,
+    fechaVencimiento,
     stockActual,
     stockMinimo,
     categoriaId,
@@ -112,9 +158,11 @@ const createProducto = async (req, res) => {
 
   let numericValues;
   let codigoBarrasValue;
+  let fechaVencimientoValue;
   try {
     numericValues = validateProductoNumbers({ precioVenta, precioCompra, stockActual, stockMinimo }, { creating: true });
     codigoBarrasValue = validateCodigoBarras(codigoBarras);
+    fechaVencimientoValue = validateFechaVencimiento(fechaVencimiento ?? null);
     await ensureCodigoBarrasUnique(codigoBarrasValue);
     await validateProductoAvailable({ nombre, descripcion, categoriaId });
   } catch (error) {
@@ -123,14 +171,15 @@ const createProducto = async (req, res) => {
 
   const [result] = await pool.execute(
     `INSERT INTO productos
-      (nombre, descripcion, precio_venta, precio_compra, codigo_barras, stock_actual, stock_minimo, categoria_id, imagen, activo)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (nombre, descripcion, precio_venta, precio_compra, codigo_barras, fecha_vencimiento, stock_actual, stock_minimo, categoria_id, imagen, activo)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       nombre,
       descripcion || null,
       numericValues.precioVentaValue,
       numericValues.precioCompraValue,
       codigoBarrasValue,
+      fechaVencimientoValue,
       numericValues.stockActualValue ?? 0,
       numericValues.stockMinimoValue ?? 0,
       categoriaId,
@@ -140,7 +189,7 @@ const createProducto = async (req, res) => {
   );
 
   const [rows] = await pool.query(
-    'SELECT id, nombre, descripcion, precio_venta, precio_compra, codigo_barras, stock_actual, stock_minimo, categoria_id, imagen, activo FROM productos WHERE id = ?',
+    `SELECT ${PRODUCTO_SELECT} FROM productos WHERE id = ?`,
     [result.insertId]
   );
 
@@ -149,6 +198,7 @@ const createProducto = async (req, res) => {
 
 // CONTROLADOR BACKEND: update Producto procesa request/respuesta de este flujo.
 const updateProducto = async (req, res) => {
+  await ensureProductosFechaVencimientoColumn();
   const { id } = req.params;
   const {
     nombre,
@@ -156,6 +206,7 @@ const updateProducto = async (req, res) => {
     precioVenta,
     precioCompra,
     codigoBarras,
+    fechaVencimiento,
     stockActual,
     stockMinimo,
     categoriaId,
@@ -165,9 +216,11 @@ const updateProducto = async (req, res) => {
 
   let numericValues;
   let codigoBarrasValue;
+  let fechaVencimientoValue;
   try {
     numericValues = validateProductoNumbers({ precioVenta, precioCompra, stockActual, stockMinimo });
     codigoBarrasValue = validateCodigoBarras(codigoBarras);
+    fechaVencimientoValue = validateFechaVencimiento(fechaVencimiento);
   } catch (error) {
     return res.status(400).json({ message: error.message });
   }
@@ -195,6 +248,7 @@ const updateProducto = async (req, res) => {
       precio_venta = COALESCE(?, precio_venta),
       precio_compra = COALESCE(?, precio_compra),
       codigo_barras = ?,
+      fecha_vencimiento = ?,
       stock_actual = COALESCE(?, stock_actual),
       stock_minimo = COALESCE(?, stock_minimo),
       categoria_id = COALESCE(?, categoria_id),
@@ -207,6 +261,7 @@ const updateProducto = async (req, res) => {
       numericValues.precioVentaValue,
       numericValues.precioCompraValue,
       codigoBarras === undefined ? existingProducto.codigo_barras : codigoBarrasValue,
+      fechaVencimiento === undefined ? formatDateOnly(existingProducto.fecha_vencimiento) : fechaVencimientoValue,
       numericValues.stockActualValue,
       numericValues.stockMinimoValue,
       categoriaId ?? null,
@@ -217,7 +272,7 @@ const updateProducto = async (req, res) => {
   );
 
   const [rows] = await pool.query(
-    'SELECT id, nombre, descripcion, precio_venta, precio_compra, codigo_barras, stock_actual, stock_minimo, categoria_id, imagen, activo FROM productos WHERE id = ?',
+    `SELECT ${PRODUCTO_SELECT} FROM productos WHERE id = ?`,
     [id]
   );
 

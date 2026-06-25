@@ -26,6 +26,28 @@ const validateCodigoBarras = (codigoBarras) => {
   return normalized;
 };
 
+const normalizeDateOnly = (value) => {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  const normalized = String(value).trim();
+  if (normalized === '') return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    throw new Error('La fecha de vencimiento no es valida.');
+  }
+  return normalized;
+};
+
+const getTodayDateOnly = () => new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+const validateFechaVencimiento = (fechaVencimiento) => {
+  const normalized = normalizeDateOnly(fechaVencimiento);
+  if (!normalized) return normalized;
+  if (normalized < getTodayDateOnly()) {
+    throw new Error('La fecha de vencimiento no puede ser anterior a hoy.');
+  }
+  return normalized;
+};
+
 // LOGICA: validate Producto Numbers concentra una operacion de este archivo.
 const validateProductoNumbers = ({ precioVenta, precioCompra, stockActual, stockMinimo }, { creating = false } = {}) => {
   const precioVentaValue = parseNumberField(precioVenta);
@@ -61,5 +83,6 @@ module.exports = {
   parseNumberField,
   normalizeCodigoBarras,
   validateCodigoBarras,
+  validateFechaVencimiento,
   validateProductoNumbers
 };

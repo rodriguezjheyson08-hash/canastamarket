@@ -10,6 +10,7 @@
 const {
   normalizeCodigoBarras,
   validateCodigoBarras,
+  validateFechaVencimiento,
   validateProductoNumbers
 } = require('./validators');
 
@@ -87,6 +88,23 @@ describe('validadores de productos', () => {
         stockActual: '1.5',
         stockMinimo: '0'
       }, { creating: true })).toThrow('El stock actual no puede ser negativo.');
+    });
+  });
+
+  describe('validateFechaVencimiento', () => {
+    test('acepta una fecha futura o de hoy en formato YYYY-MM-DD', () => {
+      const today = new Date().toISOString().slice(0, 10);
+      expect(validateFechaVencimiento(today)).toBe(today);
+    });
+
+    test('rechaza fechas vencidas', () => {
+      expect(() => validateFechaVencimiento('2000-01-01'))
+        .toThrow('La fecha de vencimiento no puede ser anterior a hoy.');
+    });
+
+    test('permite fecha vacia para productos sin vencimiento', () => {
+      expect(validateFechaVencimiento('')).toBeNull();
+      expect(validateFechaVencimiento(null)).toBeNull();
     });
   });
 });

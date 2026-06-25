@@ -221,6 +221,30 @@ const ProductosPage: React.FC = () => {
     return `S/ ${value.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`;
   };
 
+  const getDiasParaVencer = (fechaVencimiento?: string | null) => {
+    if (!fechaVencimiento) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const expiration = new Date(`${fechaVencimiento}T00:00:00`);
+    return Math.ceil((expiration.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  };
+
+  const getVencimientoLabel = (fechaVencimiento?: string | null) => {
+    const dias = getDiasParaVencer(fechaVencimiento);
+    if (dias === null) return 'Sin fecha';
+    if (dias === 0) return 'Vence hoy';
+    if (dias === 1) return 'Vence mañana';
+    return `Vence en ${dias} días`;
+  };
+
+  const getVencimientoColor = (fechaVencimiento?: string | null): 'default' | 'warning' | 'error' | 'success' => {
+    const dias = getDiasParaVencer(fechaVencimiento);
+    if (dias === null) return 'default';
+    if (dias <= 2) return 'error';
+    if (dias <= 7) return 'warning';
+    return 'success';
+  };
+
   const categoriaNombrePorId = useMemo(() => categorias.reduce<Record<number, string>>((acc, cat) => {
     acc[cat.id] = cat.nombre;
     return acc;
@@ -525,6 +549,7 @@ const ProductosPage: React.FC = () => {
                         <TableCell>{t('Nombre', 'Name')}</TableCell>
                         <TableCell>{t('Código de barras', 'Barcode')}</TableCell>
                         <TableCell align="left">{t('Descripción', 'Description')}</TableCell>
+                        <TableCell align="center">{t('Vencimiento', 'Expiration')}</TableCell>
                         <TableCell align="right">{t('Precio', 'Price')}</TableCell>
                         <TableCell align="right">{t('Stock', 'Stock')}</TableCell>
                         <TableCell align="center">{t('Acciones', 'Actions')}</TableCell>
@@ -555,6 +580,18 @@ const ProductosPage: React.FC = () => {
                             <Typography variant="body2" color="text.secondary">
                               {producto.descripcion}
                             </Typography>
+                          </TableCell>
+                          <TableCell align="center">
+                            <Chip
+                              label={getVencimientoLabel(producto.fechaVencimiento)}
+                              color={getVencimientoColor(producto.fechaVencimiento)}
+                              size="small"
+                            />
+                            {producto.fechaVencimiento && (
+                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                                {new Date(`${producto.fechaVencimiento}T00:00:00`).toLocaleDateString('es-PE')}
+                              </Typography>
+                            )}
                           </TableCell>
                           <TableCell align="right">
                             <Typography variant="subtitle2" fontWeight="bold">

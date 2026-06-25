@@ -23,7 +23,7 @@ import {
   SelectChangeEvent
 } from '@mui/material';
 // IMPORTACIONES FRONTEND: librerias, helpers y tipos que usa este archivo.
-import { QrCodeScanner } from '@mui/icons-material';
+import { CalendarMonth, QrCodeScanner } from '@mui/icons-material';
 import { Producto, Categoria } from '../../types';
 import { getCategorias } from '../../services/api';
 import { useI18n } from '../../hooks/useI18n';
@@ -53,6 +53,7 @@ interface ProductoFormData {
   descripcion: string;
   precioVenta: string;
   codigoBarras: string;
+  fechaVencimiento: string;
   stock: string;
   imagen?: string;
   categoriaId: number;
@@ -76,6 +77,27 @@ const normalizeDecimalInput = (rawValue: string) => {
 // LOGICA: normalize Integer Input concentra una operacion de este archivo.
 const normalizeIntegerInput = (rawValue: string) => rawValue.replace(/\D/g, '');
 
+const getTodayDateOnly = () => {
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  return now.toISOString().slice(0, 10);
+};
+
+const getDiasParaVencer = (fechaVencimiento: string) => {
+  if (!fechaVencimiento) return null;
+  const today = new Date(`${getTodayDateOnly()}T00:00:00`);
+  const expiration = new Date(`${fechaVencimiento}T00:00:00`);
+  return Math.ceil((expiration.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+};
+
+const getVencimientoHelperText = (fechaVencimiento: string) => {
+  const dias = getDiasParaVencer(fechaVencimiento);
+  if (dias === null) return '';
+  if (dias === 0) return 'Vence hoy';
+  if (dias === 1) return 'Vencerá mañana';
+  return `Vencerá en ${dias} días`;
+};
+
 const ProductoForm: React.FC<ProductoFormProps> = ({
   open,
   onClose,
@@ -89,6 +111,7 @@ const ProductoForm: React.FC<ProductoFormProps> = ({
     descripcion: '',
     precioVenta: '',
     codigoBarras: '',
+    fechaVencimiento: '',
     stock: '',
     imagen: '',
     categoriaId: 0
@@ -101,6 +124,7 @@ const ProductoForm: React.FC<ProductoFormProps> = ({
   const [categoriaError, setCategoriaError] = useState('');
   const [imagenError, setImagenError] = useState('');
   const [codigoBarrasError, setCodigoBarrasError] = useState('');
+  const [fechaVencimientoError, setFechaVencimientoError] = useState('');
   const [scannerOpen, setScannerOpen] = useState(false);
 
   useEffect(() => {
@@ -110,6 +134,7 @@ const ProductoForm: React.FC<ProductoFormProps> = ({
         descripcion: producto.descripcion,
         precioVenta: producto.precioVenta ? producto.precioVenta.toString() : '',
         codigoBarras: producto.codigoBarras || '',
+        fechaVencimiento: producto.fechaVencimiento || '',
         stock: producto.stockActual !== undefined && producto.stockActual !== null ? producto.stockActual.toString() : '',
         imagen: (producto as any).imagen || '',
         categoriaId: producto.categoriaId || 0
@@ -121,6 +146,7 @@ const ProductoForm: React.FC<ProductoFormProps> = ({
         descripcion: '',
         precioVenta: '',
         codigoBarras: '',
+        fechaVencimiento: '',
         stock: '',
         imagen: '',
         categoriaId: 0
@@ -195,6 +221,11 @@ const ProductoForm: React.FC<ProductoFormProps> = ({
     if (field === 'codigoBarras') {
       value = String(value).trim();
       setCodigoBarrasError(value.length > 80 ? t('El código de barras no puede superar 80 caracteres', 'Barcode cannot exceed 80 characters') : '');
+    }
+    if (field === 'fechaVencimiento') {
+      value = String(value);
+      const today = getTodayDateOnly();
+      setFechaVencimientoError(value && value < today ? t('La fecha de vencimiento no puede ser anterior a hoy', 'Expiration date cannot be before today') : '');
     }
     if (field === 'imagen') {
       setImagenError(validateImageUrl(value));
@@ -276,6 +307,12 @@ const ProductoForm: React.FC<ProductoFormProps> = ({
     } else {
       setCodigoBarrasError('');
     }
+    if (formData.fechaVencimiento && formData.fechaVencimiento < getTodayDateOnly()) {
+      setFechaVencimientoError(t('La fecha de vencimiento no puede ser anterior a hoy', 'Expiration date cannot be before today'));
+      valid = false;
+    } else {
+      setFechaVencimientoError('');
+    }
     if (!valid) return;
     let imagenFinal: string | undefined = undefined;
     if (localImage && localImage.trim() !== '') {
@@ -290,6 +327,7 @@ const ProductoForm: React.FC<ProductoFormProps> = ({
       descripcion: formData.descripcion,
       precioVenta: Number(formData.precioVenta),
       codigoBarras: formData.codigoBarras.trim() || null,
+      fechaVencimiento: formData.fechaVencimiento || null,
       stockActual: Number(formData.stock),
       ...(imagenFinal ? { imagen: imagenFinal } : {}),
       categoriaId: formData.categoriaId
@@ -364,6 +402,24 @@ const ProductoForm: React.FC<ProductoFormProps> = ({
               }}
               error={!!codigoBarrasError}
               helperText={codigoBarrasError || t('Escanea o escribe el código del producto', 'Scan or type the product code')}
+            />
+            <TextField
+              label={t('Fecha de vencimiento', 'Expiration date')}
+              type="date"
+              value={formData.fechaVencimiento}
+              onChange={handleChange('fechaVencimiento')}
+              fullWidth
+              InputLabelProps={{ shrink: true }}
+              inputProps={{ min: getTodayDateOnly() }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <CalendarMonth color="action" />
+                  </InputAdornment>
+                )
+              }}
+              error={!!fechaVencimientoError}
+              helperText={fechaVencimientoError || getVencimientoHelperText(formData.fechaVencimiento) || t('Opcional. No permite fechas vencidas.', 'Optional. Past dates are not allowed.')}
             />
             <TextField
               label={t('Stock', 'Stock')}
