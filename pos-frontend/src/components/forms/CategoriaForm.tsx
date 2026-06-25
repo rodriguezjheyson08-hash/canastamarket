@@ -25,6 +25,7 @@ interface CategoriaFormProps {
   onSubmit: (categoria: Omit<Categoria, 'id'>) => void;
   categoria?: Categoria;
   loading?: boolean;
+  nombreBloqueado?: boolean;
 }
 
 const CategoriaForm: React.FC<CategoriaFormProps> = ({
@@ -32,7 +33,8 @@ const CategoriaForm: React.FC<CategoriaFormProps> = ({
   onClose,
   onSubmit,
   categoria,
-  loading = false
+  loading = false,
+  nombreBloqueado = false
 }) => {
   const { t } = useI18n();
   const [formData, setFormData] = useState<Omit<Categoria, 'id'>>({
@@ -82,6 +84,8 @@ const CategoriaForm: React.FC<CategoriaFormProps> = ({
               label={t('Nombre', 'Name')}
               value={formData.nombre}
               onChange={handleChange('nombre')}
+              disabled={nombreBloqueado}
+              helperText={nombreBloqueado ? t('Esta categoría tiene productos; solo puedes editar la descripción.', 'This category has products; only the description can be edited.') : undefined}
               required
               fullWidth
             />

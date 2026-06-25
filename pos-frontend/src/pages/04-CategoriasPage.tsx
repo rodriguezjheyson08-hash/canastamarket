@@ -41,6 +41,7 @@ const CategoriasPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [editingCategoria, setEditingCategoria] = useState<Categoria | undefined>();
+  const [nombreBloqueado, setNombreBloqueado] = useState(false);
   const [saving, setSaving] = useState(false);
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
@@ -72,13 +73,21 @@ const CategoriasPage: React.FC = () => {
 // LOGICA: handle Create concentra una operacion de este archivo.
   const handleCreate = () => {
     setEditingCategoria(undefined);
+    setNombreBloqueado(false);
     setFormOpen(true);
   };
 
 // LOGICA: handle Edit concentra una operacion de este archivo.
-  const handleEdit = (categoria: Categoria) => {
+  const handleEdit = async (categoria: Categoria) => {
     setEditingCategoria(categoria);
+    setNombreBloqueado(false);
     setFormOpen(true);
+    try {
+      const productos = await getProductos();
+      setNombreBloqueado(productos.some((p: any) => p.categoriaId === categoria.id));
+    } catch {
+      setNombreBloqueado(false);
+    }
   };
 
 // LOGICA: handle Delete concentra una operacion de este archivo.
@@ -114,7 +123,7 @@ const CategoriasPage: React.FC = () => {
       }
       setFormOpen(false);
     } catch (error) {
-      showSnackbar(t('Error al guardar categorÃ­a', 'Error saving category'), 'error');
+      showSnackbar((error as any)?.response?.data?.message || t('Error al guardar categoría', 'Error saving category'), 'error');
     } finally {
       setSaving(false);
     }
@@ -200,6 +209,7 @@ const CategoriasPage: React.FC = () => {
         onSubmit={handleSubmit}
         categoria={editingCategoria}
         loading={saving}
+        nombreBloqueado={nombreBloqueado}
       />
 
       <Snackbar
