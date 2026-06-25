@@ -11,7 +11,6 @@ export type PermissionKey =
   | 'productos'
   | 'categorias'
   | 'proveedores'
-  | 'pedidosOnline'
   | 'reportes'
   | 'configuracion';
 

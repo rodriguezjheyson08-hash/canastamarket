@@ -32,7 +32,6 @@ const ProveedoresPage = lazy(() => import('./pages/07-ProveedoresPage'));
 const ConfiguracionPage = lazy(() => import('./pages/08-ConfiguracionPage'));
 const ReportesPage = lazy(() => import('./pages/09-ReportesPage'));
 const ClienteTiendaPage = lazy(() => import('./pages/10-ClienteTiendaPage'));
-const PedidosOnlinePage = lazy(() => import('./pages/11-PedidosOnlinePage'));
 
 const PrivateLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
@@ -117,11 +116,7 @@ const App: React.FC = () => {
                         />
                         <Route
                           path="pedidos-online"
-                          element={
-                            <FeatureRoute permission="pedidosOnline">
-                              <PedidosOnlinePage />
-                            </FeatureRoute>
-                          }
+                          element={<Navigate to="/dashboard" replace />}
                         />
                         <Route
                           path="proveedores"

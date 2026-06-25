@@ -58,9 +58,10 @@ const usuariosBase: UsuarioItem[] = [
     email: 'caja01@test.local',
     permisos: {
       ventas: true,
-      productos: false,
-      categorias: false,
-      proveedores: false,
+      productos: true,
+      categorias: true,
+      proveedores: true,
+      reportes: true,
       configuracion: false
     },
     failed_attempts: 0,
@@ -150,16 +151,16 @@ describe('ConfiguracionPage usuarios y permisos', () => {
     expect(mockedGetUsuarios).not.toHaveBeenCalled();
   });
 
-  it('muestra todos los modulos configurables, incluidos pedidos online y reportes', async () => {
+  it('muestra los modulos habilitados, incluido reportes y sin pedidos online', async () => {
     await renderAsAdmin();
 
     expect(screen.getByLabelText('Ventas')).toBeInTheDocument();
     expect(screen.getByLabelText('Productos')).toBeInTheDocument();
     expect(screen.getByLabelText('Categorías')).toBeInTheDocument();
     expect(screen.getByLabelText('Proveedores')).toBeInTheDocument();
-    expect(screen.getByLabelText('Pedidos Online')).toBeInTheDocument();
     expect(screen.getByLabelText('Reportes')).toBeInTheDocument();
     expect(screen.getByLabelText('Configuración')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Pedidos Online')).not.toBeInTheDocument();
   });
 
   it('crea un usuario cajero con permisos seleccionados', async () => {
@@ -172,8 +173,9 @@ describe('ConfiguracionPage usuarios y permisos', () => {
       permisos: {
         ventas: true,
         productos: true,
-        categorias: false,
-        proveedores: false,
+        categorias: true,
+        proveedores: true,
+        reportes: true,
         configuracion: false
       }
     };
@@ -198,7 +200,6 @@ describe('ConfiguracionPage usuarios y permisos', () => {
     fireEvent.change(screen.getByLabelText('Nombre completo'), { target: { value: 'Caja Dos' } });
     fireEvent.change(screen.getByLabelText('Contraseña'), { target: { value: 'Clave123' } });
     fireEvent.change(screen.getByLabelText('Correo'), { target: { value: 'caja02@test.local' } });
-    fireEvent.click(screen.getByLabelText('Productos'));
     fireEvent.click(screen.getByRole('button', { name: /agregar/i }));
 
     await waitFor(() => {
@@ -211,8 +212,9 @@ describe('ConfiguracionPage usuarios y permisos', () => {
         permisos: expect.objectContaining({
           ventas: true,
           productos: true,
-          categorias: false,
-          proveedores: false,
+          categorias: true,
+          proveedores: true,
+          reportes: true,
           configuracion: false
         })
       }));
@@ -228,8 +230,9 @@ describe('ConfiguracionPage usuarios y permisos', () => {
       permisos: {
         ventas: true,
         productos: true,
-        categorias: false,
-        proveedores: false,
+        categorias: true,
+        proveedores: true,
+        reportes: true,
         configuracion: false
       }
     };
@@ -245,7 +248,7 @@ describe('ConfiguracionPage usuarios y permisos', () => {
 
     expect(screen.getByDisplayValue('caja01')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Nombre completo'), { target: { value: 'Caja Uno Editada' } });
-    fireEvent.click(screen.getByLabelText('Productos'));
+    fireEvent.click(screen.getByLabelText('Configuración'));
     const updateButtons = screen.getAllByRole('button', { name: /actualizar/i });
     fireEvent.click(updateButtons[updateButtons.length - 1]);
 
@@ -256,7 +259,8 @@ describe('ConfiguracionPage usuarios y permisos', () => {
         rol: 'CAJERO',
         permisos: expect.objectContaining({
           ventas: true,
-          productos: true
+          productos: true,
+          configuracion: true
         })
       }));
     });

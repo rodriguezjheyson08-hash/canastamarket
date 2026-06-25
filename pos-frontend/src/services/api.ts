@@ -16,6 +16,7 @@ import {
   DashboardStats,
   LoginData,
   AuthResponse,
+  User,
   UsuarioItem,
   UsuarioPayload,
   PedidoOnline,
@@ -354,6 +355,15 @@ export const login = async (credentials: LoginData): Promise<AuthResponse> => {
     } catch (error) {
         throw new Error(getAuthErrorMessage(error, 'Error de autenticación'));
     }
+};
+
+// SERVICIO FRONTEND: get Current User refresca permisos vigentes del usuario logueado.
+export const getCurrentUser = async (token?: string | null): Promise<User> => {
+    const authToken = token ?? getToken();
+    const res = await axios.get(`${API_URL}/auth/me`, {
+        headers: buildAuthHeaders(authToken)
+    });
+    return res.data.user;
 };
 
 // SERVICIO FRONTEND: login With Google llama al backend y devuelve la respuesta a React.

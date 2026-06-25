@@ -7,7 +7,6 @@ describe('permisos del backend', () => {
       productos: true,
       categorias: true,
       proveedores: true,
-      pedidosOnline: true,
       reportes: true,
       configuracion: true
     });
@@ -17,10 +16,9 @@ describe('permisos del backend', () => {
     expect(normalizePermisos('CAJERO', JSON.stringify({ ventas: true, productos: true }))).toEqual({
       ventas: true,
       productos: true,
-      categorias: false,
-      proveedores: false,
-      pedidosOnline: false,
-      reportes: false,
+      categorias: true,
+      proveedores: true,
+      reportes: true,
       configuracion: false
     });
   });

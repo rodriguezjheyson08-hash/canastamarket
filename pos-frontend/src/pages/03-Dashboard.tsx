@@ -21,7 +21,6 @@ import {
   PointOfSale,
   Business,
   Assessment,
-  LocalShipping,
   Settings
 } from '@mui/icons-material';
 import { useNavigate, Outlet, useLocation } from 'react-router-dom';
@@ -103,14 +102,6 @@ const Dashboard: React.FC = () => {
       path: '/dashboard/proveedores',
       color: '#7b1fa2',
       permission: 'proveedores'
-    },
-    {
-      title: 'Pedidos Online',
-      description: t('Gestionar pedidos de la tienda virtual', 'Manage online store orders'),
-      icon: <LocalShipping sx={{ fontSize: 40 }} />,
-      color: '#5d4037',
-      path: '/dashboard/pedidos-online',
-      permission: 'pedidosOnline'
     },
     {
       title: 'Reportes',

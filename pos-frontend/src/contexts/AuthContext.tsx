@@ -6,7 +6,7 @@
  */
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, LoginData } from '../types';
-import { login as apiLogin, loginWithGoogle as apiLoginWithGoogle } from '../services/api';
+import { getCurrentUser, login as apiLogin, loginWithGoogle as apiLoginWithGoogle } from '../services/api';
 
 // TIPOS FRONTEND: alias LoginResult para ordenar datos internos.
 type LoginResult = { ok: boolean; message?: string; user?: User };
@@ -54,6 +54,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsAuthenticated(true);
     setUser(authenticatedUser);
   };
+
+  useEffect(() => {
+    if (!isAuthenticated) return undefined;
+
+// LOGICA: refresh Authenticated User mantiene permisos actualizados entre dispositivos.
+    const refreshAuthenticatedUser = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      try {
+        const freshUser = await getCurrentUser(token);
+        persistAuthenticatedUser(freshUser);
+      } catch {
+        // Si hay una falla temporal de red, se conserva la sesion actual.
+      }
+    };
+
+    void refreshAuthenticatedUser();
+    const intervalId = window.setInterval(refreshAuthenticatedUser, 15000);
+    window.addEventListener('focus', refreshAuthenticatedUser);
+    document.addEventListener('visibilitychange', refreshAuthenticatedUser);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refreshAuthenticatedUser);
+      document.removeEventListener('visibilitychange', refreshAuthenticatedUser);
+    };
+  }, [isAuthenticated]);
 
 // LOGICA: login concentra una operacion de este archivo.
   const login = async (credentials: LoginData) => {

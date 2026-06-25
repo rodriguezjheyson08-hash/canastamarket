@@ -223,6 +223,26 @@ const login = async (req, res) => {
   res.json(buildAuthPayload(row));
 };
 
+// CONTROLADOR BACKEND - USUARIO ACTUAL:
+// Devuelve los permisos vigentes del usuario autenticado para refrescar el menu sin relogin.
+const getCurrentUser = async (req, res) => {
+  await ensureUsuariosPermisosColumn();
+  const userId = req.auth?.sub;
+  const [rows] = await pool.query(`${USER_SELECT} WHERE id = ? LIMIT 1`, [userId]);
+
+  if (rows.length === 0) {
+    return res.status(404).json({ message: 'Usuario no encontrado.' });
+  }
+
+  const row = rows[0];
+  const accessError = validateUserAccess(row);
+  if (accessError) {
+    return res.status(accessError.status).json({ message: accessError.message });
+  }
+
+  res.json({ user: buildAuthPayload(row).user });
+};
+
 // CONTROLADOR BACKEND - LOGIN CON GOOGLE:
 // Endpoint usado por el boton Google. Valida token con Google, busca usuario por email,
 // valida permisos/estado y devuelve token si el correo existe en la base de datos.
@@ -260,6 +280,7 @@ const loginWithGoogle = async (req, res) => {
 };
 
 module.exports = {
+  getCurrentUser,
   login,
   loginWithGoogle
 };

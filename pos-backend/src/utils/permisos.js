@@ -9,7 +9,6 @@ const PERMISSION_KEYS = [
   'productos',
   'categorias',
   'proveedores',
-  'pedidosOnline',
   'reportes',
   'configuracion'
 ];
@@ -20,7 +19,6 @@ const DEFAULT_ADMIN_PERMISOS = {
   productos: true,
   categorias: true,
   proveedores: true,
-  pedidosOnline: true,
   reportes: true,
   configuracion: true
 };
@@ -28,11 +26,10 @@ const DEFAULT_ADMIN_PERMISOS = {
 // CONSTANTE: DEFAULT_CAJERO_PERMISOS guarda configuracion o valor fijo del archivo.
 const DEFAULT_CAJERO_PERMISOS = {
   ventas: true,
-  productos: false,
-  categorias: false,
-  proveedores: false,
-  pedidosOnline: false,
-  reportes: false,
+  productos: true,
+  categorias: true,
+  proveedores: true,
+  reportes: true,
   configuracion: false
 };
 

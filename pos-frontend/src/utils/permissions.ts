@@ -11,7 +11,6 @@ export const PERMISSION_KEYS: PermissionKey[] = [
   'productos',
   'categorias',
   'proveedores',
-  'pedidosOnline',
   'reportes',
   'configuracion'
 ];
@@ -22,7 +21,6 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   productos: 'Productos',
   categorias: 'Categorías',
   proveedores: 'Proveedores',
-  pedidosOnline: 'Pedidos Online',
   reportes: 'Reportes',
   configuracion: 'Configuración'
 };
@@ -33,7 +31,6 @@ export const DEFAULT_ADMIN_PERMISSIONS: UserPermissions = {
   productos: true,
   categorias: true,
   proveedores: true,
-  pedidosOnline: true,
   reportes: true,
   configuracion: true
 };
@@ -41,11 +38,10 @@ export const DEFAULT_ADMIN_PERMISSIONS: UserPermissions = {
 // CONSTANTE: DEFAULT_CAJERO_PERMISSIONS guarda un valor fijo usado por este bloque.
 export const DEFAULT_CAJERO_PERMISSIONS: UserPermissions = {
   ventas: true,
-  productos: false,
-  categorias: false,
-  proveedores: false,
-  pedidosOnline: false,
-  reportes: false,
+  productos: true,
+  categorias: true,
+  proveedores: true,
+  reportes: true,
   configuracion: false
 };
 
