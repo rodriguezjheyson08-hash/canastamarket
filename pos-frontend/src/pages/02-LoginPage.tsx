@@ -1,10 +1,9 @@
 /*
  * MAPA DEL ARCHIVO: PANTALLA FRONTEND
  * UBICACION: pos-frontend/src/pages/02-LoginPage.tsx
- * QUE HACE: Contiene estructura visible de una pagina, estados de React y llamadas a servicios.
- * GUIA: usa comentarios DISEÑO/LOGICA/RUTA/SERVICIO para ubicar rapido donde cambiar algo.
+ * QUE HACE: Contiene la pantalla de inicio de sesion del personal.
  */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   AppBar,
   Toolbar,
@@ -17,11 +16,9 @@ import {
   Alert,
   CircularProgress,
   Avatar,
-  Divider,
   IconButton,
   InputAdornment
 } from '@mui/material';
-// IMPORTACIONES FRONTEND: librerias, helpers y tipos que usa este archivo.
 import StorefrontIcon from '@mui/icons-material/Storefront';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
@@ -31,113 +28,21 @@ import { useNavigate } from 'react-router-dom';
 import { useAppConfig } from '../hooks/useAppConfig';
 import { useI18n } from '../hooks/useI18n';
 
-// CONSTANTE: GOOGLE_SCRIPT_ID guarda configuracion o valor fijo del archivo.
-const GOOGLE_SCRIPT_ID = 'google-identity-services';
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 const LoginPage: React.FC = () => {
-  const { login: loginStaff, loginWithGoogle } = useAuth();
+  const { login: loginStaff } = useAuth();
   const navigate = useNavigate();
   const config = useAppConfig();
   const { t } = useI18n();
-  const googleButtonRef = useRef<HTMLDivElement | null>(null);
-  const googleClientId = process.env.REACT_APP_GOOGLE_CLIENT_ID || '';
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
 
   const goToInitialScreen = useCallback(() => {
     navigate('/dashboard', { replace: true });
   }, [navigate]);
 
-  const handleGoogleResponse = useCallback(async (response: GoogleCredentialResponse) => {
-    const credential = response?.credential;
-    if (!credential) {
-      setError(t('Continúa con un correo válido.', 'Continue with a valid email.'));
-      return;
-    }
-
-    setError('');
-    setGoogleLoading(true);
-    try {
-      const result = await loginWithGoogle(credential);
-      if (!result.ok) {
-        setError(result.message || t('Continúa con un correo válido.', 'Continue with a valid email.'));
-        return;
-      }
-      goToInitialScreen();
-    } catch {
-      setError(t('Continúa con un correo válido.', 'Continue with a valid email.'));
-    } finally {
-      setGoogleLoading(false);
-    }
-  }, [goToInitialScreen, loginWithGoogle, t]);
-
-  useEffect(() => {
-    if (!googleClientId || !googleButtonRef.current) return;
-
-    let cancelled = false;
-
-// LOGICA: render Google Button concentra una operacion de este archivo.
-    const renderGoogleButton = () => {
-      if (cancelled || !googleButtonRef.current || !window.google?.accounts?.id) return;
-
-      window.google.accounts.id.initialize({
-        client_id: googleClientId,
-        callback: handleGoogleResponse,
-        auto_select: false,
-        cancel_on_tap_outside: true
-      });
-
-      googleButtonRef.current.innerHTML = '';
-      window.google.accounts.id.renderButton(googleButtonRef.current, {
-        type: 'standard',
-        theme: 'outline',
-        size: 'large',
-        text: 'signin_with',
-        shape: 'rectangular',
-        logo_alignment: 'left',
-        width: Math.min(360, googleButtonRef.current.clientWidth || 360),
-        locale: 'es'
-      });
-    };
-
-    if (window.google?.accounts?.id) {
-      renderGoogleButton();
-      return () => {
-        cancelled = true;
-        window.google?.accounts?.id.cancel();
-      };
-    }
-
-    let script = document.getElementById(GOOGLE_SCRIPT_ID) as HTMLScriptElement | null;
-    if (!script) {
-      script = document.createElement('script');
-      script.id = GOOGLE_SCRIPT_ID;
-      script.src = 'https://accounts.google.com/gsi/client';
-      script.async = true;
-      script.defer = true;
-      script.onerror = () => {
-        if (!cancelled) {
-          setError(t('No se pudo cargar Google. Continúa con un correo válido.', 'Google could not be loaded. Continue with a valid email.'));
-        }
-      };
-      document.body.appendChild(script);
-    }
-
-    script.addEventListener('load', renderGoogleButton);
-
-    return () => {
-      cancelled = true;
-      script?.removeEventListener('load', renderGoogleButton);
-      window.google?.accounts?.id.cancel();
-    };
-  }, [googleClientId, handleGoogleResponse, t]);
-
-// LOGICA: handle Submit concentra una operacion de este archivo.
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError('');
@@ -145,11 +50,6 @@ const LoginPage: React.FC = () => {
     const idValue = identifier.trim();
     if (!idValue || !password) {
       setError(t('Rellena todos los campos.', 'Fill in all fields.'));
-      return;
-    }
-
-    if (idValue.includes('@') && !EMAIL_REGEX.test(idValue)) {
-      setError(t('Ingresa un correo válido.', 'Enter a valid email.'));
       return;
     }
 
@@ -219,7 +119,7 @@ const LoginPage: React.FC = () => {
 
           <form onSubmit={handleSubmit}>
             <TextField
-              label={t('Usuario o correo', 'Username or email')}
+              label={t('Usuario', 'Username')}
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
               fullWidth
@@ -253,7 +153,7 @@ const LoginPage: React.FC = () => {
               variant="contained"
               fullWidth
               size="large"
-              disabled={loading || googleLoading}
+              disabled={loading}
               sx={{ mt: 3 }}
             >
               {loading ? (
@@ -263,39 +163,6 @@ const LoginPage: React.FC = () => {
               )}
             </Button>
           </form>
-
-          <Divider sx={{ my: 3 }}>{t('o', 'or')}</Divider>
-
-          <Box sx={{ display: 'flex', justifyContent: 'center', minHeight: 44 }}>
-            {googleClientId ? (
-              <Box
-                ref={googleButtonRef}
-                sx={{
-                  width: '100%',
-                  maxWidth: 360,
-                  display: 'flex',
-                  justifyContent: 'center',
-                  opacity: googleLoading || loading ? 0.65 : 1,
-                  pointerEvents: googleLoading || loading ? 'none' : 'auto'
-                }}
-              />
-            ) : (
-              <Button
-                variant="outlined"
-                fullWidth
-                disabled
-                sx={{ maxWidth: 360 }}
-              >
-                {t('Google no configurado', 'Google is not configured')}
-              </Button>
-            )}
-          </Box>
-          {googleLoading && (
-            <Box display="flex" justifyContent="center" mt={2}>
-              <CircularProgress size={22} />
-            </Box>
-          )}
-
         </Paper>
       </Container>
     </Box>

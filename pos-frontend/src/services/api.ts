@@ -366,14 +366,3 @@ export const getCurrentUser = async (token?: string | null): Promise<User> => {
     return res.data.user;
 };
 
-// SERVICIO FRONTEND: login With Google llama al backend y devuelve la respuesta a React.
-export const loginWithGoogle = async (credential: string): Promise<AuthResponse> => {
-    try {
-        const res = await axios.post(`${API_URL}/auth/google`, { credential });
-        const { token, user } = res.data;
-        saveAuthToken(token);
-        return { token, user };
-    } catch (error) {
-        throw new Error(getAuthErrorMessage(error, 'Continúa con un correo válido.'));
-    }
-};

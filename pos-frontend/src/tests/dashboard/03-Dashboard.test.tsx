@@ -130,7 +130,6 @@ const mockAdminSession = () => {
     isAuthenticated: true,
     loading: false,
     login: jest.fn(),
-    loginWithGoogle: jest.fn(),
     logout: jest.fn(),
     user: adminUser
   });
@@ -240,7 +239,6 @@ describe('Dashboard negocio', () => {
       isAuthenticated: true,
       loading: false,
       login: jest.fn(),
-      loginWithGoogle: jest.fn(),
       logout: jest.fn(),
       user: cajeroUser
     });

@@ -31,7 +31,6 @@ describe('LoginPage', () => {
       isAuthenticated: false,
       loading: false,
       login,
-      loginWithGoogle: jest.fn(),
       logout: jest.fn(),
       user: null
     });
@@ -49,7 +48,7 @@ describe('LoginPage', () => {
     login.mockResolvedValue({ ok: true, user: { nombreUsuario: 'admin', nombreCompleto: 'Administrador', rol: 'ADMINISTRADOR' } });
     render(<LoginPage />);
 
-    fireEvent.change(screen.getByLabelText('Usuario o correo'), { target: { value: ' admin ' } });
+    fireEvent.change(screen.getByLabelText('Usuario'), { target: { value: ' admin ' } });
     fireEvent.change(screen.getByLabelText('Contraseña'), { target: { value: 'Clave123' } });
     fireEvent.click(screen.getByRole('button', { name: 'Iniciar Sesión' }));
 
@@ -63,7 +62,7 @@ describe('LoginPage', () => {
     login.mockResolvedValue({ ok: false, message: 'Credenciales inválidas' });
     render(<LoginPage />);
 
-    fireEvent.change(screen.getByLabelText('Usuario o correo'), { target: { value: 'admin' } });
+    fireEvent.change(screen.getByLabelText('Usuario'), { target: { value: 'admin' } });
     fireEvent.change(screen.getByLabelText('Contraseña'), { target: { value: 'incorrecta' } });
     fireEvent.click(screen.getByRole('button', { name: 'Iniciar Sesión' }));
 

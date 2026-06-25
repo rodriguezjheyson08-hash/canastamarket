@@ -159,7 +159,6 @@ const renderAsAdmin = async (ventas: Venta[] = ventasBase, stats: DashboardStats
     isAuthenticated: true,
     loading: false,
     login: jest.fn(),
-    loginWithGoogle: jest.fn(),
     logout: jest.fn(),
     user: adminUser
   });
@@ -197,7 +196,6 @@ describe('ReportesPage ventas', () => {
       isAuthenticated: true,
       loading: false,
       login: jest.fn(),
-      loginWithGoogle: jest.fn(),
       logout: jest.fn(),
       user: cajeroUser
     });

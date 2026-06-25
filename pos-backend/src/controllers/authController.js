@@ -2,36 +2,20 @@
  * MAPA DEL ARCHIVO: CONTROLADOR BACKEND
  * UBICACION: pos-backend/src/controllers/authController.js
  * QUE HACE: Recibe req/res, ejecuta logica de negocio y responde al frontend.
- * GUIA: usa comentarios DISEÑO/LOGICA/RUTA/SERVICIO para ubicar rapido donde cambiar algo.
  */
-const axios = require('axios');
 const pool = require('../db/pool');
-const env = require('../config/env');
-// DEPENDENCIAS BACKEND: librerias, helpers y tipos que usa este archivo.
 const { normalizePermisos } = require('../utils/permisos');
 const { ensurePasswordColumnSchema } = require('../utils/ensurePasswordColumnSchema');
 const { hashPassword, verifyPassword, needsPasswordRehash } = require('../utils/passwords');
 const { createToken } = require('../utils/tokens');
 
-// LOGICA BACKEND - ESTADO INTERNO:
-// Evita revisar/agregar columnas de usuarios en cada request; se marca true despues de la primera revision.
 let usuariosPermisosColumnChecked = false;
-// LOGICA BACKEND - SEGURIDAD:
-// Cantidad maxima de intentos de login antes de bloquear la cuenta.
 const MAX_LOGIN_ATTEMPTS = 3;
-// SERVICIO EXTERNO:
-// URL oficial de Google usada para validar el token enviado por el boton "Continuar con Google".
-const GOOGLE_TOKENINFO_URL = 'https://oauth2.googleapis.com/tokeninfo';
 
-// LOGICA BACKEND - CONSULTA BASE:
-// Campos que siempre se leen cuando se busca un usuario para login normal o login con Google.
 const USER_SELECT = `SELECT id, nombre_usuario, nombre_completo, rol, password, dni, telefono, email, foto_url,
             permisos, failed_attempts, lockouts, lock_until, is_blocked, is_active
      FROM usuarios`;
 
-// LOGICA BACKEND - MIGRACION AUTOMATICA:
-// Asegura que la tabla usuarios tenga columnas necesarias para permisos, DNI, email y password.
-// Si falta una columna, la agrega; si tiene tipo incorrecto, lo corrige.
 const ensureUsuariosPermisosColumn = async (runner = pool) => {
   if (usuariosPermisosColumnChecked) return;
 
@@ -74,9 +58,7 @@ const ensureUsuariosPermisosColumn = async (runner = pool) => {
   usuariosPermisosColumnChecked = true;
 };
 
-// LOGICA BACKEND - RESPUESTA DE LOGIN:
-// Construye el objeto que recibe React al iniciar sesion: token JWT + datos visibles del usuario.
-const buildAuthPayload = (row, extra = {}) => {
+const buildAuthPayload = (row) => {
   const user = {
     id: row.id,
     nombreUsuario: row.nombre_usuario,
@@ -85,7 +67,7 @@ const buildAuthPayload = (row, extra = {}) => {
     dni: row.dni,
     telefono: row.telefono,
     email: row.email,
-    fotoUrl: row.foto_url || extra.fotoUrl,
+    fotoUrl: row.foto_url,
     permisos: normalizePermisos(row.rol, row.permisos)
   };
 
@@ -98,8 +80,6 @@ const buildAuthPayload = (row, extra = {}) => {
   return { token, user };
 };
 
-// LOGICA BACKEND - CONTROL DE ACCESO:
-// Valida si el usuario puede entrar al sistema antes de revisar o entregar token.
 const validateUserAccess = (row) => {
   const role = String(row.rol || '').trim().toUpperCase();
   if (!['ADMINISTRADOR', 'CAJERO'].includes(role)) {
@@ -117,8 +97,6 @@ const validateUserAccess = (row) => {
   return null;
 };
 
-// LOGICA BACKEND - INTENTOS DE LOGIN:
-// Limpia contador de intentos fallidos cuando el login fue correcto.
 const resetLoginAttempts = async (userId) => {
   await pool.execute(
     'UPDATE usuarios SET failed_attempts = 0, lockouts = 0, lock_until = NULL WHERE id = ?',
@@ -126,8 +104,6 @@ const resetLoginAttempts = async (userId) => {
   );
 };
 
-// LOGICA BACKEND - BLOQUEO POR PASSWORD INCORRECTO:
-// Suma intentos fallidos; al llegar al maximo bloquea la cuenta y responde error.
 const registerFailedAttempt = async (row, res) => {
   const nextAttempts = Number(row.failed_attempts || 0) + 1;
 
@@ -154,37 +130,6 @@ const registerFailedAttempt = async (row, res) => {
   });
 };
 
-// SERVICIO BACKEND - GOOGLE LOGIN:
-// Valida con Google que el credential recibido sea real, pertenezca a este cliente y tenga email verificado.
-const verifyGoogleCredential = async (credential) => {
-  const clientId = String(env.google?.clientId || '').trim();
-  if (!clientId) {
-    throw new Error('Google no está configurado.');
-  }
-
-  const { data } = await axios.get(GOOGLE_TOKENINFO_URL, {
-    params: { id_token: credential },
-    timeout: 8000
-  });
-
-  const audience = String(data?.aud || '').trim();
-  const email = String(data?.email || '').trim().toLowerCase();
-  const emailVerified = String(data?.email_verified || '').toLowerCase() === 'true';
-
-  if (audience !== clientId || !email || !emailVerified) {
-    throw new Error('Token de Google inválido.');
-  }
-
-  return {
-    email,
-    name: String(data?.name || '').trim(),
-    picture: String(data?.picture || '').trim()
-  };
-};
-
-// CONTROLADOR BACKEND - LOGIN NORMAL:
-// Endpoint usado por el formulario de usuario/password. Busca usuario, valida acceso,
-// verifica password, reinicia intentos, actualiza hash si hace falta y devuelve token.
 const login = async (req, res) => {
   await ensureUsuariosPermisosColumn();
   const { nombreUsuario, password } = req.body;
@@ -194,8 +139,8 @@ const login = async (req, res) => {
   }
 
   const [rows] = await pool.query(
-    `${USER_SELECT} WHERE nombre_usuario = ? OR LOWER(email) = ? LIMIT 1`,
-    [identifier, identifier.toLowerCase()]
+    `${USER_SELECT} WHERE nombre_usuario = ? LIMIT 1`,
+    [identifier]
   );
 
   if (rows.length === 0) {
@@ -223,8 +168,6 @@ const login = async (req, res) => {
   res.json(buildAuthPayload(row));
 };
 
-// CONTROLADOR BACKEND - USUARIO ACTUAL:
-// Devuelve los permisos vigentes del usuario autenticado para refrescar el menu sin relogin.
 const getCurrentUser = async (req, res) => {
   await ensureUsuariosPermisosColumn();
   const userId = req.auth?.sub;
@@ -243,44 +186,7 @@ const getCurrentUser = async (req, res) => {
   res.json({ user: buildAuthPayload(row).user });
 };
 
-// CONTROLADOR BACKEND - LOGIN CON GOOGLE:
-// Endpoint usado por el boton Google. Valida token con Google, busca usuario por email,
-// valida permisos/estado y devuelve token si el correo existe en la base de datos.
-const loginWithGoogle = async (req, res) => {
-  await ensureUsuariosPermisosColumn();
-  const credential = String(req.body?.credential || '').trim();
-  if (!credential) {
-    return res.status(400).json({ message: 'Continúa con un correo válido.' });
-  }
-
-  let googleUser;
-  try {
-    googleUser = await verifyGoogleCredential(credential);
-  } catch {
-    return res.status(401).json({ message: 'Continúa con un correo válido.' });
-  }
-
-  const [rows] = await pool.query(
-    `${USER_SELECT} WHERE LOWER(email) = ? LIMIT 1`,
-    [googleUser.email]
-  );
-
-  if (rows.length === 0) {
-    return res.status(401).json({ message: 'Continúa con un correo válido.' });
-  }
-
-  const row = rows[0];
-  const accessError = validateUserAccess(row);
-  if (accessError) {
-    return res.status(accessError.status).json({ message: accessError.message });
-  }
-
-  await resetLoginAttempts(row.id);
-  res.json(buildAuthPayload(row, { fotoUrl: googleUser.picture }));
-};
-
 module.exports = {
   getCurrentUser,
-  login,
-  loginWithGoogle
+  login
 };

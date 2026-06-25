@@ -100,7 +100,6 @@ const renderAsAdmin = async (usuarios: UsuarioItem[] = usuariosBase) => {
     isAuthenticated: true,
     loading: false,
     login: jest.fn(),
-    loginWithGoogle: jest.fn(),
     logout: jest.fn(),
     user: adminUser
   });
@@ -135,7 +134,6 @@ describe('ConfiguracionPage usuarios y permisos', () => {
       isAuthenticated: true,
       loading: false,
       login: jest.fn(),
-      loginWithGoogle: jest.fn(),
       logout: jest.fn(),
       user: {
         id: 3,
@@ -169,7 +167,6 @@ describe('ConfiguracionPage usuarios y permisos', () => {
       id: 3,
       nombre_usuario: 'caja02',
       nombre_completo: 'Caja Dos',
-      email: 'caja02@test.local',
       permisos: {
         ventas: true,
         productos: true,
@@ -188,7 +185,6 @@ describe('ConfiguracionPage usuarios y permisos', () => {
       isAuthenticated: true,
       loading: false,
       login: jest.fn(),
-      loginWithGoogle: jest.fn(),
       logout: jest.fn(),
       user: adminUser
     });
@@ -199,7 +195,6 @@ describe('ConfiguracionPage usuarios y permisos', () => {
     fireEvent.change(screen.getByLabelText('Usuario'), { target: { value: 'caja02' } });
     fireEvent.change(screen.getByLabelText('Nombre completo'), { target: { value: 'Caja Dos' } });
     fireEvent.change(screen.getByLabelText('Contraseña'), { target: { value: 'Clave123' } });
-    fireEvent.change(screen.getByLabelText('Correo'), { target: { value: 'caja02@test.local' } });
     fireEvent.click(screen.getByRole('button', { name: /agregar/i }));
 
     await waitFor(() => {
@@ -208,7 +203,6 @@ describe('ConfiguracionPage usuarios y permisos', () => {
         nombreCompleto: 'Caja Dos',
         rol: 'CAJERO',
         password: 'Clave123',
-        email: 'caja02@test.local',
         permisos: expect.objectContaining({
           ventas: true,
           productos: true,
@@ -292,7 +286,6 @@ describe('ConfiguracionPage usuarios y permisos', () => {
       isAuthenticated: true,
       loading: false,
       login: jest.fn(),
-      loginWithGoogle: jest.fn(),
       logout: jest.fn(),
       user: adminUser
     });
