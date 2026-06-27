@@ -36,13 +36,16 @@ import {
   MenuItem,
 } from '@mui/material';
 // IMPORTACIONES FRONTEND: librerias, helpers y tipos que usa este archivo.
-import { ShoppingCart, Add, Remove, Delete, Print, QrCodeScanner, Search } from '@mui/icons-material';
+import { ShoppingCart, Add, Remove, Delete, Print, QrCodeScanner, Search, PointOfSale } from '@mui/icons-material';
 import QRCode from 'qrcode';
-import { Producto, Venta, Categoria, VentaCreatePayload } from '../types';
+import { Producto, Venta, Categoria, VentaCreatePayload, CajaSesion } from '../types';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import {
   createMercadoPagoPreference,
   createVenta,
+  abrirCaja,
+  cerrarCaja,
+  getCajaActual,
   getCategorias,
   getConfiguracionSistema,
   getMercadoPagoPayment,
@@ -106,9 +109,16 @@ const VentasPage: React.FC = () => {
     severity: 'success' | 'error';
   }>({ open: false, message: '', severity: 'success' });
   const [modalPago, setModalPago] = useState(false);
-  const [metodoPago, setMetodoPago] = useState<'efectivo' | 'yape' | 'mercadopago'>('efectivo');
+  const [metodoPago, setMetodoPago] = useState<'efectivo' | 'yape' | 'mercadopago' | 'mixto'>('efectivo');
   const [recibido, setRecibido] = useState('');
   const [vuelto, setVuelto] = useState(0);
+  const [montoEfectivoMixto, setMontoEfectivoMixto] = useState('');
+  const [montoYapeMixto, setMontoYapeMixto] = useState('');
+  const [recibidoMixto, setRecibidoMixto] = useState('');
+  const [cajaActual, setCajaActual] = useState<CajaSesion | null>(null);
+  const [cajaLoading, setCajaLoading] = useState(true);
+  const [modalCaja, setModalCaja] = useState<'abrir' | 'cerrar' | null>(null);
+  const [montoCaja, setMontoCaja] = useState('');
   const [tipoBoleta, setTipoBoleta] = useState<TipoBoleta>('boleta');
   const [tipoBoletaReciente, setTipoBoletaReciente] = useState<TipoBoleta>('boleta');
   const [boletaQrDataUrl, setBoletaQrDataUrl] = useState('');
@@ -159,6 +169,21 @@ const VentasPage: React.FC = () => {
   const showSnackbar = useCallback((message: string, severity: 'success' | 'error') => {
     setSnackbar({ open: true, message, severity });
   }, []);
+
+  const fetchCajaActual = useCallback(async () => {
+    try {
+      setCajaActual(await getCajaActual());
+    } catch (error) {
+      setCajaActual(null);
+      showSnackbar('No se pudo consultar el estado de caja', 'error');
+    } finally {
+      setCajaLoading(false);
+    }
+  }, [showSnackbar]);
+
+  useEffect(() => {
+    fetchCajaActual();
+  }, [fetchCajaActual]);
 
   const fetchProductos = useCallback(async () => {
     try {
@@ -438,6 +463,16 @@ const VentasPage: React.FC = () => {
     [carrito]
   );
 
+  const efectivoMixto = Number.parseFloat(montoEfectivoMixto) || 0;
+  const yapeMixto = Number.parseFloat(montoYapeMixto) || 0;
+  const recibidoEfectivoMixto = Number.parseFloat(recibidoMixto) || 0;
+  const totalMixto = Number((efectivoMixto + yapeMixto).toFixed(2));
+  const vueltoMixto = Number(Math.max(0, recibidoEfectivoMixto - efectivoMixto).toFixed(2));
+  const pagoMixtoValido = efectivoMixto > 0 &&
+    yapeMixto > 0 &&
+    Math.abs(totalMixto - calcularTotal()) <= 0.01 &&
+    recibidoEfectivoMixto >= efectivoMixto;
+
   useEffect(() => {
     if (metodoPago === 'efectivo') {
       const rec = parseFloat(recibido);
@@ -450,6 +485,49 @@ const VentasPage: React.FC = () => {
 // LOGICA: handle Recibido Change concentra una operacion de este archivo.
   const handleRecibidoChange = (value: string) => {
     setRecibido(normalizeDecimalInput(value));
+  };
+
+  const guardarAperturaCaja = async () => {
+    const monto = Number.parseFloat(montoCaja);
+    if (!Number.isFinite(monto) || monto < 0) {
+      showSnackbar('Ingresa un monto inicial válido', 'error');
+      return;
+    }
+    try {
+      setCajaLoading(true);
+      const caja = await abrirCaja(monto);
+      setCajaActual(caja);
+      setModalCaja(null);
+      setMontoCaja('');
+      showSnackbar('Caja abierta correctamente', 'success');
+    } catch (error: any) {
+      showSnackbar(error?.response?.data?.message || 'No se pudo abrir la caja', 'error');
+    } finally {
+      setCajaLoading(false);
+    }
+  };
+
+  const guardarCierreCaja = async () => {
+    const monto = Number.parseFloat(montoCaja);
+    if (!Number.isFinite(monto) || monto < 0) {
+      showSnackbar('Ingresa el efectivo contado en caja', 'error');
+      return;
+    }
+    try {
+      setCajaLoading(true);
+      const cajaCerrada = await cerrarCaja(monto);
+      setCajaActual(null);
+      setModalCaja(null);
+      setMontoCaja('');
+      showSnackbar(
+        `Caja cerrada. Diferencia: ${formatCurrency(cajaCerrada.diferencia || 0)}`,
+        'success'
+      );
+    } catch (error: any) {
+      showSnackbar(error?.response?.data?.message || 'No se pudo cerrar la caja', 'error');
+    } finally {
+      setCajaLoading(false);
+    }
   };
 
 // LOGICA: efectivo Es Insuficiente concentra una operacion de este archivo.
@@ -552,6 +630,17 @@ const VentasPage: React.FC = () => {
         metodoPago,
         recibido: parseFloat(recibido) || 0,
         vuelto: vuelto || 0,
+        ...(metodoPago === 'mixto' ? {
+          pagos: [
+            {
+              metodo: 'efectivo',
+              monto: efectivoMixto,
+              recibido: recibidoEfectivoMixto,
+              vuelto: vueltoMixto
+            },
+            { metodo: 'yape', monto: yapeMixto, recibido: yapeMixto, vuelto: 0 }
+          ]
+        } : {}),
         ...buildClienteVentaPayload(clienteActual),
         ...vendedorPayload
       };
@@ -749,6 +838,12 @@ const VentasPage: React.FC = () => {
 
 // LOGICA: handle Finalizar Venta concentra una operacion de este archivo.
   const handleFinalizarVenta = () => {
+    if (!cajaActual) {
+      showSnackbar('Debes abrir tu caja antes de registrar una venta', 'error');
+      setMontoCaja('');
+      setModalCaja('abrir');
+      return;
+    }
     resetDatosCliente();
     setModalPago(true);
   };
@@ -772,11 +867,19 @@ const VentasPage: React.FC = () => {
       showSnackbar('El monto recibido es insuficiente', 'error');
       return;
     }
+    if (metodoPago === 'mixto' && !pagoMixtoValido) {
+      showSnackbar('Los montos de efectivo y Yape deben sumar exactamente el total', 'error');
+      return;
+    }
     await finalizarVenta();
     setModalPago(false);
     setMetodoPago('efectivo');
     setRecibido('');
     setVuelto(0);
+    setMontoEfectivoMixto('');
+    setMontoYapeMixto('');
+    setRecibidoMixto('');
+    await fetchCajaActual();
     resetDatosCliente();
   };
 
@@ -847,6 +950,11 @@ const VentasPage: React.FC = () => {
           <Box className="simple-info" sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 0.5, borderTop: '1px solid #111', borderBottom: '1px solid #111', py: 1, my: 1.5, fontSize: 11 }}>
             <div><strong>Fecha:</strong> {formatFechaBoleta(venta.fecha)}</div>
             <div><strong>Pago:</strong> {formatMetodoPagoBoleta(venta.metodoPago)}</div>
+            {venta.pagos && venta.pagos.length > 1 && (
+              <div style={{ gridColumn: '1 / -1' }}>
+                <strong>Detalle:</strong> {venta.pagos.map((pago) => `${formatMetodoPagoBoleta(pago.metodo)} ${formatCurrency(pago.monto)}`).join(' + ')}
+              </div>
+            )}
             <div><strong>{esFactura ? 'Razon social' : 'Cliente'}:</strong> {clienteNombre}</div>
             <div><strong>{esFactura ? 'RUC' : 'DNI'}:</strong> {clienteDocumento}</div>
             {esFactura && clienteBoleta?.direccion && (
@@ -976,6 +1084,9 @@ const VentasPage: React.FC = () => {
           <div><strong>Cliente:</strong> {clienteNombre}</div>
           <div><strong>Doc.:</strong> {clienteDocumento}</div>
           <div><strong>Pago:</strong> {formatMetodoPagoBoleta(venta.metodoPago)}</div>
+          {venta.pagos && venta.pagos.length > 1 && (
+            <div><strong>Detalle:</strong> {venta.pagos.map((pago) => `${formatMetodoPagoBoleta(pago.metodo)} ${formatCurrency(pago.monto)}`).join(' + ')}</div>
+          )}
           <div><strong>Moneda:</strong> SOL</div>
         </Box>
 
@@ -1354,6 +1465,39 @@ const VentasPage: React.FC = () => {
 
   return (
     <Container maxWidth="xl" sx={pageContainerStyles}>
+      <Card variant="outlined" sx={{ mb: 2, p: 2 }}>
+        <Box display="flex" flexWrap="wrap" alignItems="center" justifyContent="space-between" gap={2}>
+          <Box display="flex" alignItems="center" gap={1.5}>
+            <PointOfSale color={cajaActual ? 'success' : 'warning'} />
+            <Box>
+              <Typography fontWeight="bold">
+                {cajaLoading ? 'Consultando caja...' : cajaActual ? 'Caja abierta' : 'Caja cerrada'}
+              </Typography>
+              {cajaActual && (
+                <Typography variant="body2" color="text.secondary">
+                  Inicial: {formatCurrency(cajaActual.montoInicial)} · Efectivo esperado: {formatCurrency(cajaActual.montoEsperado)} · Ventas: {formatCurrency(cajaActual.totalVentas)}
+                </Typography>
+              )}
+            </Box>
+          </Box>
+          <Button
+            variant="contained"
+            color={cajaActual ? 'warning' : 'success'}
+            disabled={cajaLoading}
+            onClick={() => {
+              setMontoCaja(cajaActual ? String(cajaActual.montoEsperado.toFixed(2)) : '');
+              setModalCaja(cajaActual ? 'cerrar' : 'abrir');
+            }}
+          >
+            {cajaActual ? 'Cerrar caja' : 'Abrir caja'}
+          </Button>
+        </Box>
+        {!cajaLoading && !cajaActual && (
+          <Alert severity="warning" sx={{ mt: 1.5 }}>
+            Debes abrir tu caja para poder registrar ventas.
+          </Alert>
+        )}
+      </Card>
       <Grid container spacing={4}>
         {/* Columna de productos (80%) */}
         <Grid item xs={12} md={9} lg={9}>
@@ -1562,6 +1706,54 @@ const VentasPage: React.FC = () => {
         </Grid>
       </Grid>
 
+      <Dialog open={modalCaja !== null} onClose={() => setModalCaja(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>{modalCaja === 'abrir' ? 'Apertura de caja' : 'Cierre y entrega de caja'}</DialogTitle>
+        <DialogContent>
+          {modalCaja === 'cerrar' && cajaActual && (
+            <Box sx={{ mb: 2 }}>
+              <Alert severity="info" sx={{ mb: 2 }}>
+                Cuenta únicamente el efectivo físico disponible en la caja.
+              </Alert>
+              <Typography variant="body2">Monto inicial: <b>{formatCurrency(cajaActual.montoInicial)}</b></Typography>
+              {cajaActual.pagos.map((pago) => (
+                <Typography variant="body2" key={pago.metodo}>
+                  {formatMetodoPagoBoleta(pago.metodo)}: <b>{formatCurrency(pago.total)}</b>
+                </Typography>
+              ))}
+              <Typography variant="body2" sx={{ mt: 1 }}>
+                Efectivo esperado: <b>{formatCurrency(cajaActual.montoEsperado)}</b>
+              </Typography>
+            </Box>
+          )}
+          <TextField
+            autoFocus
+            fullWidth
+            label={modalCaja === 'abrir' ? 'Monto inicial para vueltos' : 'Efectivo contado al cierre'}
+            value={montoCaja}
+            onChange={(e) => setMontoCaja(normalizeDecimalInput(e.target.value))}
+            inputProps={{ inputMode: 'decimal', min: 0 }}
+            InputProps={{ startAdornment: <InputAdornment position="start">S/</InputAdornment> }}
+            sx={{ mt: 1 }}
+          />
+          {modalCaja === 'cerrar' && cajaActual && Number.isFinite(Number.parseFloat(montoCaja)) && (
+            <Typography sx={{ mt: 1.5 }} color={Math.abs(Number.parseFloat(montoCaja) - cajaActual.montoEsperado) <= 0.01 ? 'success.main' : 'error.main'}>
+              Diferencia: <b>{formatCurrency(Number.parseFloat(montoCaja) - cajaActual.montoEsperado)}</b>
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setModalCaja(null)}>Cancelar</Button>
+          <Button
+            variant="contained"
+            color={modalCaja === 'abrir' ? 'success' : 'warning'}
+            onClick={modalCaja === 'abrir' ? guardarAperturaCaja : guardarCierreCaja}
+            disabled={cajaLoading || montoCaja === ''}
+          >
+            {modalCaja === 'abrir' ? 'Abrir caja' : 'Cerrar caja'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Modal de pago */}
       <Dialog
         open={modalPago}
@@ -1690,7 +1882,7 @@ const VentasPage: React.FC = () => {
             row
             value={metodoPago}
             onChange={e => {
-              const nextMetodo = e.target.value as 'efectivo' | 'yape' | 'mercadopago';
+              const nextMetodo = e.target.value as 'efectivo' | 'yape' | 'mercadopago' | 'mixto';
               setMetodoPago(nextMetodo);
               if (nextMetodo !== 'efectivo') setRecibido('');
             }}
@@ -1699,6 +1891,7 @@ const VentasPage: React.FC = () => {
             <FormControlLabel value="efectivo" control={<Radio />} label="Efectivo" />
             <FormControlLabel value="yape" control={<Radio />} label="Yape" />
             <FormControlLabel value="mercadopago" control={<Radio />} label="Mercado Pago" />
+            <FormControlLabel value="mixto" control={<Radio />} label="Mixto: efectivo + Yape" />
           </RadioGroup>
           {metodoPago === 'efectivo' ? (
             <>
@@ -1727,6 +1920,48 @@ const VentasPage: React.FC = () => {
                 </Alert>
               )}
             </>
+          ) : metodoPago === 'mixto' ? (
+            <Box sx={{ mt: 1 }}>
+              <Alert severity={pagoMixtoValido ? 'success' : 'info'} sx={{ mb: 2 }}>
+                Distribuye {formatCurrency(calcularTotal())} entre efectivo y Yape. Ambos montos deben ser mayores a cero.
+              </Alert>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    label="Parte pagada en efectivo"
+                    value={montoEfectivoMixto}
+                    onChange={(e) => setMontoEfectivoMixto(normalizeDecimalInput(e.target.value))}
+                    fullWidth
+                    inputProps={{ inputMode: 'decimal' }}
+                    InputProps={{ startAdornment: <InputAdornment position="start">S/</InputAdornment> }}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    label="Parte pagada con Yape"
+                    value={montoYapeMixto}
+                    onChange={(e) => setMontoYapeMixto(normalizeDecimalInput(e.target.value))}
+                    fullWidth
+                    inputProps={{ inputMode: 'decimal' }}
+                    InputProps={{ startAdornment: <InputAdornment position="start">S/</InputAdornment> }}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    label="Efectivo recibido del cliente"
+                    value={recibidoMixto}
+                    onChange={(e) => setRecibidoMixto(normalizeDecimalInput(e.target.value))}
+                    fullWidth
+                    inputProps={{ inputMode: 'decimal' }}
+                    InputProps={{ startAdornment: <InputAdornment position="start">S/</InputAdornment> }}
+                    helperText={`Vuelto: ${formatCurrency(vueltoMixto)}`}
+                  />
+                </Grid>
+              </Grid>
+              <Typography variant="body2" sx={{ mt: 1.5 }} color={Math.abs(totalMixto - calcularTotal()) <= 0.01 ? 'success.main' : 'error.main'}>
+                Suma ingresada: <b>{formatCurrency(totalMixto)}</b> · Falta: <b>{formatCurrency(Math.max(0, calcularTotal() - totalMixto))}</b>
+              </Typography>
+            </Box>
           ) : metodoPago === 'yape' ? (
             <Box textAlign="center" sx={{ mt: 2 }}>
               <Typography variant="body2" gutterBottom>
@@ -1785,7 +2020,8 @@ const VentasPage: React.FC = () => {
                 saving ||
                 mpLoading ||
                 !documentoClienteValido() ||
-                (metodoPago === 'efectivo' && efectivoEsInsuficiente())
+                (metodoPago === 'efectivo' && efectivoEsInsuficiente()) ||
+                (metodoPago === 'mixto' && !pagoMixtoValido)
               }
             >
               {metodoPago === 'mercadopago' ? 'Continuar con Mercado Pago' : 'Confirmar y registrar venta'}

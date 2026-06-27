@@ -24,7 +24,7 @@ const ensureVentaOptionalColumns = async (runner = pool) => {
           'tipo_comprobante', 'cliente_tipo_documento', 'cliente_numero_documento',
           'cliente_ruc', 'cliente_direccion',
           'vendedor_id', 'vendedor_usuario', 'vendedor_nombre',
-          'pago_referencia', 'pago_confirmado_at'
+          'pago_referencia', 'pago_confirmado_at', 'caja_sesion_id'
         )`
   );
 
@@ -84,6 +84,10 @@ const ensureVentaOptionalColumns = async (runner = pool) => {
 
   if (!columnSet.has('pago_confirmado_at')) {
     await runner.query('ALTER TABLE ventas ADD COLUMN pago_confirmado_at TIMESTAMP NULL');
+  }
+
+  if (!columnSet.has('caja_sesion_id')) {
+    await runner.query('ALTER TABLE ventas ADD COLUMN caja_sesion_id INT NULL');
   }
 
   ventasColumnsChecked = true;

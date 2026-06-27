@@ -9,14 +9,18 @@ const { productAvailabilitySql } = require('../utils/catalogAvailability');
 const { mapVenta } = require('../features/ventas/mappers');
 // DEPENDENCIAS BACKEND: librerias, helpers y tipos que usa este archivo.
 const { ensureVentaOptionalColumns } = require('../features/ventas/schema');
+const { ensureCajasSchema } = require('../features/cajas/schema');
+const { prepararPagosVenta } = require('../features/ventas/pagos');
 
 // CONTROLADOR BACKEND: fetch Venta By Id procesa request/respuesta de este flujo.
 const fetchVentaById = async (ventaId) => {
+  await ensureCajasSchema();
   await ensureVentaOptionalColumns();
   const [ventas] = await pool.query(
     `SELECT id, total, metodo_pago, recibido, vuelto, cliente_dni, cliente_nombre,
             tipo_comprobante, cliente_tipo_documento, cliente_numero_documento, cliente_ruc, cliente_direccion,
-            vendedor_id, vendedor_usuario, vendedor_nombre, pago_referencia, pago_confirmado_at, fecha
+            vendedor_id, vendedor_usuario, vendedor_nombre, pago_referencia, pago_confirmado_at,
+            caja_sesion_id, fecha
        FROM ventas WHERE id = ?`,
     [ventaId]
   );
@@ -31,16 +35,24 @@ const fetchVentaById = async (ventaId) => {
     [ventaId]
   );
 
-  return mapVenta(ventas[0], detalles);
+  const [pagos] = await pool.query(
+    `SELECT metodo, monto, recibido, vuelto, referencia
+       FROM venta_pagos WHERE venta_id = ? ORDER BY id`,
+    [ventaId]
+  );
+
+  return mapVenta(ventas[0], detalles, pagos);
 };
 
 // CONTROLADOR BACKEND: list Ventas procesa request/respuesta de este flujo.
 const listVentas = async (_req, res) => {
+  await ensureCajasSchema();
   await ensureVentaOptionalColumns();
   const [ventas] = await pool.query(
     `SELECT id, total, metodo_pago, recibido, vuelto, cliente_dni, cliente_nombre,
             tipo_comprobante, cliente_tipo_documento, cliente_numero_documento, cliente_ruc, cliente_direccion,
-            vendedor_id, vendedor_usuario, vendedor_nombre, pago_referencia, pago_confirmado_at, fecha
+            vendedor_id, vendedor_usuario, vendedor_nombre, pago_referencia, pago_confirmado_at,
+            caja_sesion_id, fecha
        FROM ventas ORDER BY fecha DESC`
   );
 
@@ -66,7 +78,22 @@ const listVentas = async (_req, res) => {
     return acc;
   }, {});
 
-  res.json(ventas.map((venta) => mapVenta(venta, detallePorVenta[venta.id] || [])));
+  const [pagos] = await pool.query(
+    `SELECT venta_id, metodo, monto, recibido, vuelto, referencia
+       FROM venta_pagos WHERE venta_id IN (?) ORDER BY id`,
+    [ventaIds]
+  );
+  const pagosPorVenta = pagos.reduce((acc, pago) => {
+    if (!acc[pago.venta_id]) acc[pago.venta_id] = [];
+    acc[pago.venta_id].push(pago);
+    return acc;
+  }, {});
+
+  res.json(ventas.map((venta) => mapVenta(
+    venta,
+    detallePorVenta[venta.id] || [],
+    pagosPorVenta[venta.id] || []
+  )));
 };
 
 // CONTROLADOR BACKEND: create Venta procesa request/respuesta de este flujo.
@@ -76,6 +103,7 @@ const createVenta = async (req, res) => {
     total,
     totalExtra,
     metodoPago,
+    pagos,
     recibido,
     vuelto,
     pagoReferencia,
@@ -98,6 +126,7 @@ const createVenta = async (req, res) => {
   const connection = await pool.getConnection();
 
   try {
+    await ensureCajasSchema();
     await ensureVentaOptionalColumns(connection);
     await connection.beginTransaction();
 
@@ -110,7 +139,7 @@ const createVenta = async (req, res) => {
     const cleanClienteDireccion = typeof clienteDireccion === 'string' ? clienteDireccion.trim() : '';
     const cleanVendedorUsuario = typeof vendedorUsuario === 'string' ? vendedorUsuario.trim() : '';
     const cleanVendedorNombre = typeof vendedorNombre === 'string' ? vendedorNombre.trim() : '';
-    const vendedorIdParsed = Number(vendedorId ?? req.auth?.sub);
+    const vendedorIdParsed = Number(req.auth?.sub ?? vendedorId);
     const vendedorIdValue = Number.isInteger(vendedorIdParsed) && vendedorIdParsed > 0 ? vendedorIdParsed : null;
     const cleanPagoReferencia = typeof pagoReferencia === 'string' ? pagoReferencia.trim() : '';
     const metodoLower = String(metodoPago || 'efectivo').toLowerCase();
@@ -120,9 +149,6 @@ const createVenta = async (req, res) => {
     const vueltoParsed = vuelto === null || vuelto === undefined || vuelto === '' ? null : Number(vuelto);
     const shouldConfirmPago = metodoLower === 'yape' && !!cleanPagoReferencia;
 
-    if (!['efectivo', 'yape', 'mercadopago', 'mercadopago_link'].includes(metodoLower)) {
-      throw new Error('Método de pago inválido.');
-    }
     if (cleanTipoComprobante && !['boleta', 'factura'].includes(cleanTipoComprobante)) {
       throw new Error('Tipo de comprobante inválido.');
     }
@@ -203,31 +229,37 @@ const createVenta = async (req, res) => {
       throw new Error('Total inválido. Revisa el detalle de la venta.');
     }
 
-    const recibidoValue = metodoLower === 'efectivo'
-      ? Number((recibidoParsed ?? 0).toFixed(2))
-      : (shouldConfirmPago || metodoLower === 'mercadopago' || metodoLower === 'mercadopago_link'
-          ? totalCalculado
-          : (recibidoParsed !== null ? Number(recibidoParsed.toFixed(2)) : null));
-
-    if (metodoLower === 'efectivo' && recibidoValue < totalCalculado) {
-      throw new Error('El monto recibido es menor al total.');
+    const [cajas] = await connection.query(
+      "SELECT id FROM caja_sesiones WHERE usuario_id = ? AND estado = 'ABIERTA' ORDER BY id DESC LIMIT 1 FOR UPDATE",
+      [vendedorIdValue]
+    );
+    if (cajas.length === 0) {
+      throw new Error('Debes abrir tu caja antes de registrar ventas.');
     }
+    const cajaSesionId = Number(cajas[0].id);
 
-    const vueltoValue = metodoLower === 'efectivo'
-      ? Number((recibidoValue - totalCalculado).toFixed(2))
-      : (shouldConfirmPago || metodoLower === 'mercadopago' || metodoLower === 'mercadopago_link'
-          ? 0
-          : (vueltoParsed !== null ? Number(vueltoParsed.toFixed(2)) : null));
+    const pagosPreparados = prepararPagosVenta({
+      pagos,
+      metodoPago: metodoLower,
+      recibido: recibidoParsed,
+      referencia: cleanPagoReferencia,
+      total: totalCalculado
+    });
+    const metodoVenta = pagosPreparados.length > 1 ? 'mixto' : pagosPreparados[0].metodo;
+    const efectivoPago = pagosPreparados.find((pago) => pago.metodo === 'efectivo');
+    const recibidoValue = efectivoPago?.recibido ?? totalCalculado;
+    const vueltoValue = efectivoPago?.vuelto ?? 0;
 
     const [ventaResult] = await connection.execute(
       `INSERT INTO ventas (
         total, metodo_pago, recibido, vuelto, cliente_dni, cliente_nombre,
         tipo_comprobante, cliente_tipo_documento, cliente_numero_documento, cliente_ruc, cliente_direccion,
-        vendedor_id, vendedor_usuario, vendedor_nombre, pago_referencia, pago_confirmado_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        vendedor_id, vendedor_usuario, vendedor_nombre, pago_referencia, pago_confirmado_at,
+        caja_sesion_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         totalCalculado,
-        metodoPago || 'efectivo',
+        metodoVenta,
         recibidoValue,
         vueltoValue,
         cleanTipoComprobante === 'factura' ? null : (cleanDni || cleanClienteNumeroDocumento || null),
@@ -241,11 +273,20 @@ const createVenta = async (req, res) => {
         cleanVendedorUsuario || null,
         cleanVendedorNombre || null,
         cleanPagoReferencia || null,
-        shouldConfirmPago ? new Date() : null
+        shouldConfirmPago ? new Date() : null,
+        cajaSesionId
       ]
     );
 
     const ventaId = ventaResult.insertId;
+
+    for (const pago of pagosPreparados) {
+      await connection.execute(
+        `INSERT INTO venta_pagos (venta_id, metodo, monto, recibido, vuelto, referencia)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [ventaId, pago.metodo, pago.monto, pago.recibido, pago.vuelto, pago.referencia]
+      );
+    }
 
     for (const detalle of preparedDetalles) {
       await connection.execute(

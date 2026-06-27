@@ -7,7 +7,7 @@
 // MAPPER BACKEND - VENTAS:
 // Convierte filas SQL de ventas/productos vendidos al formato JSON que espera React.
 // LOGICA BACKEND - CAMBIOS: aqui se modifica el formato JSON que reciben las pantallas de ventas.
-const mapVenta = (ventaRow, detalleRows) => ({
+const mapVenta = (ventaRow, detalleRows, pagoRows = []) => ({
   id: ventaRow.id,
   total: Number(ventaRow.total),
   fecha: ventaRow.fecha instanceof Date ? ventaRow.fecha.toISOString() : ventaRow.fecha,
@@ -28,6 +28,16 @@ const mapVenta = (ventaRow, detalleRows) => ({
   pagoConfirmadoAt: ventaRow.pago_confirmado_at
     ? (ventaRow.pago_confirmado_at instanceof Date ? ventaRow.pago_confirmado_at.toISOString() : ventaRow.pago_confirmado_at)
     : null,
+  cajaSesionId: ventaRow.caja_sesion_id !== null && ventaRow.caja_sesion_id !== undefined
+    ? Number(ventaRow.caja_sesion_id)
+    : null,
+  pagos: pagoRows.map((pago) => ({
+    metodo: pago.metodo,
+    monto: Number(pago.monto),
+    recibido: pago.recibido !== null ? Number(pago.recibido) : null,
+    vuelto: Number(pago.vuelto || 0),
+    referencia: pago.referencia || null
+  })),
   productosVendidos: detalleRows.map((detalle) => ({
     producto: {
       id: detalle.producto_id,

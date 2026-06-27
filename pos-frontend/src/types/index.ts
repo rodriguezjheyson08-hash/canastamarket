@@ -181,6 +181,31 @@ export interface Venta {
   vendedorNombre?: string | null;
   pagoReferencia?: string | null;
   pagoConfirmadoAt?: string | null;
+  cajaSesionId?: number | null;
+  pagos?: VentaPago[];
+}
+
+export interface VentaPago {
+  metodo: 'efectivo' | 'yape' | 'mercadopago' | 'mercadopago_link' | string;
+  monto: number;
+  recibido?: number | null;
+  vuelto?: number;
+  referencia?: string | null;
+}
+
+export interface CajaSesion {
+  id: number;
+  usuarioId: number;
+  usuarioNombre: string;
+  montoInicial: number;
+  montoEsperado: number;
+  montoFinalDeclarado?: number | null;
+  diferencia?: number | null;
+  estado: 'ABIERTA' | 'CERRADA';
+  abiertaAt: string;
+  cerradaAt?: string | null;
+  totalVentas: number;
+  pagos: Array<{ metodo: string; cantidadVentas: number; total: number }>;
 }
 
 // TIPOS FRONTEND: alias VentaCreatePayload que limita valores o forma de datos.
@@ -189,6 +214,7 @@ export type VentaCreatePayload = {
   total: number;
   totalExtra?: number;
   metodoPago?: string;
+  pagos?: VentaPago[];
   recibido?: number;
   vuelto?: number;
   pagoReferencia?: string | null;

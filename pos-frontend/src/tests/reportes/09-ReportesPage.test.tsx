@@ -7,7 +7,7 @@
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import ReportesPage from '../../pages/09-ReportesPage';
-import { getDashboardStats, getPedidosOnline, getVentas } from '../../services/api';
+import { getCajas, getDashboardStats, getPedidosOnline, getVentas } from '../../services/api';
 import { DashboardStats, User, Venta } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -16,7 +16,8 @@ import { useAuth } from '../../contexts/AuthContext';
 jest.mock('../../services/api', () => ({
   getDashboardStats: jest.fn(),
   getVentas: jest.fn(),
-  getPedidosOnline: jest.fn()
+  getPedidosOnline: jest.fn(),
+  getCajas: jest.fn()
 }));
 
 // MOCK REPORTES - AUTENTICACION:
@@ -125,6 +126,7 @@ const mockedUseAuth = useAuth as jest.MockedFunction<typeof useAuth>;
 const mockedGetDashboardStats = getDashboardStats as jest.MockedFunction<typeof getDashboardStats>;
 const mockedGetVentas = getVentas as jest.MockedFunction<typeof getVentas>;
 const mockedGetPedidosOnline = getPedidosOnline as jest.MockedFunction<typeof getPedidosOnline>;
+const mockedGetCajas = getCajas as jest.MockedFunction<typeof getCajas>;
 const originalConsoleError = console.error;
 
 // HELPER TEST - WARNINGS CONOCIDOS:
@@ -165,6 +167,7 @@ const renderAsAdmin = async (ventas: Venta[] = ventasBase, stats: DashboardStats
   mockedGetDashboardStats.mockResolvedValue(stats);
   mockedGetVentas.mockResolvedValue(ventas);
   mockedGetPedidosOnline.mockResolvedValue([]);
+  mockedGetCajas.mockResolvedValue([]);
 
   render(<ReportesPage />);
 

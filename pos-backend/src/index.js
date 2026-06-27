@@ -29,6 +29,7 @@ const dniRoutes = require('./routes/dni');
 const proveedoresRoutes = require('./routes/proveedores');
 const usuariosRoutes = require('./routes/usuarios');
 const configuracionRoutes = require('./routes/configuracion');
+const cajasRoutes = require('./routes/cajas');
 
 const app = express();
 app.disable('x-powered-by');
@@ -80,6 +81,7 @@ app.use('/api/dni', dniRoutes);
 app.use('/api/proveedores', proveedoresRoutes);
 app.use('/api/usuarios', usuariosRoutes);
 app.use('/api/configuracion', configuracionRoutes);
+app.use('/api/cajas', cajasRoutes);
 
 // RUTA BACKEND: registra middleware o ruta principal de Express.
 app.use((err, _req, res, _next) => {

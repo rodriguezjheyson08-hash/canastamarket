@@ -20,6 +20,7 @@ import {
   User,
   UsuarioItem,
   UsuarioPayload,
+  CajaSesion,
   PedidoOnline,
   PedidoOnlineCreatePayload
 } from '../types';
@@ -207,6 +208,39 @@ export const createVenta = async (ventaData: VentaCreatePayload, token?: string 
         headers: buildAuthHeaders(authToken)
     });
     return res.data;
+};
+
+// Caja por cajero
+export const getCajaActual = async (token?: string | null): Promise<CajaSesion | null> => {
+  const authToken = token ?? getToken();
+  const res = await axios.get(`${API_URL}/cajas/actual`, { headers: buildAuthHeaders(authToken) });
+  return res.data;
+};
+
+export const abrirCaja = async (montoInicial: number, token?: string | null): Promise<CajaSesion> => {
+  const authToken = token ?? getToken();
+  const res = await axios.post(
+    `${API_URL}/cajas/abrir`,
+    { montoInicial },
+    { headers: buildAuthHeaders(authToken) }
+  );
+  return res.data;
+};
+
+export const cerrarCaja = async (montoFinalDeclarado: number, token?: string | null): Promise<CajaSesion> => {
+  const authToken = token ?? getToken();
+  const res = await axios.post(
+    `${API_URL}/cajas/cerrar`,
+    { montoFinalDeclarado },
+    { headers: buildAuthHeaders(authToken) }
+  );
+  return res.data;
+};
+
+export const getCajas = async (token?: string | null): Promise<CajaSesion[]> => {
+  const authToken = token ?? getToken();
+  const res = await axios.get(`${API_URL}/cajas`, { headers: buildAuthHeaders(authToken) });
+  return res.data;
 };
 
 // Pedidos online

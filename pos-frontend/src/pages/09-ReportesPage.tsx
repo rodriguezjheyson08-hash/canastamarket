@@ -28,8 +28,8 @@ import {
   Typography
 } from '@mui/material';
 import { Assessment, AttachMoney, Inventory, PointOfSale, Warning } from '@mui/icons-material';
-import { getDashboardStats, getPedidosOnline, getVentas } from '../services/api';
-import { DashboardStats, PedidoOnline, Venta, VentaProducto } from '../types';
+import { getCajas, getDashboardStats, getPedidosOnline, getVentas } from '../services/api';
+import { CajaSesion, DashboardStats, PedidoOnline, Venta, VentaProducto } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useI18n } from '../hooks/useI18n';
 import { formatBusinessDateTime, getBusinessDateValue } from '../utils/businessTime';
@@ -91,6 +91,7 @@ const ReportesPage: React.FC = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [ventas, setVentas] = useState<Venta[]>([]);
   const [pedidosOnline, setPedidosOnline] = useState<PedidoOnline[]>([]);
+  const [cajas, setCajas] = useState<CajaSesion[]>([]);
   const [fechaVentas, setFechaVentas] = useState('');
   const [selectedVenta, setSelectedVenta] = useState<Venta | null>(null);
   const [loading, setLoading] = useState(true);
@@ -105,10 +106,13 @@ const ReportesPage: React.FC = () => {
       try {
         setLoading(true);
         setError('');
-        const [statsData, ventasData, pedidosOnlineData] = await Promise.all([getDashboardStats(), getVentas(), getPedidosOnline()]);
+        const [statsData, ventasData, pedidosOnlineData, cajasData] = await Promise.all([
+          getDashboardStats(), getVentas(), getPedidosOnline(), getCajas()
+        ]);
         setStats(statsData);
         setVentas(Array.isArray(ventasData) ? ventasData : []);
         setPedidosOnline(Array.isArray(pedidosOnlineData) ? pedidosOnlineData : []);
+        setCajas(Array.isArray(cajasData) ? cajasData : []);
       } catch (err: any) {
         setError(err?.response?.data?.message || t('No se pudieron cargar los reportes.', 'Could not load reports.'));
       } finally {
@@ -376,6 +380,37 @@ const ReportesPage: React.FC = () => {
 
       {/* DISEÑO REPORTES - MODAL DETALLE DE VENTA:
           Ventana emergente que se abre al presionar "Ver detalles". */}
+      <Typography variant="h5" component="h2" sx={{ mt: 4, mb: 2 }} fontWeight={700}>
+        Aperturas y cierres de caja
+      </Typography>
+      <TableContainer component={Card} sx={{ mb: 3 }}>
+        <Table size="small">
+          <TableHead><TableRow>
+            <TableCell>Cajero</TableCell><TableCell>Apertura</TableCell>
+            <TableCell align="right">Inicial</TableCell><TableCell align="right">Ventas</TableCell>
+            <TableCell align="right">Efectivo esperado</TableCell><TableCell align="right">Contado</TableCell>
+            <TableCell align="right">Diferencia</TableCell><TableCell>Estado</TableCell>
+          </TableRow></TableHead>
+          <TableBody>
+            {cajas.length === 0 ? (
+              <TableRow><TableCell colSpan={8}>Todavía no hay movimientos de caja.</TableCell></TableRow>
+            ) : cajas.map((caja) => (
+              <TableRow key={caja.id}>
+                <TableCell>{caja.usuarioNombre}</TableCell><TableCell>{formatDateTime(caja.abiertaAt)}</TableCell>
+                <TableCell align="right">{formatCurrency(caja.montoInicial)}</TableCell>
+                <TableCell align="right">{formatCurrency(caja.totalVentas)}</TableCell>
+                <TableCell align="right">{formatCurrency(caja.montoEsperado)}</TableCell>
+                <TableCell align="right">{caja.montoFinalDeclarado == null ? '-' : formatCurrency(caja.montoFinalDeclarado)}</TableCell>
+                <TableCell align="right" sx={{ color: caja.diferencia ? 'error.main' : 'success.main' }}>
+                  {caja.diferencia == null ? '-' : formatCurrency(caja.diferencia)}
+                </TableCell>
+                <TableCell>{caja.estado}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
       <Dialog open={Boolean(selectedVenta)} onClose={() => setSelectedVenta(null)} fullWidth maxWidth="sm">
         {selectedVenta && (
           <>
@@ -425,6 +460,12 @@ const ReportesPage: React.FC = () => {
               <Typography variant="body2" color="text.secondary">
                 Método de pago: <strong>{selectedVenta.metodoPago || 'efectivo'}</strong>
               </Typography>
+              {selectedVenta.pagos && selectedVenta.pagos.map((pago) => (
+                <Typography variant="body2" color="text.secondary" key={`${pago.metodo}-${pago.monto}`}>
+                  {pago.metodo}: <strong>{formatCurrency(pago.monto)}</strong>
+                  {pago.vuelto ? ` · Vuelto: ${formatCurrency(pago.vuelto)}` : ''}
+                </Typography>
+              ))}
               <Typography variant="body2" color="text.secondary">
                 Monto recibido: <strong>{formatCurrency(selectedVenta.recibido ?? selectedVenta.total)}</strong>
               </Typography>

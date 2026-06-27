@@ -175,6 +175,7 @@ export const formatMetodoPagoBoleta = (metodo?: string) => {
   if (key === 'mercadopago' || key === 'mercadopago_link') return 'Mercado Pago';
   if (key === 'yape') return 'Yape';
   if (key === 'efectivo') return 'Efectivo';
+  if (key === 'mixto') return 'Pago mixto';
   return metodo;
 };
 
