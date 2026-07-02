@@ -25,12 +25,14 @@ const ensureClientesSchema = async (runner = pool) => {
   const [columns] = await runner.query(
     `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'clientes'
-        AND COLUMN_NAME IN ('dni', 'telefono', 'direccion', 'is_active')`
+        AND COLUMN_NAME IN ('dni', 'telefono', 'direccion', 'provider', 'google_sub', 'is_active')`
   );
   const found = new Set(columns.map((row) => row.COLUMN_NAME));
   if (!found.has('dni')) await runner.query('ALTER TABLE clientes ADD COLUMN dni VARCHAR(8) NULL AFTER nombre_completo');
   if (!found.has('telefono')) await runner.query('ALTER TABLE clientes ADD COLUMN telefono VARCHAR(15) NULL');
   if (!found.has('direccion')) await runner.query('ALTER TABLE clientes ADD COLUMN direccion VARCHAR(255) NULL');
+  if (!found.has('provider')) await runner.query("ALTER TABLE clientes ADD COLUMN provider VARCHAR(20) NOT NULL DEFAULT 'email'");
+  if (!found.has('google_sub')) await runner.query('ALTER TABLE clientes ADD COLUMN google_sub VARCHAR(80) NULL');
   if (!found.has('is_active')) await runner.query('ALTER TABLE clientes ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1');
   checked = true;
 };

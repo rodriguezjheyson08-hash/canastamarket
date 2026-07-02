@@ -9,6 +9,7 @@ const { normalizePermisos } = require('../utils/permisos');
 const { ensurePasswordColumnSchema } = require('../utils/ensurePasswordColumnSchema');
 // DEPENDENCIAS BACKEND: librerias, helpers y tipos que usa este archivo.
 const { hashPassword } = require('../utils/passwords');
+const { isStrongPassword, PASSWORD_MESSAGE } = require('../features/passwordReset/security');
 
 let usuariosColumnsChecked = false;
 
@@ -88,6 +89,18 @@ const countAdministradores = async (excludeId = null) => {
   return Number(rows[0]?.total || 0);
 };
 
+const emailEnUso = async (email, excludeId = null) => {
+  const params = [email];
+  let sql = 'SELECT id FROM usuarios WHERE LOWER(email) = ?';
+  if (excludeId !== null && excludeId !== undefined) {
+    sql += ' AND id <> ?';
+    params.push(excludeId);
+  }
+  sql += ' LIMIT 1';
+  const [rows] = await pool.query(sql, params);
+  return rows.length > 0;
+};
+
 const normalizeUsuarioPayload = (body = {}) => {
   const rol = String(body.rol || '').trim().toUpperCase();
   const email = String(body.email || '').trim().toLowerCase();
@@ -113,8 +126,14 @@ const validateUsuarioPayload = (data, { creating = false } = {}) => {
   if (!data.nombreUsuario || !data.nombreCompleto || !data.rol) {
     return 'Usuario, nombre completo y rol son obligatorios.';
   }
+  if (!data.email || !isEmailValido(data.email)) {
+    return 'El correo válido es obligatorio para recuperar la contraseña.';
+  }
   if (creating && !data.password) {
     return 'La contraseña es obligatoria.';
+  }
+  if (data.password && !isStrongPassword(data.password)) {
+    return PASSWORD_MESSAGE;
   }
   if (!isRolValido(data.rol)) {
     return 'Rol no válido.';
@@ -146,6 +165,9 @@ const createUsuario = async (req, res) => {
   if (validationError) return res.status(400).json({ message: validationError });
   if (data.rol === 'ADMINISTRADOR' && await countAdministradores() > 0) {
     return res.status(409).json({ message: 'Solo puede existir un administrador en el sistema.' });
+  }
+  if (await emailEnUso(data.email)) {
+    return res.status(409).json({ message: 'Ya existe un usuario con ese correo.' });
   }
 
   try {
@@ -184,6 +206,9 @@ const updateUsuario = async (req, res) => {
   const data = normalizeUsuarioPayload(req.body);
   const validationError = validateUsuarioPayload(data, { creating: false });
   if (validationError) return res.status(400).json({ message: validationError });
+  if (await emailEnUso(data.email, id)) {
+    return res.status(409).json({ message: 'Ya existe un usuario con ese correo.' });
+  }
 
   const [currentRows] = await pool.query('SELECT id, rol FROM usuarios WHERE id = ?', [id]);
   if (currentRows.length === 0) return res.status(404).json({ message: 'Usuario no encontrado.' });

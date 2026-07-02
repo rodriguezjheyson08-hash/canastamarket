@@ -64,6 +64,7 @@ type UserFormState = {
   password: string;
   dni: string;
   telefono: string;
+  email: string;
   permisos: UserPermissions;
 };
 
@@ -74,6 +75,7 @@ const createDefaultUserForm = (): UserFormState => ({
   password: '',
   dni: '',
   telefono: '',
+  email: '',
   permisos: { ...DEFAULT_CAJERO_PERMISSIONS }
 });
 
@@ -305,6 +307,9 @@ const ConfiguracionPage: React.FC = () => {
     if (!userForm.nombreUsuario.trim() || !userForm.nombreCompleto.trim()) {
       return 'Completa usuario y nombre completo.';
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userForm.email.trim())) {
+      return 'Ingresa un correo válido para recuperación de contraseña.';
+    }
     if (!editingUserId && !userForm.password.trim()) {
       return 'La contraseña es obligatoria para crear usuario.';
     }
@@ -332,6 +337,7 @@ const ConfiguracionPage: React.FC = () => {
       password: userForm.password.trim() || undefined,
       dni: userForm.dni || null,
       telefono: userForm.telefono || null,
+      email: userForm.email.trim().toLowerCase(),
       permisos: userForm.permisos
     };
 
@@ -361,6 +367,7 @@ const ConfiguracionPage: React.FC = () => {
       password: '',
       dni: usuario.dni || '',
       telefono: usuario.telefono || '',
+      email: usuario.email || '',
       permisos: normalizePermissions(rol, usuario.permisos || null)
     });
     setShowPassword(false);
@@ -379,6 +386,7 @@ const ConfiguracionPage: React.FC = () => {
         rol: usuario.rol,
         dni: usuario.dni || null,
         telefono: usuario.telefono || null,
+        email: usuario.email || null,
         permisos: normalizePermissions(usuario.rol, usuario.permisos || null),
         isActive: !isUsuarioActive(usuario)
       });
@@ -488,8 +496,19 @@ const ConfiguracionPage: React.FC = () => {
               <Grid item xs={12} md={2}>
                 <TextField label={t('Celular', 'Phone')} value={userForm.telefono} onChange={(event) => handleTextChange('telefono', event.target.value)} inputProps={{ maxLength: 9, inputMode: 'numeric' }} fullWidth />
               </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label={t('Correo para recuperación', 'Recovery email')}
+                  type="email"
+                  value={userForm.email}
+                  onChange={(event) => handleTextChange('email', event.target.value)}
+                  helperText={t('Aquí llegará el código para cambiar la contraseña.', 'Password reset codes will be sent here.')}
+                  required
+                  fullWidth
+                />
+              </Grid>
               {/* DISEÑO: Campo Contraseña (con ojo para ver/ocultar) */}
-              <Grid item xs={12} md={4}>
+              <Grid item xs={12} md={6}>
                 <TextField
                   label={editingUserId ? t('Nueva contraseña', 'New password') : t('Contraseña', 'Password')}
                   type={showPassword ? 'text' : 'password'}
@@ -549,12 +568,13 @@ const ConfiguracionPage: React.FC = () => {
 
           {/* DISEÑO: Tabla de Usuarios - Visualización de datos */}
           <TableContainer component={Paper}>
-            <Table size="small">
+            <Table size="small" sx={{ minWidth: 980 }}>
           {/* DISEÑO: Encabezados de la tabla */}
           <TableHead>
             <TableRow>
               <TableCell>{t('Usuario', 'Username')}</TableCell>
               <TableCell>{t('Nombre completo', 'Full name')}</TableCell>
+              <TableCell>{t('Correo', 'Email')}</TableCell>
               <TableCell>{t('Celular', 'Phone')}</TableCell>
               <TableCell>{t('Rol', 'Role')}</TableCell>
               <TableCell>{t('Accesos', 'Access')}</TableCell>
@@ -566,11 +586,11 @@ const ConfiguracionPage: React.FC = () => {
           <TableBody>
             {usuariosLoading ? (
               <TableRow>
-                <TableCell colSpan={7}>{t('Cargando usuarios...', 'Loading users...')}</TableCell>
+                <TableCell colSpan={8}>{t('Cargando usuarios...', 'Loading users...')}</TableCell>
               </TableRow>
             ) : usuarios.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7}>{t('No hay usuarios registrados.', 'No users registered.')}</TableCell>
+                <TableCell colSpan={8}>{t('No hay usuarios registrados.', 'No users registered.')}</TableCell>
               </TableRow>
             ) : (
               usuarios.map((usuario) => {
@@ -582,6 +602,7 @@ const ConfiguracionPage: React.FC = () => {
                   <TableRow key={usuario.id}>
                     <TableCell>{usuario.nombre_usuario}</TableCell>
                     <TableCell>{usuario.nombre_completo}</TableCell>
+                    <TableCell sx={{ maxWidth: 190, wordBreak: 'break-word' }}>{usuario.email || '-'}</TableCell>
                     <TableCell>{usuario.telefono || '-'}</TableCell>
                     <TableCell>{usuario.rol}</TableCell>
                     <TableCell>

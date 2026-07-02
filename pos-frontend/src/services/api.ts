@@ -228,6 +228,11 @@ export const loginCliente = async (email: string, password: string): Promise<Cli
   return res.data;
 };
 
+export const loginClienteGoogle = async (credential: string): Promise<ClienteAuthResponse> => {
+  const res = await axios.post(`${API_URL}/clientes/google`, { credential });
+  return res.data;
+};
+
 export const getClienteActual = async (token: string): Promise<ClienteAuthResponse['cliente']> => {
   const res = await axios.get(`${API_URL}/clientes/me`, { headers: buildAuthHeaders(token) });
   return res.data;
@@ -243,13 +248,21 @@ export const requestPasswordReset = async (email: string, accountType: 'usuario'
   return res.data as { message: string };
 };
 
-export const confirmPasswordReset = async (
+export const verifyPasswordResetCode = async (
   email: string,
   accountType: 'usuario' | 'cliente',
-  code: string,
-  newPassword: string
+  code: string
 ) => {
-  const res = await axios.post(`${API_URL}/auth/password-reset/confirm`, { email, accountType, code, newPassword });
+  const res = await axios.post(`${API_URL}/auth/password-reset/verify`, { email, accountType, code });
+  return res.data as { message: string; resetToken: string };
+};
+
+export const completePasswordReset = async (resetToken: string, newPassword: string) => {
+  const res = await axios.post(
+    `${API_URL}/auth/password-reset/complete`,
+    { newPassword },
+    { headers: buildAuthHeaders(resetToken) }
+  );
   return res.data as { message: string };
 };
 
@@ -433,6 +446,17 @@ export const login = async (credentials: LoginData): Promise<AuthResponse> => {
     } catch (error) {
         throw new Error(getAuthErrorMessage(error, 'Error de autenticación'));
     }
+};
+
+export const loginWithGoogle = async (credential: string): Promise<AuthResponse> => {
+  try {
+    const res = await axios.post(`${API_URL}/auth/google`, { credential });
+    const { token, user } = res.data;
+    saveAuthToken(token);
+    return { token, user };
+  } catch (error) {
+    throw new Error(getAuthErrorMessage(error, 'Error al iniciar sesión con Google'));
+  }
 };
 
 // SERVICIO FRONTEND: get Current User refresca permisos vigentes del usuario logueado.

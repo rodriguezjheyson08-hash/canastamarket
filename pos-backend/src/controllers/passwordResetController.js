@@ -3,6 +3,7 @@ const { ensureClientesSchema } = require('../features/clientes/schema');
 const { ensurePasswordResetSchema } = require('../features/passwordReset/schema');
 const { PASSWORD_MESSAGE, isStrongPassword, generateCode, hashCode, safeCodeEqual } = require('../features/passwordReset/security');
 const { hashPassword } = require('../utils/passwords');
+const { createToken } = require('../utils/tokens');
 const { sendPasswordResetCode } = require('../services/emailService');
 
 const genericMessage = 'Si el correo está registrado, recibirás un código de recuperación.';
@@ -53,14 +54,12 @@ const requestPasswordReset = async (req, res) => {
   return res.json({ message: genericMessage });
 };
 
-const confirmPasswordReset = async (req, res) => {
+const verifyPasswordResetCode = async (req, res) => {
   await ensurePasswordResetSchema();
   const email = String(req.body?.email || '').trim().toLowerCase();
   const accountType = String(req.body?.accountType || '').trim().toLowerCase();
   const code = String(req.body?.code || '').replace(/\D/g, '');
-  const newPassword = String(req.body?.newPassword || '');
   if (!validTypes.has(accountType) || !/^\d{6}$/.test(code)) return res.status(400).json({ message: 'Código inválido.' });
-  if (!isStrongPassword(newPassword)) return res.status(400).json({ message: PASSWORD_MESSAGE });
 
   const conn = await pool.getConnection();
   try {
@@ -79,6 +78,42 @@ const confirmPasswordReset = async (req, res) => {
       await conn.commit();
       return res.status(400).json({ message: 'El código venció o no es válido.' });
     }
+    await conn.execute('UPDATE password_reset_codes SET verified_at = NOW() WHERE id = ?', [reset.id]);
+    await conn.commit();
+    return res.json({
+      message: 'Código validado. Ahora crea tu nueva contraseña.',
+      resetToken: createToken({ sub: reset.id, role: accountType, type: 'password_reset', expiresInSeconds: 10 * 60 })
+    });
+  } catch (error) {
+    await conn.rollback();
+    return res.status(400).json({ message: error.message || 'No se pudo validar el código.' });
+  } finally {
+    conn.release();
+  }
+};
+
+const completePasswordReset = async (req, res) => {
+  await ensurePasswordResetSchema();
+  const newPassword = String(req.body?.newPassword || '');
+  if (!isStrongPassword(newPassword)) return res.status(400).json({ message: PASSWORD_MESSAGE });
+  const resetId = Number(req.auth?.sub);
+  const accountType = String(req.auth?.role || '').toLowerCase();
+  if (!Number.isInteger(resetId) || !validTypes.has(accountType)) {
+    return res.status(400).json({ message: 'Autorización de recuperación inválida.' });
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [rows] = await conn.query(
+      `SELECT * FROM password_reset_codes
+        WHERE id = ? AND account_type = ? AND verified_at IS NOT NULL
+          AND used_at IS NULL AND expires_at > NOW()
+        LIMIT 1 FOR UPDATE`,
+      [resetId, accountType]
+    );
+    const reset = rows[0];
+    if (!reset) throw new Error('La autorización venció. Solicita un código nuevo.');
     const table = accountType === 'usuario' ? 'usuarios' : 'clientes';
     await conn.execute(`UPDATE ${table} SET password = ? WHERE id = ?`, [hashPassword(newPassword), reset.account_id]);
     await conn.execute('UPDATE password_reset_codes SET used_at = NOW() WHERE id = ?', [reset.id]);
@@ -92,4 +127,4 @@ const confirmPasswordReset = async (req, res) => {
   }
 };
 
-module.exports = { requestPasswordReset, confirmPasswordReset };
+module.exports = { requestPasswordReset, verifyPasswordResetCode, completePasswordReset };

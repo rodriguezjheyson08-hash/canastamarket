@@ -8,6 +8,8 @@ const { normalizePermisos } = require('../utils/permisos');
 const { ensurePasswordColumnSchema } = require('../utils/ensurePasswordColumnSchema');
 const { hashPassword, verifyPassword, needsPasswordRehash } = require('../utils/passwords');
 const { createToken } = require('../utils/tokens');
+const { OAuth2Client } = require('google-auth-library');
+const env = require('../config/env');
 
 let usuariosPermisosColumnChecked = false;
 
@@ -129,7 +131,7 @@ const login = async (req, res) => {
 
   const passwordOk = verifyPassword(row.password, password);
   if (!passwordOk) {
-    return res.status(401).json({ message: 'Credenciales inv�lidas.' });
+    return res.status(401).json({ message: 'Credenciales inválidas.' });
   }
 
   await resetLoginAttempts(row.id);
@@ -160,7 +162,34 @@ const getCurrentUser = async (req, res) => {
   res.json({ user: buildAuthPayload(row).user });
 };
 
+const googleLogin = async (req, res) => {
+  await ensureUsuariosPermisosColumn();
+  const credential = String(req.body?.credential || '').trim();
+  const clientId = String(env.google?.clientId || '').trim();
+  if (!clientId) return res.status(503).json({ message: 'El acceso con Google no está configurado.' });
+  if (!credential) return res.status(400).json({ message: 'Credencial de Google obligatoria.' });
+
+  try {
+    const ticket = await new OAuth2Client(clientId).verifyIdToken({ idToken: credential, audience: clientId });
+    const payload = ticket.getPayload();
+    const email = String(payload?.email || '').trim().toLowerCase();
+    if (!payload?.email_verified || !email) {
+      return res.status(401).json({ message: 'Google no confirmó el correo.' });
+    }
+    const [rows] = await pool.query(`${USER_SELECT} WHERE LOWER(email) = ? LIMIT 1`, [email]);
+    if (rows.length === 0) {
+      return res.status(403).json({ message: 'Este correo de Google no está registrado como personal.' });
+    }
+    const accessError = validateUserAccess(rows[0]);
+    if (accessError) return res.status(accessError.status).json({ message: accessError.message });
+    return res.json(buildAuthPayload(rows[0]));
+  } catch {
+    return res.status(401).json({ message: 'No se pudo validar el acceso con Google.' });
+  }
+};
+
 module.exports = {
   getCurrentUser,
-  login
+  login,
+  googleLogin
 };

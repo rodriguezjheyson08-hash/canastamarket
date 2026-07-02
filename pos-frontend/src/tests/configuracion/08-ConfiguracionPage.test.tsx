@@ -150,7 +150,7 @@ describe('ConfiguracionPage usuarios y permisos', () => {
     expect(mockedGetUsuarios).not.toHaveBeenCalled();
   });
 
-  it('muestra los modulos habilitados, incluido reportes y sin pedidos online', async () => {
+  it('muestra todos los módulos habilitados, incluido pedidos online', async () => {
     await renderAsAdmin();
 
     expect(screen.getByLabelText('Ventas')).toBeInTheDocument();
@@ -159,7 +159,7 @@ describe('ConfiguracionPage usuarios y permisos', () => {
     expect(screen.getByLabelText('Proveedores')).toBeInTheDocument();
     expect(screen.getByLabelText('Reportes')).toBeInTheDocument();
     expect(screen.getByLabelText('Configuración')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Pedidos Online')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Pedidos Online')).toBeInTheDocument();
   });
 
   it('crea un usuario cajero con permisos seleccionados', async () => {
@@ -196,6 +196,7 @@ describe('ConfiguracionPage usuarios y permisos', () => {
     fireEvent.change(screen.getByLabelText('Usuario'), { target: { value: 'caja02' } });
     fireEvent.change(screen.getByLabelText('Nombre completo'), { target: { value: 'Caja Dos' } });
     fireEvent.change(screen.getByLabelText('Contraseña'), { target: { value: 'Clave123' } });
+    fireEvent.change(screen.getByLabelText(/Correo para recuperación/i), { target: { value: 'caja02@test.com' } });
     fireEvent.click(screen.getByRole('button', { name: /agregar/i }));
 
     await waitFor(() => {
@@ -204,6 +205,7 @@ describe('ConfiguracionPage usuarios y permisos', () => {
         nombreCompleto: 'Caja Dos',
         rol: 'CAJERO',
         password: 'Clave123',
+        email: 'caja02@test.com',
         permisos: expect.objectContaining({
           ventas: true,
           productos: true,
@@ -297,6 +299,7 @@ describe('ConfiguracionPage usuarios y permisos', () => {
     fireEvent.change(screen.getByLabelText('Usuario'), { target: { value: 'admin02' } });
     fireEvent.change(screen.getByLabelText('Nombre completo'), { target: { value: 'Admin Dos' } });
     fireEvent.change(screen.getByLabelText('Contraseña'), { target: { value: 'Clave123' } });
+    fireEvent.change(screen.getByLabelText(/Correo para recuperación/i), { target: { value: 'admin02@test.com' } });
     fireEvent.mouseDown(screen.getByLabelText('Rol'));
     fireEvent.click(screen.getByRole('option', { name: 'ADMINISTRADOR' }));
     fireEvent.click(screen.getByRole('button', { name: /agregar/i }));

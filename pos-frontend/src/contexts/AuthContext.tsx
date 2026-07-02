@@ -5,7 +5,7 @@
  */
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, LoginData } from '../types';
-import { getCurrentUser, login as apiLogin } from '../services/api';
+import { getCurrentUser, login as apiLogin, loginWithGoogle as apiLoginWithGoogle } from '../services/api';
 
 type LoginResult = { ok: boolean; message?: string; user?: User };
 
@@ -13,6 +13,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   loading: boolean;
   login: (credentials: LoginData) => Promise<LoginResult>;
+  loginGoogle?: (credential: string) => Promise<LoginResult>;
   logout: () => void;
   user: User | null;
 }
@@ -93,6 +94,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const loginGoogle = async (credential: string) => {
+    try {
+      const { user } = await apiLoginWithGoogle(credential);
+      persistAuthenticatedUser(user);
+      return { ok: true, user };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Error al iniciar sesión con Google';
+      return { ok: false, message };
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -101,7 +113,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, loading, login, logout, user }}>
+    <AuthContext.Provider value={{ isAuthenticated, loading, login, loginGoogle, logout, user }}>
       {children}
     </AuthContext.Provider>
   );

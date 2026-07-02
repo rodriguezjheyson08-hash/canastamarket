@@ -3,6 +3,8 @@ const { ensureClientesSchema } = require('../features/clientes/schema');
 const { hashPassword, verifyPassword, needsPasswordRehash } = require('../utils/passwords');
 const { createToken } = require('../utils/tokens');
 const { isStrongPassword, PASSWORD_MESSAGE } = require('../features/passwordReset/security');
+const { OAuth2Client } = require('google-auth-library');
+const env = require('../config/env');
 
 const emailValido = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
 const mapCliente = (row) => ({
@@ -55,6 +57,61 @@ const loginCliente = async (req, res) => {
   return res.json({ token: createToken({ sub: cliente.id, role: 'CLIENTE', type: 'cliente' }), cliente });
 };
 
+const googleLoginCliente = async (req, res) => {
+  await ensureClientesSchema();
+  const credential = String(req.body?.credential || '').trim();
+  const clientId = String(env.google?.clientId || '').trim();
+  if (!clientId) return res.status(503).json({ message: 'El acceso con Google no esta configurado.' });
+  if (!credential) return res.status(400).json({ message: 'Credencial de Google obligatoria.' });
+
+  try {
+    const ticket = await new OAuth2Client(clientId).verifyIdToken({ idToken: credential, audience: clientId });
+    const profile = ticket.getPayload();
+    const email = String(profile?.email || '').trim().toLowerCase();
+    const googleSub = String(profile?.sub || '').trim();
+    const nombre = String(profile?.name || '').trim() || 'Cliente Google';
+    if (!profile?.email_verified || !email || !googleSub) {
+      return res.status(401).json({ message: 'Google no confirmo el correo.' });
+    }
+
+    const [rows] = await pool.query(
+      'SELECT * FROM clientes WHERE google_sub = ? OR email = ? ORDER BY google_sub = ? DESC LIMIT 1',
+      [googleSub, email, googleSub]
+    );
+    let row = rows[0];
+    if (row && row.google_sub && row.google_sub !== googleSub) {
+      return res.status(409).json({ message: 'El correo ya esta vinculado a otra cuenta de Google.' });
+    }
+    if (row && !row.is_active) {
+      return res.status(403).json({ message: 'La cuenta del cliente esta deshabilitada.' });
+    }
+
+    if (row) {
+      await pool.execute(
+        `UPDATE clientes
+          SET google_sub = ?, provider = 'google',
+              nombre_completo = COALESCE(NULLIF(nombre_completo, ''), ?)
+          WHERE id = ?`,
+        [googleSub, nombre, row.id]
+      );
+      [row] = (await pool.query('SELECT * FROM clientes WHERE id = ?', [row.id]))[0];
+    } else {
+      const [result] = await pool.execute(
+        `INSERT INTO clientes (email, password, nombre_completo, provider, google_sub, is_active)
+          VALUES (?, NULL, ?, 'google', ?, 1)`,
+        [email, nombre, googleSub]
+      );
+      [row] = (await pool.query('SELECT * FROM clientes WHERE id = ?', [result.insertId]))[0];
+    }
+
+    const cliente = mapCliente(row);
+    return res.json({ token: createToken({ sub: cliente.id, role: 'CLIENTE', type: 'cliente' }), cliente });
+  } catch (error) {
+    if (error?.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: 'Ya existe una cuenta con ese correo.' });
+    return res.status(401).json({ message: 'No se pudo validar el acceso con Google.' });
+  }
+};
+
 const getClienteActual = async (req, res) => {
   await ensureClientesSchema();
   const [rows] = await pool.query('SELECT * FROM clientes WHERE id = ? AND is_active = 1 LIMIT 1', [req.auth.sub]);
@@ -78,4 +135,4 @@ const updateClienteActual = async (req, res) => {
   return getClienteActual(req, res);
 };
 
-module.exports = { registerCliente, loginCliente, getClienteActual, updateClienteActual };
+module.exports = { registerCliente, loginCliente, googleLoginCliente, getClienteActual, updateClienteActual };

@@ -17,7 +17,8 @@ import {
   CircularProgress,
   Avatar,
   IconButton,
-  InputAdornment
+  InputAdornment,
+  Divider
 } from '@mui/material';
 import StorefrontIcon from '@mui/icons-material/Storefront';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -28,9 +29,10 @@ import { useNavigate } from 'react-router-dom';
 import { useAppConfig } from '../hooks/useAppConfig';
 import { useI18n } from '../hooks/useI18n';
 import PasswordResetDialog from '../components/common/PasswordResetDialog';
+import GoogleSignInButton from '../components/common/GoogleSignInButton';
 
 const LoginPage: React.FC = () => {
-  const { login: loginStaff } = useAuth();
+  const { login: loginStaff, loginGoogle } = useAuth();
   const navigate = useNavigate();
   const config = useAppConfig();
   const { t } = useI18n();
@@ -70,6 +72,18 @@ const LoginPage: React.FC = () => {
       setLoading(false);
     }
   };
+
+  const handleGoogleCredential = useCallback(async (credential: string) => {
+    if (!loginGoogle) return;
+    setLoading(true); setError('');
+    const result = await loginGoogle(credential);
+    setLoading(false);
+    if (!result.ok) {
+      setError(result.message || 'No se pudo iniciar sesión con Google.');
+      return;
+    }
+    goToInitialScreen();
+  }, [goToInitialScreen, loginGoogle]);
 
   return (
     <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
@@ -164,6 +178,8 @@ const LoginPage: React.FC = () => {
                 t('Iniciar Sesión', 'Sign In')
               )}
             </Button>
+            <Divider sx={{ my: 2 }}>o</Divider>
+            <GoogleSignInButton onCredential={handleGoogleCredential} />
             <Button fullWidth sx={{ mt: 1 }} onClick={() => setResetOpen(true)}>
               ¿Olvidaste tu contraseña?
             </Button>

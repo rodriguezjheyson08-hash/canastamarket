@@ -85,7 +85,7 @@ const Dashboard: React.FC = () => {
       description: t('Atender compras realizadas por clientes', 'Manage customer online orders'),
       icon: <ShoppingBag sx={{ fontSize: 40 }} />,
       path: '/dashboard/pedidos-online',
-      color: '#6d4c41',
+      color: '#ad4773',
       permission: 'pedidosOnline'
     },
     {

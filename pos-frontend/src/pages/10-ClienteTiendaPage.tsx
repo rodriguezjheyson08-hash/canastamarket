@@ -4,7 +4,7 @@
  * QUE HACE: Tienda publica para clientes: catalogo, carrito, login Google/perfil y pedidos.
  * GUIA: usa comentarios DISEÑO/LOGICA/SERVICIO para ubicar rapido donde cambiar algo.
  */
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   AppBar,
@@ -44,7 +44,6 @@ import {
   Delete,
   Download,
   Email,
-  Google,
   History,
   LocalMall,
   Logout,
@@ -63,6 +62,7 @@ import {
   getMisPedidosCliente,
   getProductos,
   loginCliente,
+  loginClienteGoogle,
   registerCliente,
   updateClientePerfil
 } from '../services/api';
@@ -71,8 +71,8 @@ import { useAppConfig } from '../hooks/useAppConfig';
 import { loadBoletaConfig } from '../utils/boletaConfig';
 import { montoEnLetras } from '../features/ventas/utils';
 import PasswordResetDialog from '../components/common/PasswordResetDialog';
+import GoogleSignInButton from '../components/common/GoogleSignInButton';
 
-const GOOGLE_SCRIPT_ID = 'google-identity-services';
 const CLIENT_CART_KEY = 'cliente_tienda_carrito';
 const CLIENT_PROFILE_KEY = 'cliente_tienda_perfil';
 const CLIENT_ORDERS_KEY = 'cliente_tienda_pedidos';
@@ -150,18 +150,6 @@ const getProductImage = (producto: Producto) =>
 const buildAvatarUrl = (perfil: ClientePerfil) => {
   const label = encodeURIComponent(perfil.nombre || perfil.email || 'Cliente');
   return `https://ui-avatars.com/api/?name=${label}&background=1976d2&color=fff&bold=true`;
-};
-
-// LOGICA CLIENTE - GOOGLE:
-// Decodifica la respuesta JWT de Google para obtener nombre, correo e imagen reales del cliente.
-const decodeGoogleCredential = (credential: string) => {
-  try {
-    const payload = credential.split('.')[1];
-    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
-    return JSON.parse(window.atob(normalized)) as { name?: string; email?: string; picture?: string };
-  } catch {
-    return {};
-  }
 };
 
 // LOGICA CLIENTE - BOLETA HTML:
@@ -514,8 +502,6 @@ const buildBoletaHtml = (pedido: ClientePedido, cliente: ClientePerfil, appName:
 
 const ClienteTiendaPage: React.FC = () => {
   const config = useAppConfig();
-  const googleClientId = process.env.REACT_APP_GOOGLE_CLIENT_ID || '';
-  const googleButtonRef = useRef<HTMLDivElement | null>(null);
 
   // LOGICA CLIENTE - ESTADOS PRINCIPALES:
   // Manejan catalogo, busqueda, carrito, perfil, checkout, historial y mensajes.
@@ -688,93 +674,27 @@ const ClienteTiendaPage: React.FC = () => {
     return () => window.clearInterval(intervalId);
   }, [perfil.email, clienteToken]);
 
-  // LOGICA CLIENTE - GOOGLE:
-  // Renderiza el boton oficial si REACT_APP_GOOGLE_CLIENT_ID esta configurado.
-  const handleGoogleResponse = useCallback((response: GoogleCredentialResponse) => {
-    if (!response?.credential) {
-      showSnackbar('No se recibio credencial de Google.', 'error');
-      return;
+  const handleClienteGoogleCredential = useCallback(async (credential: string) => {
+    try {
+      const result = await loginClienteGoogle(credential);
+      localStorage.setItem(CLIENT_TOKEN_KEY, result.token);
+      setClienteToken(result.token);
+      const nextPerfil = { ...result.cliente, password: undefined, fotoUrl: buildAvatarUrl(result.cliente) };
+      setPerfil(nextPerfil);
+      setPerfilForm(nextPerfil);
+      setAuthOpen(false);
+      if (!result.cliente.dni || !result.cliente.telefono) {
+        setCheckoutAfterAuth(false);
+        setPerfilOpen(true);
+        showSnackbar('Acceso con Google correcto. Completa DNI y telefono para comprar.');
+      } else if (checkoutAfterAuth) {
+        setCheckoutOpen(true);
+        setCheckoutAfterAuth(false);
+      }
+    } catch (error: any) {
+      showSnackbar(error?.response?.data?.message || 'No se pudo iniciar sesion con Google.', 'error');
     }
-
-    const googleProfile = decodeGoogleCredential(response.credential);
-    const nuevoPerfil: ClientePerfil = {
-      ...perfilForm,
-      nombre: googleProfile.name || perfilForm.nombre || 'Cliente Google',
-      email: googleProfile.email || perfilForm.email || 'cliente.google@correo.com',
-      fotoUrl: googleProfile.picture || perfilForm.fotoUrl || buildAvatarUrl({ ...perfilForm, nombre: perfilForm.nombre || 'Cliente Google', email: perfilForm.email || 'cliente.google@correo.com' })
-    };
-    setPerfilForm(nuevoPerfil);
-    setAuthStep('register');
-    showSnackbar('Sesion de cliente iniciada. Completa tus datos para continuar.');
-  }, [perfilForm, showSnackbar]);
-
-  // LOGICA CLIENTE - GOOGLE LOCAL:
-  // Permite continuar en desarrollo cuando aun no existe REACT_APP_GOOGLE_CLIENT_ID configurado.
-  const continueWithGoogleLocal = () => {
-    const nuevoPerfil: ClientePerfil = {
-      ...perfilForm,
-      nombre: perfilForm.nombre || 'Cliente Google',
-      email: perfilForm.email || 'cliente.google@correo.com',
-      fotoUrl: perfilForm.fotoUrl || buildAvatarUrl({ ...perfilForm, nombre: perfilForm.nombre || 'Cliente Google', email: perfilForm.email || 'cliente.google@correo.com' })
-    };
-    setPerfilForm(nuevoPerfil);
-    setAuthStep('register');
-    showSnackbar('Continuaste con Google en modo local. Completa tu telefono para confirmar.');
-  };
-
-  useEffect(() => {
-    if (!authOpen || authStep !== 'register' || !googleClientId || !googleButtonRef.current) return;
-
-    let cancelled = false;
-    const renderGoogleButton = () => {
-      if (cancelled || !googleButtonRef.current || !window.google?.accounts?.id) return;
-
-      window.google.accounts.id.initialize({
-        client_id: googleClientId,
-        callback: handleGoogleResponse,
-        auto_select: false,
-        cancel_on_tap_outside: true
-      });
-
-      googleButtonRef.current.innerHTML = '';
-      window.google.accounts.id.renderButton(googleButtonRef.current, {
-        type: 'standard',
-        theme: 'outline',
-        size: 'large',
-        text: 'continue_with',
-        shape: 'rectangular',
-        logo_alignment: 'left',
-        width: Math.min(360, googleButtonRef.current.clientWidth || 360),
-        locale: 'es'
-      });
-    };
-
-    if (window.google?.accounts?.id) {
-      renderGoogleButton();
-      return () => {
-        cancelled = true;
-        window.google?.accounts?.id.cancel();
-      };
-    }
-
-    let script = document.getElementById(GOOGLE_SCRIPT_ID) as HTMLScriptElement | null;
-    if (!script) {
-      script = document.createElement('script');
-      script.id = GOOGLE_SCRIPT_ID;
-      script.src = 'https://accounts.google.com/gsi/client';
-      script.async = true;
-      script.defer = true;
-      document.body.appendChild(script);
-    }
-
-    script.addEventListener('load', renderGoogleButton);
-
-    return () => {
-      cancelled = true;
-      script?.removeEventListener('load', renderGoogleButton);
-      window.google?.accounts?.id.cancel();
-    };
-  }, [authOpen, authStep, googleClientId, handleGoogleResponse]);
+  }, [checkoutAfterAuth, showSnackbar]);
 
   // LOGICA CLIENTE - FILTRO:
   // Busca productos por nombre o descripcion dentro del catalogo publico.
@@ -1168,7 +1088,7 @@ const ClienteTiendaPage: React.FC = () => {
               </Grid>
 
               <Grid container spacing={2}>
-                <Grid item xs={12} md={5}>
+                <Grid item xs={12} md={6}>
                   {/* DISEÑO CLIENTE - FORMULARIO PERFIL:
                       Campos editables del cliente para comprar mas rapido y mantener datos actualizados. */}
                   <Paper elevation={0} sx={{ p: 2, borderRadius: 2 }}>
@@ -1186,11 +1106,14 @@ const ClienteTiendaPage: React.FC = () => {
                       <Button variant="contained" startIcon={<AccountCircle />} onClick={savePerfil} size="large">
                         Guardar cambios
                       </Button>
+                      <Button variant="outlined" onClick={() => setResetOpen(true)}>
+                        Cambiar contraseña por correo
+                      </Button>
                     </Stack>
                   </Paper>
                 </Grid>
 
-                <Grid item xs={12} md={7}>
+                <Grid item xs={12} md={6}>
                   <Stack spacing={2}>
                     <Paper elevation={0} sx={{ p: 2, borderRadius: 2 }}>
                       <Typography variant="overline" color="text.secondary">Tu estado actual</Typography>
@@ -1382,7 +1305,7 @@ const ClienteTiendaPage: React.FC = () => {
         </Box>
 
         <Grid container spacing={3}>
-          <Grid item xs={12} lg={8.5}>
+          <Grid item xs={12} lg={10}>
             {/* DISEÑO CLIENTE - BUSCADOR:
                 Filtra productos publicos por nombre o descripcion. */}
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ mb: 2 }}>
@@ -1448,9 +1371,8 @@ const ClienteTiendaPage: React.FC = () => {
                   const cantidadEnCarrito = cartItems[producto.id] || 0;
                   return (
                     <React.Fragment key={producto.id}>
-                      {/* DISEÑO CLIENTE - 4 COLUMNAS:
-                          En escritorio cada producto ocupa 3/12 columnas, por eso se ven 4 productos por fila. */}
-                    <Grid item xs={12} sm={6} md={4} xl={3}>
+                      {/* Cinco columnas en pantallas amplias; baja progresivamente hasta una en móvil. */}
+                    <Grid item xs={12} sm={6} md={4} lg={3} xl={2.4}>
                       <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                         <CardMedia
                           component="img"
@@ -1492,7 +1414,7 @@ const ClienteTiendaPage: React.FC = () => {
             )}
           </Grid>
 
-          <Grid item xs={12} lg={3.5}>
+          <Grid item xs={12} lg={2}>
             {/* DISEÑO CLIENTE - PANEL CARRITO:
                 Muestra productos seleccionados, controles de cantidad, subtotal y total. */}
             <Paper elevation={2} sx={{ p: { xs: 2, sm: 2.5 }, position: { lg: 'sticky' }, top: { lg: 88 } }}>
@@ -1593,6 +1515,8 @@ const ClienteTiendaPage: React.FC = () => {
                 <Button onClick={() => setResetOpen(true)}>¿Olvidaste tu contraseña?</Button>
               </Stack>
               <Divider sx={{ my: 2 }}>o</Divider>
+              <GoogleSignInButton onCredential={handleClienteGoogleCredential} />
+              <Divider sx={{ my: 2 }}>o</Divider>
               <Button fullWidth variant="outlined" onClick={() => setAuthStep('register')}>
                 Crear cuenta nueva
               </Button>
@@ -1601,17 +1525,9 @@ const ClienteTiendaPage: React.FC = () => {
             <>
               {/* DISEÑO CLIENTE - REGISTRO:
                   Primero puede acceder con Google y luego completa datos obligatorios del cliente. */}
-              {googleClientId ? (
-                <Box ref={googleButtonRef} sx={{ display: 'flex', justifyContent: 'center', mb: 2, minHeight: 44 }} />
-              ) : (
-                <Button variant="outlined" startIcon={<Google />} fullWidth sx={{ mb: 2 }} onClick={continueWithGoogleLocal}>
-                  Acceder con Google
-                </Button>
-              )}
-              <Alert severity="info">
-                {googleClientId
-                  ? 'Selecciona tu cuenta de Google y luego completa telefono/contraseña para guardar tu perfil.'
-                  : 'Modo local: configura REACT_APP_GOOGLE_CLIENT_ID para que Google liste tus cuentas reales.'}
+              <GoogleSignInButton onCredential={handleClienteGoogleCredential} />
+              <Alert severity="info" sx={{ mt: 2 }}>
+                Con Google se valida el correo de forma segura. Luego completa DNI y teléfono para comprar.
               </Alert>
               <Stack spacing={2} mt={2}>
                 <TextField label="Nombre completo" value={perfilForm.nombre} onChange={(e) => setPerfilForm((prev) => ({ ...prev, nombre: e.target.value }))} fullWidth />
