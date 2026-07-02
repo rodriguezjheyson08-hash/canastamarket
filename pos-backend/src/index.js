@@ -30,6 +30,7 @@ const proveedoresRoutes = require('./routes/proveedores');
 const usuariosRoutes = require('./routes/usuarios');
 const configuracionRoutes = require('./routes/configuracion');
 const cajasRoutes = require('./routes/cajas');
+const clientesRoutes = require('./routes/clientes');
 
 const app = express();
 app.disable('x-powered-by');
@@ -54,6 +55,7 @@ app.get('/api/health', (_req, res) => {
     status: 'ok',
     authConfigured: String(env.auth?.secret || '').trim() !== DEFAULT_AUTH_SECRET,
     corsConfigured: corsOrigins.length > 0,
+    smtpConfigured: Boolean(env.smtp?.user && env.smtp?.pass && env.smtp?.from),
     environment: env.runtime.hosted ? 'hosted' : 'local',
     databaseTarget: env.runtime.databaseTarget
   });
@@ -82,6 +84,7 @@ app.use('/api/proveedores', proveedoresRoutes);
 app.use('/api/usuarios', usuariosRoutes);
 app.use('/api/configuracion', configuracionRoutes);
 app.use('/api/cajas', cajasRoutes);
+app.use('/api/clientes', clientesRoutes);
 
 // RUTA BACKEND: registra middleware o ruta principal de Express.
 app.use((err, _req, res, _next) => {

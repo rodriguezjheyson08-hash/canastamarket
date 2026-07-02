@@ -210,6 +210,49 @@ export const createVenta = async (ventaData: VentaCreatePayload, token?: string 
     return res.data;
 };
 
+export type ClienteCuentaPayload = {
+  nombre: string; dni: string; email: string; telefono: string; direccion?: string; password?: string;
+};
+export type ClienteAuthResponse = {
+  token: string;
+  cliente: { id: number; nombre: string; dni: string; email: string; telefono: string; direccion: string };
+};
+
+export const registerCliente = async (payload: ClienteCuentaPayload): Promise<ClienteAuthResponse> => {
+  const res = await axios.post(`${API_URL}/clientes/register`, payload);
+  return res.data;
+};
+
+export const loginCliente = async (email: string, password: string): Promise<ClienteAuthResponse> => {
+  const res = await axios.post(`${API_URL}/clientes/login`, { email, password });
+  return res.data;
+};
+
+export const getClienteActual = async (token: string): Promise<ClienteAuthResponse['cliente']> => {
+  const res = await axios.get(`${API_URL}/clientes/me`, { headers: buildAuthHeaders(token) });
+  return res.data;
+};
+
+export const updateClientePerfil = async (payload: ClienteCuentaPayload, token: string) => {
+  const res = await axios.put(`${API_URL}/clientes/me`, payload, { headers: buildAuthHeaders(token) });
+  return res.data;
+};
+
+export const requestPasswordReset = async (email: string, accountType: 'usuario' | 'cliente') => {
+  const res = await axios.post(`${API_URL}/auth/password-reset/request`, { email, accountType });
+  return res.data as { message: string };
+};
+
+export const confirmPasswordReset = async (
+  email: string,
+  accountType: 'usuario' | 'cliente',
+  code: string,
+  newPassword: string
+) => {
+  const res = await axios.post(`${API_URL}/auth/password-reset/confirm`, { email, accountType, code, newPassword });
+  return res.data as { message: string };
+};
+
 // Caja por cajero
 export const getCajaActual = async (token?: string | null): Promise<CajaSesion | null> => {
   const authToken = token ?? getToken();
@@ -245,8 +288,13 @@ export const getCajas = async (token?: string | null): Promise<CajaSesion[]> => 
 
 // Pedidos online
 // SERVICIO FRONTEND PUBLICO: registra en MySQL una compra hecha desde la tienda de clientes.
-export const createPedidoOnlinePublic = async (payload: PedidoOnlineCreatePayload): Promise<PedidoOnline> => {
-  const res = await axios.post(`${API_URL}/pedidos-online/public`, payload);
+export const createPedidoOnlineCliente = async (payload: PedidoOnlineCreatePayload, token: string): Promise<PedidoOnline> => {
+  const res = await axios.post(`${API_URL}/pedidos-online/cliente`, payload, { headers: buildAuthHeaders(token) });
+  return res.data;
+};
+
+export const getMisPedidosCliente = async (token: string): Promise<PedidoOnline[]> => {
+  const res = await axios.get(`${API_URL}/pedidos-online/mine`, { headers: buildAuthHeaders(token) });
   return res.data;
 };
 
@@ -261,13 +309,6 @@ export const getPedidosOnline = async (estado?: PedidoOnline['estado'], token?: 
 };
 
 // SERVICIO FRONTEND PUBLICO: consulta pedidos del cliente por correo para ver su estado actualizado.
-export const getPedidosOnlinePublic = async (email: string): Promise<PedidoOnline[]> => {
-  const res = await axios.get(`${API_URL}/pedidos-online/public`, {
-    params: { email }
-  });
-  return res.data;
-};
-
 // SERVICIO FRONTEND ADMIN: cambia el estado de un pedido web cuando se atiende o se recoge.
 export const updatePedidoOnlineEstado = async (
   id: number,

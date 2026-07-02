@@ -145,6 +145,16 @@ const listPedidosOnlinePublic = async (req, res) => {
   res.json(pedidos.map((pedido) => mapPedidoOnline(pedido, detallePorPedido[pedido.id] || [])));
 };
 
+const listPedidosOnlineMine = async (req, res) => {
+  const [rows] = await pool.query(
+    'SELECT email FROM clientes WHERE id = ? AND is_active = 1 LIMIT 1',
+    [req.auth.sub]
+  );
+  if (!rows[0]) return res.status(404).json({ message: 'Cliente no encontrado.' });
+  req.query.email = rows[0].email;
+  return listPedidosOnlinePublic(req, res);
+};
+
 // CONTROLADOR PUBLICO - CREAR PEDIDO ONLINE:
 // Valida stock en MySQL, descuenta inventario y deja el pedido visible para admin/cajero.
 const createPedidoOnlinePublic = async (req, res) => {
@@ -296,6 +306,24 @@ const createPedidoOnlinePublic = async (req, res) => {
   }
 };
 
+const createPedidoOnlineCliente = async (req, res) => {
+  const [rows] = await pool.query(
+    `SELECT nombre_completo, dni, email, telefono, direccion
+       FROM clientes WHERE id = ? AND is_active = 1 LIMIT 1`,
+    [req.auth.sub]
+  );
+  if (!rows[0]) return res.status(404).json({ message: 'Cliente no encontrado.' });
+  const cliente = rows[0];
+  req.body.cliente = {
+    nombre: cliente.nombre_completo,
+    dni: cliente.dni,
+    email: cliente.email,
+    telefono: cliente.telefono,
+    direccion: cliente.direccion
+  };
+  return createPedidoOnlinePublic(req, res);
+};
+
 // CONTROLADOR ADMIN - CAMBIAR ESTADO:
 // Permite marcar un pedido como recogido, pagado o anulado desde el modulo interno.
 const updatePedidoOnlineEstado = async (req, res) => {
@@ -332,6 +360,8 @@ module.exports = {
   listPedidosOnline,
   listPedidosOnlinePublic,
   createPedidoOnlinePublic,
+  createPedidoOnlineCliente,
+  listPedidosOnlineMine,
   updatePedidoOnlineEstado,
   getPedidoOnlineByCodigo
 };

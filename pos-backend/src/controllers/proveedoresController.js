@@ -205,6 +205,15 @@ const updateProveedor = async (req, res) => {
 // LOGICA BACKEND: baja logica; no borra la fila, solo marca activo = 0.
 const deleteProveedor = async (req, res) => {
   await ensureProveedoresSchema();
+  const [pedidos] = await pool.query(
+    'SELECT COUNT(*) AS total FROM pedidos_compra WHERE proveedor_id = ?',
+    [req.params.id]
+  );
+  if (Number(pedidos[0]?.total || 0) > 0) {
+    return res.status(409).json({
+      message: 'No se puede eliminar el proveedor porque tiene pedidos de compra registrados.'
+    });
+  }
   const [result] = await pool.execute('UPDATE proveedores SET activo = 0 WHERE id = ?', [req.params.id]);
   if (result.affectedRows === 0) return res.status(404).json({ message: 'Proveedor no encontrado.' });
   res.status(204).send();

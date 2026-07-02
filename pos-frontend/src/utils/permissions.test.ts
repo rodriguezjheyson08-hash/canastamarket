@@ -22,6 +22,7 @@ describe('permisos de usuarios', () => {
       productos: true,
       categorias: true,
       proveedores: true,
+      pedidosOnline: true,
       reportes: true,
       configuracion: true
     });
@@ -35,6 +36,7 @@ describe('permisos de usuarios', () => {
       productos: true,
       categorias: true,
       proveedores: true,
+      pedidosOnline: true,
       reportes: true,
       configuracion: false
     });

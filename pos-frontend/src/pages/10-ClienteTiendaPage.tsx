@@ -56,22 +56,27 @@ import {
   Storefront
 } from '@mui/icons-material';
 import {
-  createPedidoOnlinePublic,
+  createPedidoOnlineCliente,
   createPublicMercadoPagoPreference,
   getCategorias,
-  getPedidosOnlinePublic,
-  getProductos
+  getClienteActual,
+  getMisPedidosCliente,
+  getProductos,
+  loginCliente,
+  registerCliente,
+  updateClientePerfil
 } from '../services/api';
 import { Producto, Categoria } from '../types';
 import { useAppConfig } from '../hooks/useAppConfig';
 import { loadBoletaConfig } from '../utils/boletaConfig';
 import { montoEnLetras } from '../features/ventas/utils';
+import PasswordResetDialog from '../components/common/PasswordResetDialog';
 
 const GOOGLE_SCRIPT_ID = 'google-identity-services';
 const CLIENT_CART_KEY = 'cliente_tienda_carrito';
 const CLIENT_PROFILE_KEY = 'cliente_tienda_perfil';
 const CLIENT_ORDERS_KEY = 'cliente_tienda_pedidos';
-const CLIENT_ACCOUNTS_KEY = 'cliente_tienda_cuentas';
+const CLIENT_TOKEN_KEY = 'cliente_tienda_token';
 
 type CartItems = Record<number, number>;
 
@@ -110,6 +115,13 @@ const emptyPerfil: ClientePerfil = {
   email: '',
   telefono: '',
   direccion: ''
+};
+
+const readSafeStoredProfile = (): ClientePerfil => {
+  const stored = readStorage<ClientePerfil>(CLIENT_PROFILE_KEY, emptyPerfil);
+  const safe = { ...stored };
+  delete safe.password;
+  return safe;
 };
 
 // LOGICA CLIENTE - LOCALSTORAGE:
@@ -513,8 +525,8 @@ const ClienteTiendaPage: React.FC = () => {
   const [busqueda, setBusqueda] = useState('');
   const [categoriaFiltro, setCategoriaFiltro] = useState(0);
   const [cartItems, setCartItems] = useState<CartItems>(() => readStorage<CartItems>(CLIENT_CART_KEY, {}));
-  const [perfil, setPerfil] = useState<ClientePerfil>(() => readStorage<ClientePerfil>(CLIENT_PROFILE_KEY, emptyPerfil));
-  const [perfilForm, setPerfilForm] = useState<ClientePerfil>(() => readStorage<ClientePerfil>(CLIENT_PROFILE_KEY, emptyPerfil));
+  const [perfil, setPerfil] = useState<ClientePerfil>(readSafeStoredProfile);
+  const [perfilForm, setPerfilForm] = useState<ClientePerfil>(readSafeStoredProfile);
   const [pedidos, setPedidos] = useState<ClientePedido[]>(() => readStorage<ClientePedido[]>(CLIENT_ORDERS_KEY, []));
   const [authOpen, setAuthOpen] = useState(false);
   const [perfilOpen, setPerfilOpen] = useState(false);
@@ -524,6 +536,8 @@ const ClienteTiendaPage: React.FC = () => {
   const [checkoutAfterAuth, setCheckoutAfterAuth] = useState(false);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+  const [clienteToken, setClienteToken] = useState(() => localStorage.getItem(CLIENT_TOKEN_KEY) || '');
+  const [resetOpen, setResetOpen] = useState(false);
   const [metodoPago, setMetodoPago] = useState<'RECOJO' | 'MERCADO_PAGO'>('RECOJO');
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
   const [paying, setPaying] = useState(false);
@@ -533,22 +547,33 @@ const ClienteTiendaPage: React.FC = () => {
     () => pedidos.filter((pedido) => !perfil.email || pedido.clienteEmail === perfil.email),
     [pedidos, perfil.email]
   );
-  const savedAccounts = readStorage<Record<string, ClientePerfil>>(CLIENT_ACCOUNTS_KEY, {});
-  const savedEmails = Object.keys(savedAccounts);
 
   const showSnackbar = useCallback((message: string, severity: 'success' | 'error' = 'success') => {
     setSnackbar({ open: true, message, severity });
   }, []);
 
+  useEffect(() => {
+    localStorage.removeItem('cliente_tienda_cuentas');
+  }, []); // migración única: elimina contraseñas que versiones antiguas guardaban en el navegador
+
+  useEffect(() => {
+    if (!clienteToken) return;
+    getClienteActual(clienteToken)
+      .then((cliente) => {
+        const safePerfil = { ...cliente, fotoUrl: buildAvatarUrl(cliente) };
+        setPerfil(safePerfil);
+        setPerfilForm(safePerfil);
+      })
+      .catch(() => {
+        localStorage.removeItem(CLIENT_TOKEN_KEY);
+        setClienteToken('');
+        setPerfil(emptyPerfil);
+        setPerfilForm(emptyPerfil);
+      });
+  }, [clienteToken]);
+
   // LOGICA CLIENTE - CUENTAS LOCALES:
   // Guarda cuentas de clientes por correo para probar usuario/contraseña sin afectar usuarios admin/cajero.
-  const saveClienteAccount = (nextPerfil: ClientePerfil) => {
-    if (!nextPerfil.email) return;
-    const cuentas = readStorage<Record<string, ClientePerfil>>(CLIENT_ACCOUNTS_KEY, {});
-    cuentas[nextPerfil.email.toLowerCase()] = nextPerfil;
-    localStorage.setItem(CLIENT_ACCOUNTS_KEY, JSON.stringify(cuentas));
-  };
-
   const finishAuthFlow = (nextPerfil: ClientePerfil) => {
     setPerfil(nextPerfil);
     setPerfilForm(nextPerfil);
@@ -559,19 +584,19 @@ const ClienteTiendaPage: React.FC = () => {
     }
   };
 
-  const loginClienteLocal = () => {
+  const loginClienteSeguro = async () => {
     const email = loginEmail.trim().toLowerCase();
     const password = loginPassword;
-    const cuentas = readStorage<Record<string, ClientePerfil>>(CLIENT_ACCOUNTS_KEY, {});
-    const cuenta = cuentas[email];
-
-    if (!cuenta || cuenta.password !== password) {
-      showSnackbar('Correo o contraseña incorrectos.', 'error');
-      return;
+    try {
+      const result = await loginCliente(email, password);
+      localStorage.setItem(CLIENT_TOKEN_KEY, result.token);
+      setClienteToken(result.token);
+      finishAuthFlow({ ...result.cliente, password: undefined });
+      setLoginPassword('');
+      showSnackbar('Sesión de cliente iniciada.');
+    } catch (error: any) {
+      showSnackbar(error?.response?.data?.message || 'Correo o contraseña incorrectos.', 'error');
     }
-
-    finishAuthFlow(cuenta);
-    showSnackbar('Sesion de cliente iniciada.');
   };
 
   const openAuthDialog = (mode: 'login' | 'register', shouldContinueCheckout = false) => {
@@ -628,11 +653,11 @@ const ClienteTiendaPage: React.FC = () => {
   // SERVICIO CLIENTE - ESTADO DEL PEDIDO:
   // Consulta MySQL por correo para que el cliente vea si su pedido sigue pendiente o ya fue recogido.
   useEffect(() => {
-    if (!perfil.email) return undefined;
+    if (!perfil.email || !clienteToken) return undefined;
 
     const syncPedidosCliente = async () => {
       try {
-        const pedidosBackend = await getPedidosOnlinePublic(perfil.email);
+        const pedidosBackend = await getMisPedidosCliente(clienteToken);
         if (!Array.isArray(pedidosBackend)) return;
 
         setPedidos((prev) => {
@@ -661,7 +686,7 @@ const ClienteTiendaPage: React.FC = () => {
     void syncPedidosCliente();
     const intervalId = window.setInterval(syncPedidosCliente, 10000);
     return () => window.clearInterval(intervalId);
-  }, [perfil.email]);
+  }, [perfil.email, clienteToken]);
 
   // LOGICA CLIENTE - GOOGLE:
   // Renderiza el boton oficial si REACT_APP_GOOGLE_CLIENT_ID esta configurado.
@@ -830,8 +855,12 @@ const ClienteTiendaPage: React.FC = () => {
   };
 
   const validatePerfil = () => {
-    if (!perfilForm.nombre.trim() || !perfilForm.dni.trim() || !perfilForm.email.trim() || !perfilForm.telefono.trim() || !perfilForm.password?.trim()) {
-      showSnackbar('Nombre, DNI, correo, telefono y contraseña son obligatorios.', 'error');
+    if (!perfilForm.nombre.trim() || !perfilForm.dni.trim() || !perfilForm.email.trim() || !perfilForm.telefono.trim()) {
+      showSnackbar('Nombre, DNI, correo y teléfono son obligatorios.', 'error');
+      return false;
+    }
+    if (!clienteToken && !perfilForm.password?.trim()) {
+      showSnackbar('La contraseña es obligatoria para crear la cuenta.', 'error');
       return false;
     }
     if (!/^\d{8}$/.test(perfilForm.dni.trim())) {
@@ -841,7 +870,7 @@ const ClienteTiendaPage: React.FC = () => {
     return true;
   };
 
-  const savePerfil = () => {
+  const savePerfil = async () => {
     if (!validatePerfil()) return false;
     const limpio = {
       ...perfilForm,
@@ -853,11 +882,24 @@ const ClienteTiendaPage: React.FC = () => {
       password: perfilForm.password,
       fotoUrl: perfilForm.fotoUrl || buildAvatarUrl(perfilForm)
     };
-    saveClienteAccount(limpio);
-    finishAuthFlow(limpio);
-    setPerfilOpen(false);
-    showSnackbar('Perfil actualizado exitosamente.');
-    return true;
+    try {
+      if (!clienteToken) {
+        const result = await registerCliente(limpio);
+        localStorage.setItem(CLIENT_TOKEN_KEY, result.token);
+        setClienteToken(result.token);
+        finishAuthFlow({ ...result.cliente, password: undefined, fotoUrl: limpio.fotoUrl });
+        showSnackbar('Cuenta creada correctamente.');
+      } else {
+        const updated = await updateClientePerfil(limpio, clienteToken);
+        finishAuthFlow({ ...updated, password: undefined, fotoUrl: limpio.fotoUrl });
+        setPerfilOpen(false);
+        showSnackbar('Perfil actualizado exitosamente.');
+      }
+      return true;
+    } catch (error: any) {
+      showSnackbar(error?.response?.data?.message || 'No se pudo guardar la cuenta.', 'error');
+      return false;
+    }
   };
 
   // LOGICA CLIENTE - CIERRE DE SESION:
@@ -871,6 +913,8 @@ const ClienteTiendaPage: React.FC = () => {
     setHistorialOpen(false);
     setCheckoutOpen(false);
     localStorage.removeItem(CLIENT_PROFILE_KEY);
+    localStorage.removeItem(CLIENT_TOKEN_KEY);
+    setClienteToken('');
     showSnackbar('Sesion de cliente cerrada.');
   };
 
@@ -918,7 +962,7 @@ const ClienteTiendaPage: React.FC = () => {
       showSnackbar('Agrega productos al carrito antes de continuar.', 'error');
       return;
     }
-    if (!isClienteRegistrado) {
+    if (!isClienteRegistrado || !clienteToken) {
       openAuthDialog('login', true);
       return;
     }
@@ -952,7 +996,8 @@ const ClienteTiendaPage: React.FC = () => {
       boletaEnviada: Boolean(clienteActual.email)
     };
 
-    await createPedidoOnlinePublic({
+    if (!clienteToken) throw new Error('Inicia sesión para registrar el pedido.');
+    await createPedidoOnlineCliente({
       codigo: pedidoConBoleta.id,
       estado: pedidoConBoleta.estado,
       metodoPago: pedidoConBoleta.metodoPago,
@@ -967,7 +1012,7 @@ const ClienteTiendaPage: React.FC = () => {
       total: pedidoConBoleta.total,
       boletaHtml: pedidoConBoleta.boletaHtml,
       productos: pedidoConBoleta.productos
-    });
+    }, clienteToken);
 
     setPedidos((prev) => [pedidoConBoleta, ...prev]);
     setCartItems({});
@@ -1053,6 +1098,9 @@ const ClienteTiendaPage: React.FC = () => {
           <Badge badgeContent={cartCount} color="warning">
             <LocalMall />
           </Badge>
+          <Button color="inherit" href="/login" sx={{ display: { xs: 'none', md: 'inline-flex' } }}>
+            Acceso personal
+          </Button>
         </Toolbar>
       </AppBar>
 
@@ -1130,11 +1178,10 @@ const ClienteTiendaPage: React.FC = () => {
                       Mantén tus datos listos para generar pedidos, boleta y contacto de recojo.
                     </Typography>
                     <Stack spacing={2}>
-                      <TextField label="Correo" value={perfilForm.email} onChange={(e) => setPerfilForm((prev) => ({ ...prev, email: e.target.value }))} fullWidth InputProps={{ startAdornment: <InputAdornment position="start"><Email fontSize="small" /></InputAdornment> }} />
+                      <TextField label="Correo" value={perfilForm.email} disabled fullWidth InputProps={{ startAdornment: <InputAdornment position="start"><Email fontSize="small" /></InputAdornment> }} />
                       <TextField label="Nombre completo" value={perfilForm.nombre} onChange={(e) => setPerfilForm((prev) => ({ ...prev, nombre: e.target.value }))} fullWidth InputProps={{ startAdornment: <InputAdornment position="start"><Person fontSize="small" /></InputAdornment> }} />
                       <TextField label="DNI" value={perfilForm.dni} onChange={(e) => setPerfilForm((prev) => ({ ...prev, dni: e.target.value.replace(/\D/g, '').slice(0, 8) }))} fullWidth inputProps={{ maxLength: 8, inputMode: 'numeric' }} />
                       <TextField label="Telefono" value={perfilForm.telefono} onChange={(e) => setPerfilForm((prev) => ({ ...prev, telefono: e.target.value }))} fullWidth />
-                      <TextField label="Contraseña" type="password" value={perfilForm.password || ''} onChange={(e) => setPerfilForm((prev) => ({ ...prev, password: e.target.value }))} fullWidth />
                       <TextField label="Direccion referencial" value={perfilForm.direccion} onChange={(e) => setPerfilForm((prev) => ({ ...prev, direccion: e.target.value }))} fullWidth multiline minRows={2} />
                       <Button variant="contained" startIcon={<AccountCircle />} onClick={savePerfil} size="large">
                         Guardar cambios
@@ -1471,17 +1518,30 @@ const ClienteTiendaPage: React.FC = () => {
                             {formatCurrency(producto.precioVenta)} c/u
                           </Typography>
                         </Box>
-                        <IconButton size="small" color="error" onClick={() => updateCartQuantity(producto, 0)}>
+                        <IconButton
+                          size="small"
+                          color="error"
+                          aria-label={`Eliminar ${producto.nombre} del carrito`}
+                          onClick={() => updateCartQuantity(producto, 0)}
+                        >
                           <Delete fontSize="small" />
                         </IconButton>
                       </Stack>
                       <Stack direction="row" alignItems="center" justifyContent="space-between" mt={1}>
                         <Stack direction="row" alignItems="center" spacing={1}>
-                          <IconButton size="small" onClick={() => updateCartQuantity(producto, cantidad - 1)}>
+                          <IconButton
+                            size="small"
+                            aria-label={`Disminuir cantidad de ${producto.nombre}`}
+                            onClick={() => updateCartQuantity(producto, cantidad - 1)}
+                          >
                             <Remove fontSize="small" />
                           </IconButton>
                           <Typography fontWeight={800}>{cantidad}</Typography>
-                          <IconButton size="small" onClick={() => updateCartQuantity(producto, cantidad + 1)}>
+                          <IconButton
+                            size="small"
+                            aria-label={`Aumentar cantidad de ${producto.nombre}`}
+                            onClick={() => updateCartQuantity(producto, cantidad + 1)}
+                          >
                             <Add fontSize="small" />
                           </IconButton>
                         </Stack>
@@ -1525,26 +1585,12 @@ const ClienteTiendaPage: React.FC = () => {
               {/* DISEÑO CLIENTE - LOGIN:
                   Muestra correos registrados localmente y permite iniciar sesion con contraseña. */}
               <Stack spacing={2}>
-                {savedEmails.length > 0 && (
-                  <TextField
-                    select
-                    label="Correos registrados"
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                    fullWidth
-                  >
-                    {savedEmails.map((email) => (
-                      <MenuItem key={email} value={email}>
-                        {email}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                )}
                 <TextField label="Correo" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} fullWidth />
                 <TextField label="Contraseña" type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} fullWidth />
-                <Button variant="contained" onClick={loginClienteLocal}>
+                <Button variant="contained" onClick={loginClienteSeguro}>
                   Ingresar
                 </Button>
+                <Button onClick={() => setResetOpen(true)}>¿Olvidaste tu contraseña?</Button>
               </Stack>
               <Divider sx={{ my: 2 }}>o</Divider>
               <Button fullWidth variant="outlined" onClick={() => setAuthStep('register')}>
@@ -1572,7 +1618,7 @@ const ClienteTiendaPage: React.FC = () => {
                 <TextField label="DNI" value={perfilForm.dni} onChange={(e) => setPerfilForm((prev) => ({ ...prev, dni: e.target.value.replace(/\D/g, '').slice(0, 8) }))} fullWidth inputProps={{ maxLength: 8, inputMode: 'numeric' }} />
                 <TextField label="Correo" value={perfilForm.email} onChange={(e) => setPerfilForm((prev) => ({ ...prev, email: e.target.value }))} fullWidth />
                 <TextField label="Telefono" value={perfilForm.telefono} onChange={(e) => setPerfilForm((prev) => ({ ...prev, telefono: e.target.value }))} fullWidth />
-                <TextField label="Contraseña" type="password" value={perfilForm.password || ''} onChange={(e) => setPerfilForm((prev) => ({ ...prev, password: e.target.value }))} fullWidth />
+                <TextField label="Contraseña" type="password" value={perfilForm.password || ''} onChange={(e) => setPerfilForm((prev) => ({ ...prev, password: e.target.value }))} helperText="Mínimo 8 caracteres, mayúscula, minúscula y número." fullWidth />
                 <TextField label="Direccion referencial" value={perfilForm.direccion} onChange={(e) => setPerfilForm((prev) => ({ ...prev, direccion: e.target.value }))} fullWidth />
               </Stack>
               <Divider sx={{ my: 2 }}>o</Divider>
@@ -1596,6 +1642,8 @@ const ClienteTiendaPage: React.FC = () => {
 
       {/* DISEÑO CLIENTE - HISTORIAL:
           Lista las compras guardadas localmente con estado y productos. */}
+      <PasswordResetDialog open={resetOpen} onClose={() => setResetOpen(false)} accountType="cliente" defaultEmail={loginEmail} />
+
       <Dialog open={historialOpen} onClose={() => setHistorialOpen(false)} fullWidth maxWidth="md">
         <DialogTitle>Historial de compras</DialogTitle>
         <DialogContent dividers>

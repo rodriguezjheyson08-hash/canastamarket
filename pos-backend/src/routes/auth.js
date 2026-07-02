@@ -9,13 +9,18 @@ const asyncHandler = require('../utils/asyncHandler');
 const { getCurrentUser, login } = require('../controllers/authController');
 // DEPENDENCIAS BACKEND: librerias, helpers y tipos que usa este archivo.
 const { requireAuth } = require('../utils/requireAuth');
+const { requestPasswordReset, confirmPasswordReset } = require('../controllers/passwordResetController');
 const { createSimpleRateLimit } = require('../utils/simpleRateLimit');
 
 const router = express.Router();
 const authLoginRateLimit = createSimpleRateLimit({ windowMs: 10 * 60 * 1000, max: 10, keyPrefix: 'auth-login' });
+const resetRequestRateLimit = createSimpleRateLimit({ windowMs: 10 * 60 * 1000, max: 5, keyPrefix: 'password-reset-request' });
+const resetConfirmRateLimit = createSimpleRateLimit({ windowMs: 10 * 60 * 1000, max: 10, keyPrefix: 'password-reset-confirm' });
 
 // RUTA BACKEND: endpoint POST '/login'; conecta la URL con el controlador correspondiente.
 router.post('/login', authLoginRateLimit, asyncHandler(login));
 router.get('/me', requireAuth({ type: 'admin' }), asyncHandler(getCurrentUser));
+router.post('/password-reset/request', resetRequestRateLimit, asyncHandler(requestPasswordReset));
+router.post('/password-reset/confirm', resetConfirmRateLimit, asyncHandler(confirmPasswordReset));
 
 module.exports = router;

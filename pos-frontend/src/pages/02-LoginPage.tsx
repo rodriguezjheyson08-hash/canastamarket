@@ -27,6 +27,7 @@ import { LoginData } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { useAppConfig } from '../hooks/useAppConfig';
 import { useI18n } from '../hooks/useI18n';
+import PasswordResetDialog from '../components/common/PasswordResetDialog';
 
 const LoginPage: React.FC = () => {
   const { login: loginStaff } = useAuth();
@@ -38,6 +39,7 @@ const LoginPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [resetOpen, setResetOpen] = useState(false);
 
   const goToInitialScreen = useCallback(() => {
     navigate('/dashboard', { replace: true });
@@ -162,9 +164,13 @@ const LoginPage: React.FC = () => {
                 t('Iniciar Sesión', 'Sign In')
               )}
             </Button>
+            <Button fullWidth sx={{ mt: 1 }} onClick={() => setResetOpen(true)}>
+              ¿Olvidaste tu contraseña?
+            </Button>
           </form>
         </Paper>
       </Container>
+      <PasswordResetDialog open={resetOpen} onClose={() => setResetOpen(false)} accountType="usuario" />
     </Box>
   );
 };

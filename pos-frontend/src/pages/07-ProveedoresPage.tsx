@@ -217,8 +217,8 @@ const ProveedoresPage: React.FC = () => {
       await deleteProveedor(proveedor.id);
       setProveedores((prev) => prev.filter((p) => p.id !== proveedor.id));
       showSnackbar(t('Proveedor eliminado', 'Supplier deleted'), 'success');
-    } catch {
-      showSnackbar(t('Error al eliminar proveedor', 'Error deleting supplier'), 'error');
+    } catch (error: any) {
+      showSnackbar(error?.response?.data?.message || t('Error al eliminar proveedor', 'Error deleting supplier'), 'error');
     }
   };
 

@@ -123,6 +123,7 @@ const PedidosOnlinePage: React.FC = () => {
         pedido.estado,
         pedido.metodoPago,
         pedido.cliente.nombre,
+        pedido.cliente.dni,
         pedido.cliente.email,
         pedido.cliente.telefono,
         ...pedido.productos.map((producto) => producto.nombre)
@@ -198,7 +199,7 @@ const PedidosOnlinePage: React.FC = () => {
           Permite buscar por letras y revisar todos o solo pedidos por estado. */}
       <Box display="flex" gap={1.5} mb={2} flexDirection={{ xs: 'column', sm: 'row' }}>
         <TextField
-          label="Buscar pedido, cliente, correo o producto"
+          label="Buscar pedido, DNI, cliente, correo o producto"
           value={busqueda}
           onChange={(event) => setBusqueda(event.target.value)}
           size="small"
@@ -260,7 +261,10 @@ const PedidosOnlinePage: React.FC = () => {
                 <TableRow key={pedido.id} hover>
                   <TableCell>{pedido.codigo}</TableCell>
                   <TableCell>{formatDateTime(pedido.fecha)}</TableCell>
-                  <TableCell>{pedido.cliente.nombre}</TableCell>
+                  <TableCell>
+                    <Typography variant="body2">{pedido.cliente.nombre}</Typography>
+                    <Typography variant="caption" color="text.secondary">DNI: {pedido.cliente.dni || '-'}</Typography>
+                  </TableCell>
                   <TableCell>
                     <Typography variant="body2">{pedido.cliente.email}</Typography>
                     <Typography variant="caption" color="text.secondary">{pedido.cliente.telefono}</Typography>
@@ -308,7 +312,7 @@ const PedidosOnlinePage: React.FC = () => {
                 <Typography color="text.secondary">{formatDateTime(selectedPedido.fecha)}</Typography>
               </Box>
               <Alert severity="info">
-                Cliente: {selectedPedido.cliente.nombre} · {selectedPedido.cliente.email} · {selectedPedido.cliente.telefono}
+                Cliente: {selectedPedido.cliente.nombre} · DNI: {selectedPedido.cliente.dni || '-'} · {selectedPedido.cliente.email} · {selectedPedido.cliente.telefono}
               </Alert>
               <Grid container spacing={1.5}>
                 <Grid item xs={12} sm={6}>

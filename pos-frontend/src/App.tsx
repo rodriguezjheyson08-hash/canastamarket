@@ -32,6 +32,7 @@ const ProveedoresPage = lazy(() => import('./pages/07-ProveedoresPage'));
 const ConfiguracionPage = lazy(() => import('./pages/08-ConfiguracionPage'));
 const ReportesPage = lazy(() => import('./pages/09-ReportesPage'));
 const ClienteTiendaPage = lazy(() => import('./pages/10-ClienteTiendaPage'));
+const PedidosOnlinePage = lazy(() => import('./pages/11-PedidosOnlinePage'));
 
 const PrivateLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
@@ -79,7 +80,8 @@ const App: React.FC = () => {
         <Box sx={appShellStyles}>
           <Suspense fallback={<Box sx={centeredFallbackStyles}>Cargando...</Box>}>
             <Routes>
-              <Route path="/" element={<InicioPage />} />
+              <Route path="/" element={<ClienteTiendaPage />} />
+              <Route path="/inicio" element={<InicioPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/cliente" element={<ClienteTiendaPage />} />
 
@@ -116,7 +118,11 @@ const App: React.FC = () => {
                         />
                         <Route
                           path="pedidos-online"
-                          element={<Navigate to="/dashboard" replace />}
+                          element={
+                            <FeatureRoute permission="pedidosOnline">
+                              <PedidosOnlinePage />
+                            </FeatureRoute>
+                          }
                         />
                         <Route
                           path="proveedores"

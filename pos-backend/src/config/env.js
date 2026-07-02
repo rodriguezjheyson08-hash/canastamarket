@@ -81,6 +81,14 @@ const env = {
   google: {
     clientId: process.env.GOOGLE_CLIENT_ID || process.env.REACT_APP_GOOGLE_CLIENT_ID || ''
   },
+  smtp: {
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: Number(process.env.SMTP_PORT) || 465,
+    secure: String(process.env.SMTP_SECURE ?? 'true').toLowerCase() === 'true',
+    user: process.env.SMTP_USER || '',
+    pass: process.env.SMTP_PASS || '',
+    from: process.env.SMTP_FROM || process.env.SMTP_USER || ''
+  },
   reniec: {
     baseUrl: process.env.RENIEC_BASE_URL || 'https://api.decolecta.com/v1/reniec/dni',
     token: process.env.RENIEC_TOKEN || ''

@@ -21,7 +21,8 @@ import {
   PointOfSale,
   Business,
   Assessment,
-  Settings
+  Settings,
+  ShoppingBag
 } from '@mui/icons-material';
 import { useNavigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -78,6 +79,14 @@ const Dashboard: React.FC = () => {
       path: '/dashboard/ventas',
       color: '#f57c00',
       permission: 'ventas'
+    },
+    {
+      title: 'Pedidos Online',
+      description: t('Atender compras realizadas por clientes', 'Manage customer online orders'),
+      icon: <ShoppingBag sx={{ fontSize: 40 }} />,
+      path: '/dashboard/pedidos-online',
+      color: '#6d4c41',
+      permission: 'pedidosOnline'
     },
     {
       title: 'Productos',
