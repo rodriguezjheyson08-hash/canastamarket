@@ -1305,7 +1305,7 @@ const ClienteTiendaPage: React.FC = () => {
         </Box>
 
         <Grid container spacing={3}>
-          <Grid item xs={12} lg={10}>
+          <Grid item xs={12} lg={8.5}>
             {/* DISEÑO CLIENTE - BUSCADOR:
                 Filtra productos publicos por nombre o descripcion. */}
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ mb: 2 }}>
@@ -1371,8 +1371,8 @@ const ClienteTiendaPage: React.FC = () => {
                   const cantidadEnCarrito = cartItems[producto.id] || 0;
                   return (
                     <React.Fragment key={producto.id}>
-                      {/* Cinco columnas en pantallas amplias; baja progresivamente hasta una en móvil. */}
-                    <Grid item xs={12} sm={6} md={4} lg={3} xl={2.4}>
+                      {/* Cuatro columnas en escritorio para conservar tarjetas y botones cómodos. */}
+                    <Grid item xs={12} sm={6} md={4} xl={3}>
                       <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                         <CardMedia
                           component="img"
@@ -1414,7 +1414,7 @@ const ClienteTiendaPage: React.FC = () => {
             )}
           </Grid>
 
-          <Grid item xs={12} lg={2}>
+          <Grid item xs={12} lg={3.5}>
             {/* DISEÑO CLIENTE - PANEL CARRITO:
                 Muestra productos seleccionados, controles de cantidad, subtotal y total. */}
             <Paper elevation={2} sx={{ p: { xs: 2, sm: 2.5 }, position: { lg: 'sticky' }, top: { lg: 88 } }}>
