@@ -8,14 +8,15 @@ import '@testing-library/jest-dom';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import Dashboard from '../../pages/03-Dashboard';
-import { getDashboardStats } from '../../services/api';
+import { getDashboardStats, getPedidosOnline } from '../../services/api';
 import { DashboardStats, User } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 
 // MOCK DASHBOARD - SERVICIOS:
 // Evita llamar al backend real y permite controlar las estadisticas del negocio.
 jest.mock('../../services/api', () => ({
-  getDashboardStats: jest.fn()
+  getDashboardStats: jest.fn(),
+  getPedidosOnline: jest.fn()
 }));
 
 // MOCK DASHBOARD - AUTENTICACION:
@@ -79,6 +80,7 @@ const statsBase: DashboardStats = {
 
 const mockedUseAuth = useAuth as jest.MockedFunction<typeof useAuth>;
 const mockedGetDashboardStats = getDashboardStats as jest.MockedFunction<typeof getDashboardStats>;
+const mockedGetPedidosOnline = getPedidosOnline as jest.MockedFunction<typeof getPedidosOnline>;
 const originalConsoleError = console.error;
 const originalConsoleWarn = console.warn;
 
@@ -134,6 +136,7 @@ const mockAdminSession = () => {
     user: adminUser
   });
   mockedGetDashboardStats.mockResolvedValue(statsBase);
+  mockedGetPedidosOnline.mockResolvedValue([]);
 };
 
 describe('Dashboard negocio', () => {

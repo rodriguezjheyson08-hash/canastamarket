@@ -735,9 +735,13 @@ const ClienteTiendaPage: React.FC = () => {
   const cartTotal = useMemo(() => cartRows.reduce((sum, item) => sum + item.subtotal, 0), [cartRows]);
   const cartCount = useMemo(() => cartRows.reduce((sum, item) => sum + item.cantidad, 0), [cartRows]);
   const perfilStats = useMemo(() => {
-    const activos = clientePedidos.filter((pedido) => pedido.estado !== 'PAGADO').length;
-    const entregados = clientePedidos.filter((pedido) => pedido.estado === 'PAGADO').length;
-    const totalGastado = clientePedidos.reduce((sum, pedido) => sum + Number(pedido.total || 0), 0);
+    const estadosActivos = new Set<ClientePedido['estado']>(['PENDIENTE_RECOJO', 'PENDIENTE_PAGO', 'PAGADO']);
+    const estadosCobrados = new Set<ClientePedido['estado']>(['PAGADO', 'RECOGIDO']);
+    const activos = clientePedidos.filter((pedido) => estadosActivos.has(pedido.estado)).length;
+    const entregados = clientePedidos.filter((pedido) => pedido.estado === 'RECOGIDO').length;
+    const totalGastado = clientePedidos
+      .filter((pedido) => estadosCobrados.has(pedido.estado))
+      .reduce((sum, pedido) => sum + Number(pedido.total || 0), 0);
     return {
       totalPedidos: clientePedidos.length,
       activos,
@@ -777,6 +781,10 @@ const ClienteTiendaPage: React.FC = () => {
   const validatePerfil = () => {
     if (!perfilForm.nombre.trim() || !perfilForm.dni.trim() || !perfilForm.email.trim() || !perfilForm.telefono.trim()) {
       showSnackbar('Nombre, DNI, correo y teléfono son obligatorios.', 'error');
+      return false;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(perfilForm.email.trim())) {
+      showSnackbar('Ingrese un correo válido.', 'error');
       return false;
     }
     if (!clienteToken && !perfilForm.password?.trim()) {
@@ -1018,9 +1026,6 @@ const ClienteTiendaPage: React.FC = () => {
           <Badge badgeContent={cartCount} color="warning">
             <LocalMall />
           </Badge>
-          <Button color="inherit" href="/login" sx={{ display: { xs: 'none', md: 'inline-flex' } }}>
-            Acceso personal
-          </Button>
         </Toolbar>
       </AppBar>
 
@@ -1530,11 +1535,11 @@ const ClienteTiendaPage: React.FC = () => {
                 Con Google se valida el correo de forma segura. Luego completa DNI y teléfono para comprar.
               </Alert>
               <Stack spacing={2} mt={2}>
-                <TextField label="Nombre completo" value={perfilForm.nombre} onChange={(e) => setPerfilForm((prev) => ({ ...prev, nombre: e.target.value }))} fullWidth />
-                <TextField label="DNI" value={perfilForm.dni} onChange={(e) => setPerfilForm((prev) => ({ ...prev, dni: e.target.value.replace(/\D/g, '').slice(0, 8) }))} fullWidth inputProps={{ maxLength: 8, inputMode: 'numeric' }} />
-                <TextField label="Correo" value={perfilForm.email} onChange={(e) => setPerfilForm((prev) => ({ ...prev, email: e.target.value }))} fullWidth />
-                <TextField label="Telefono" value={perfilForm.telefono} onChange={(e) => setPerfilForm((prev) => ({ ...prev, telefono: e.target.value }))} fullWidth />
-                <TextField label="Contraseña" type="password" value={perfilForm.password || ''} onChange={(e) => setPerfilForm((prev) => ({ ...prev, password: e.target.value }))} helperText="Mínimo 8 caracteres, mayúscula, minúscula y número." fullWidth />
+                <TextField label="Nombre completo" value={perfilForm.nombre} onChange={(e) => setPerfilForm((prev) => ({ ...prev, nombre: e.target.value }))} fullWidth required />
+                <TextField label="DNI" value={perfilForm.dni} onChange={(e) => setPerfilForm((prev) => ({ ...prev, dni: e.target.value.replace(/\D/g, '').slice(0, 8) }))} fullWidth required inputProps={{ maxLength: 8, inputMode: 'numeric' }} />
+                <TextField label="Correo" type="email" value={perfilForm.email} onChange={(e) => setPerfilForm((prev) => ({ ...prev, email: e.target.value }))} fullWidth required />
+                <TextField label="Telefono" value={perfilForm.telefono} onChange={(e) => setPerfilForm((prev) => ({ ...prev, telefono: e.target.value }))} fullWidth required />
+                <TextField label="Contraseña" type="password" value={perfilForm.password || ''} onChange={(e) => setPerfilForm((prev) => ({ ...prev, password: e.target.value }))} helperText="Obligatoria. Mínimo 8 caracteres, mayúscula, minúscula y número." fullWidth required />
                 <TextField label="Direccion referencial" value={perfilForm.direccion} onChange={(e) => setPerfilForm((prev) => ({ ...prev, direccion: e.target.value }))} fullWidth />
               </Stack>
               <Divider sx={{ my: 2 }}>o</Divider>

@@ -9,11 +9,16 @@ import { getCategorias, getProductos } from '../../services/api';
 import { Categoria, Producto } from '../../types';
 
 jest.mock('../../services/api', () => ({
-  createPedidoOnlinePublic: jest.fn(),
+  createPedidoOnlineCliente: jest.fn(),
   createPublicMercadoPagoPreference: jest.fn(),
   getCategorias: jest.fn(),
-  getPedidosOnlinePublic: jest.fn(),
-  getProductos: jest.fn()
+  getClienteActual: jest.fn(),
+  getMisPedidosCliente: jest.fn(),
+  getProductos: jest.fn(),
+  loginCliente: jest.fn(),
+  loginClienteGoogle: jest.fn(),
+  registerCliente: jest.fn(),
+  updateClientePerfil: jest.fn()
 }));
 
 jest.mock('../../hooks/useAppConfig', () => ({

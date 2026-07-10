@@ -11,7 +11,8 @@ import {
   Box, 
   Grid, 
   Card, 
-  CardContent
+  CardContent,
+  Badge
 } from '@mui/material';
 // IMPORTACIONES FRONTEND: librerias, helpers y tipos que usa este archivo.
 import {
@@ -26,13 +27,14 @@ import {
 } from '@mui/icons-material';
 import { useNavigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { getDashboardStats } from '../services/api';
+import { getDashboardStats, getPedidosOnline } from '../services/api';
 import { Skeleton } from '../components/ui/skeleton';
-import { DashboardStats, PermissionKey } from '../types';
+import { DashboardStats, PedidoOnline, PermissionKey } from '../types';
 import LockIcon from '@mui/icons-material/Lock';
 import { canAccess } from '../utils/permissions';
 import { useAppConfig } from '../hooks/useAppConfig';
 import { useI18n } from '../hooks/useI18n';
+import { PEDIDOS_ONLINE_UPDATE_EVENT } from '../components/layout/Header';
 
 // DISEÑO - CAJA DE DATOS DEL DASHBOARD:
 // Este componente arma la tarjeta superior donde se muestran los indicadores
@@ -54,6 +56,10 @@ const StatCard = ({ title, value, loading }: { title: string; value: string | nu
         </Card>
     );
 };
+
+const isPedidoOnlinePendiente = (pedido: PedidoOnline) => (
+  ['PENDIENTE_RECOJO', 'PENDIENTE_PAGO', 'PAGADO'].includes(pedido.estado)
+);
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -135,6 +141,7 @@ const Dashboard: React.FC = () => {
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pedidosPendientes, setPedidosPendientes] = useState(0);
 
   useEffect(() => {
 // LOGICA: fetch Stats concentra una operacion de este archivo.
@@ -157,6 +164,35 @@ const Dashboard: React.FC = () => {
       setLoading(false);
     }
   }, [isDashboardRoot, user?.rol]);
+
+  useEffect(() => {
+    if (!isDashboardRoot || !canAccess(user, 'pedidosOnline')) {
+      setPedidosPendientes(0);
+      return undefined;
+    }
+
+    let active = true;
+    const fetchPedidosPendientes = async () => {
+      try {
+        const pedidos = await getPedidosOnline();
+        if (active) {
+          setPedidosPendientes(pedidos.filter(isPedidoOnlinePendiente).length);
+        }
+      } catch (error) {
+        if (active) setPedidosPendientes(0);
+      }
+    };
+
+    fetchPedidosPendientes();
+    globalThis.addEventListener(PEDIDOS_ONLINE_UPDATE_EVENT, fetchPedidosPendientes);
+    const intervalId = globalThis.setInterval(fetchPedidosPendientes, 30000);
+
+    return () => {
+      active = false;
+      globalThis.removeEventListener(PEDIDOS_ONLINE_UPDATE_EVENT, fetchPedidosPendientes);
+      globalThis.clearInterval(intervalId);
+    };
+  }, [isDashboardRoot, user]);
 
   if (!isDashboardRoot) {
     return null;
@@ -242,7 +278,11 @@ const Dashboard: React.FC = () => {
                   <CardContent sx={{ textAlign: 'center', py: 4 }}>
                     {/* DISEÑO: icono superior de la carta; el color viene de item.color. */}
                     <Box sx={{ color: item.color, mb: 2 }}>
-                      {item.icon}
+                      {item.permission === 'pedidosOnline' ? (
+                        <Badge badgeContent={pedidosPendientes} color="error" invisible={pedidosPendientes === 0}>
+                          {item.icon}
+                        </Badge>
+                      ) : item.icon}
                     </Box>
                     {/* DISEÑO: nombre principal de la carta, por ejemplo "Ventas". */}
                     <Typography variant="h6" component="h3" gutterBottom>
