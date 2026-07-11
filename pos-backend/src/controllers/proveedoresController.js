@@ -20,6 +20,8 @@ const {
   proveedorSelect
 } = require('../features/proveedores/mappers');
 const { isRucValido, toDbProveedor } = require('../features/proveedores/validators');
+const { registrarAuditoria } = require('../features/auditoria/service');
+const { registrarMovimientoInventario } = require('../features/inventario/service');
 
 // LOGICA BACKEND: obtiene un proveedor por ID y lo normaliza para responder al frontend.
 const getProveedorRowById = async (id) => {
@@ -367,6 +369,80 @@ const deletePedidoCompra = async (req, res) => {
   res.status(204).send();
 };
 
+const recibirPedidoCompra = async (req, res) => {
+  await ensureProveedoresSchema();
+  const pedidoId = Number(req.params.id);
+  const motivo = cleanText(req.body?.motivo, 255) || `Recepcion de orden de compra #${pedidoId}`;
+
+  if (!Number.isInteger(pedidoId) || pedidoId <= 0) {
+    return res.status(400).json({ message: 'Pedido de compra invalido.' });
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [pedidos] = await conn.query(
+      'SELECT id, estado FROM pedidos_compra WHERE id = ? FOR UPDATE',
+      [pedidoId]
+    );
+    if (pedidos.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ message: 'Pedido de compra no encontrado.' });
+    }
+    if (pedidos[0].estado === 'RECIBIDO') {
+      await conn.rollback();
+      return res.status(400).json({ message: 'El pedido de compra ya fue recibido.' });
+    }
+
+    const [items] = await conn.query(
+      'SELECT producto_id, cantidad FROM pedidos_compra_detalles WHERE pedido_compra_id = ?',
+      [pedidoId]
+    );
+    if (items.length === 0) {
+      await conn.rollback();
+      return res.status(400).json({ message: 'El pedido no tiene items para recibir.' });
+    }
+
+    for (const item of items) {
+      await registrarMovimientoInventario(conn, {
+        req,
+        productoId: item.producto_id,
+        tipo: 'COMPRA_RECIBIDA',
+        cantidad: Number(item.cantidad),
+        direccion: 'ENTRADA',
+        referenciaTipo: 'PEDIDO_COMPRA',
+        referenciaId: pedidoId,
+        motivo
+      });
+    }
+
+    await conn.execute(
+      "UPDATE pedidos_compra SET estado = 'RECIBIDO', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+      [pedidoId]
+    );
+    await registrarAuditoria(conn, {
+      req,
+      accion: 'PEDIDO_COMPRA_RECIBIDO',
+      entidad: 'pedido_compra',
+      entidadId: pedidoId,
+      detalle: { motivo, items: items.length }
+    });
+
+    await conn.commit();
+    req.params.id = String(pedidoId);
+    return getPedidoCompra(req, res);
+  } catch (error) {
+    try {
+      await conn.rollback();
+    } catch {
+      // ignore
+    }
+    return res.status(400).json({ message: error.message || 'No se pudo recibir el pedido de compra.' });
+  } finally {
+    conn.release();
+  }
+};
+
 // LOGICA BACKEND: elimina varios pedidos seleccionados desde la tabla.
 const deletePedidosCompraBatch = async (req, res) => {
   await ensureProveedoresSchema();
@@ -548,6 +624,7 @@ module.exports = {
   listPedidosCompra,
   getPedidoCompra,
   createPedidoCompra,
+  recibirPedidoCompra,
   deletePedidoCompra,
   deletePedidosCompraBatch,
   downloadPedidoCsv,

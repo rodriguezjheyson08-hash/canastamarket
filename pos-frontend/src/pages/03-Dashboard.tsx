@@ -23,7 +23,8 @@ import {
   Business,
   Assessment,
   Settings,
-  ShoppingBag
+  ShoppingBag,
+  Assignment
 } from '@mui/icons-material';
 import { useNavigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -101,6 +102,14 @@ const Dashboard: React.FC = () => {
       path: '/dashboard/productos',
       color: '#1976d2',
       permission: 'productos'
+    },
+    {
+      title: 'Inventario',
+      description: 'Movimientos, perdidas y auditoria',
+      icon: <Assignment sx={{ fontSize: 40 }} />,
+      path: '/dashboard/inventario',
+      color: '#455a64',
+      permission: 'inventario'
     },
     {
       title: 'Categorías',

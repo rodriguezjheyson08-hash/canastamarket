@@ -11,7 +11,8 @@ const asyncHandler = require('../utils/asyncHandler');
 const { requireAuth } = require('../utils/requireAuth');
 const {
   listVentas,
-  createVenta
+  createVenta,
+  anularVenta
 } = require('../controllers/ventasController');
 
 const router = express.Router();
@@ -19,5 +20,6 @@ const router = express.Router();
 // RUTA BACKEND: endpoint GET '/'; conecta la URL con el controlador correspondiente.
 router.get('/', requireAuth({ type: 'admin' }), asyncHandler(listVentas));
 router.post('/', requireAuth({ type: 'admin' }), asyncHandler(createVenta));
+router.patch('/:id/anular', requireAuth({ type: 'admin' }), asyncHandler(anularVenta));
 
 module.exports = router;

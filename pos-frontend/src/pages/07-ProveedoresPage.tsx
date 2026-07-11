@@ -28,7 +28,7 @@ import {
   Typography
 } from '@mui/material';
 // IMPORTACIONES FRONTEND: librerias, helpers y tipos que usa este archivo.
-import { Add, Clear, Delete, Download, Edit, Refresh, Search } from '@mui/icons-material';
+import { Add, CheckCircle, Clear, Delete, Download, Edit, Refresh, Search } from '@mui/icons-material';
 import { PedidoCompra, Proveedor } from '../types';
 import { useI18n } from '../hooks/useI18n';
 import ProveedorForm from '../components/forms/ProveedorForm';
@@ -40,6 +40,7 @@ import {
   downloadPedidoCompraPdf,
   getProveedores,
   listPedidosCompra,
+  recibirPedidoCompra,
   updateProveedor
 } from '../services/proveedores';
 import {
@@ -235,6 +236,18 @@ const ProveedoresPage: React.FC = () => {
   };
 
 // LOGICA: handle Delete Pedido concentra una operacion de este archivo.
+  const handleRecibirPedido = async (pedido: PedidoCompra) => {
+    const ok = window.confirm(`${t('¿Recibir pedido de compra y aumentar stock?', 'Receive purchase order and increase stock?')}\n#${pedido.id}`);
+    if (!ok) return;
+    try {
+      const updated = await recibirPedidoCompra(pedido.id);
+      setPedidos((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      showSnackbar(t('Compra recibida y stock actualizado', 'Purchase received and stock updated'), 'success');
+    } catch (error: any) {
+      showSnackbar(error?.response?.data?.message || t('No se pudo recibir el pedido', 'Could not receive order'), 'error');
+    }
+  };
+
   const handleDeletePedido = async (pedido: PedidoCompra) => {
     const ok = window.confirm(`${t('¿Eliminar pedido de compra?', 'Delete purchase order?')}\n#${pedido.id} - ${pedido.proveedor?.razonSocial || ''}`);
     if (!ok) return;
@@ -482,6 +495,7 @@ const ProveedoresPage: React.FC = () => {
                     <TableCell>{t('ID', 'ID')}</TableCell>
                     <TableCell>{t('Fecha', 'Date')}</TableCell>
                     <TableCell>{t('Proveedor', 'Supplier')}</TableCell>
+                    <TableCell>{t('Estado', 'Status')}</TableCell>
                     <TableCell align="right">{t('Items', 'Items')}</TableCell>
                     <TableCell align="right">{t('Cantidad', 'Quantity')}</TableCell>
                     <TableCell align="center">{t('Acciones', 'Actions')}</TableCell>
@@ -507,12 +521,18 @@ const ProveedoresPage: React.FC = () => {
                           {pedido.proveedor?.numeroDocumento}
                         </Typography>
                       </TableCell>
+                      <TableCell>{pedido.estado || 'BORRADOR'}</TableCell>
                       <TableCell align="right">{pedido.itemsCount ?? '-'}</TableCell>
                       <TableCell align="right">{pedido.totalCantidad ?? '-'}</TableCell>
                       <TableCell align="center">
                         <IconButton size="small" color="primary" onClick={() => handleDownloadPdf(pedido)} aria-label="download">
                           <Download />
                         </IconButton>
+                        {pedido.estado !== 'RECIBIDO' && (
+                          <IconButton size="small" color="success" onClick={() => handleRecibirPedido(pedido)} aria-label="receive">
+                            <CheckCircle />
+                          </IconButton>
+                        )}
                         <IconButton size="small" color="error" onClick={() => handleDeletePedido(pedido)} aria-label="delete">
                           <Delete />
                         </IconButton>

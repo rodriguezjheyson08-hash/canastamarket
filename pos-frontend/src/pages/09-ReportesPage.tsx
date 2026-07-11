@@ -28,7 +28,7 @@ import {
   Typography
 } from '@mui/material';
 import { Assessment, AttachMoney, Inventory, PointOfSale, Warning } from '@mui/icons-material';
-import { getCajas, getDashboardStats, getPedidosOnline, getVentas } from '../services/api';
+import { anularVenta, getCajas, getDashboardStats, getPedidosOnline, getVentas } from '../services/api';
 import { CajaSesion, DashboardStats, PedidoOnline, Venta, VentaProducto } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useI18n } from '../hooks/useI18n';
@@ -98,6 +98,19 @@ const ReportesPage: React.FC = () => {
   const [error, setError] = useState('');
 
   const isAdmin = String(user?.rol || '').toUpperCase() === 'ADMINISTRADOR';
+
+  const handleAnularVenta = async (venta: Venta) => {
+    if (venta.id >= 1000000 || venta.estado === 'ANULADA') return;
+    const motivo = window.prompt(`Motivo de anulacion para venta #${venta.id}`);
+    if (!motivo || !motivo.trim()) return;
+    try {
+      const updated = await anularVenta(venta.id, motivo.trim());
+      setVentas((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      setSelectedVenta(updated);
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'No se pudo anular la venta.');
+    }
+  };
 
   // SERVICIO REPORTES - CARGA DE DATOS:
   // Trae en paralelo las estadisticas del dashboard y la lista de ventas desde el backend.
@@ -171,19 +184,28 @@ const ReportesPage: React.FC = () => {
   // LOGICA REPORTES - RESUMEN DEL PERIODO:
   // Calcula los totales usando solo las ventas visibles despues del filtro de fecha.
   const resumenPeriodo = useMemo(() => {
-    const totalVentas = ventasFiltradas.length;
-    const ingresosTotales = ventasFiltradas.reduce((sum, venta) => sum + Number(venta.total || 0), 0);
-    const productosVendidos = ventasFiltradas.reduce(
+    const ventasActivas = ventasFiltradas.filter((venta) => venta.estado !== 'ANULADA');
+    const totalVentas = ventasActivas.length;
+    const ingresosTotales = ventasActivas.reduce((sum, venta) => sum + Number(venta.total || 0), 0);
+    const productosVendidos = ventasActivas.reduce(
       (sum, venta) => sum + venta.productosVendidos.reduce((itemSum, item) => itemSum + Number(item.cantidad || 0), 0),
       0
     );
+    const gananciaEstimada = ventasActivas.reduce((sum, venta) => (
+      sum + venta.productosVendidos.reduce((itemSum, item) => {
+        const precioVenta = Number(item.producto?.precioVenta || 0);
+        const precioCompra = Number(item.producto?.precioCompra || 0);
+        return itemSum + Math.max(0, precioVenta - precioCompra) * Number(item.cantidad || 0);
+      }, 0)
+    ), 0);
     const promedioPorVenta = totalVentas > 0 ? ingresosTotales / totalVentas : 0;
 
     return {
       totalVentas,
       ingresosTotales,
       productosVendidos,
-      promedioPorVenta
+      promedioPorVenta,
+      gananciaEstimada
     };
   }, [ventasFiltradas]);
 
@@ -332,6 +354,9 @@ const ReportesPage: React.FC = () => {
                   </TableCell>
                   <TableCell align="right" sx={{ color: 'primary.main', fontWeight: 700 }}>
                     {formatCurrency(venta.total)}
+                    {venta.estado === 'ANULADA' && (
+                      <Typography variant="caption" color="error" display="block">ANULADA</Typography>
+                    )}
                   </TableCell>
                   <TableCell align="center">
                     {/* DISEÑO REPORTES - BOTON VER DETALLES:
@@ -372,6 +397,9 @@ const ReportesPage: React.FC = () => {
               </Typography>
               <Typography variant="body2">
                 Productos vendidos: <strong>{resumenPeriodo.productosVendidos}</strong>
+              </Typography>
+              <Typography variant="body2" mt={1.5}>
+                Ganancia estimada: <strong>{formatCurrency(resumenPeriodo.gananciaEstimada)}</strong>
               </Typography>
             </Grid>
           </Grid>
@@ -425,6 +453,11 @@ const ReportesPage: React.FC = () => {
               <Typography variant="body2" color="text.secondary" mb={3}>
                 Fecha y hora: {formatDateTime(selectedVenta.fecha)}
               </Typography>
+              {selectedVenta.estado === 'ANULADA' && (
+                <Alert severity="warning" sx={{ mb: 2 }}>
+                  Venta anulada: {selectedVenta.anuladaMotivo || 'Sin motivo registrado'}
+                </Alert>
+              )}
 
               {/* DISEÑO REPORTES - PRODUCTOS DEL MODAL:
                   Lista cada producto con cantidad, precio unitario y subtotal. */}
@@ -474,6 +507,11 @@ const ReportesPage: React.FC = () => {
               </Typography>
             </DialogContent>
             <DialogActions>
+              {selectedVenta.id < 1000000 && selectedVenta.estado !== 'ANULADA' && (
+                <Button color="error" onClick={() => handleAnularVenta(selectedVenta)}>
+                  Anular venta
+                </Button>
+              )}
               {/* DISEÑO REPORTES - BOTON CERRAR MODAL */}
               <Button onClick={() => setSelectedVenta(null)}>{t('Cerrar', 'Close')}</Button>
             </DialogActions>

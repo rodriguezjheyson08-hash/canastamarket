@@ -31,6 +31,7 @@ const usuariosRoutes = require('./routes/usuarios');
 const configuracionRoutes = require('./routes/configuracion');
 const cajasRoutes = require('./routes/cajas');
 const clientesRoutes = require('./routes/clientes');
+const inventarioRoutes = require('./routes/inventario');
 
 const app = express();
 app.disable('x-powered-by');
@@ -85,6 +86,7 @@ app.use('/api/usuarios', usuariosRoutes);
 app.use('/api/configuracion', configuracionRoutes);
 app.use('/api/cajas', cajasRoutes);
 app.use('/api/clientes', clientesRoutes);
+app.use('/api/inventario', inventarioRoutes);
 
 // RUTA BACKEND: registra middleware o ruta principal de Express.
 app.use((err, _req, res, _next) => {

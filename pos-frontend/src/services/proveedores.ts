@@ -85,6 +85,16 @@ export const createPedidoCompra = async (
   return res.data;
 };
 
+export const recibirPedidoCompra = async (pedidoId: number, motivo?: string, token?: string | null): Promise<PedidoCompra> => {
+  const authToken = token ?? getToken();
+  const res = await axios.patch(
+    `${API_URL}/proveedores/pedidos/${pedidoId}/recibir`,
+    { motivo },
+    { headers: buildAuthHeaders(authToken) }
+  );
+  return res.data;
+};
+
 // SERVICIO FRONTEND: delete Pedido Compra llama al backend y devuelve la respuesta a React.
 export const deletePedidoCompra = async (pedidoId: number, token?: string | null): Promise<void> => {
   const authToken = token ?? getToken();

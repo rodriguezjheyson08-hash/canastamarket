@@ -7,6 +7,7 @@ describe('permisos del backend', () => {
       productos: true,
       categorias: true,
       proveedores: true,
+      inventario: true,
       pedidosOnline: true,
       reportes: true,
       configuracion: true
@@ -19,6 +20,7 @@ describe('permisos del backend', () => {
       productos: true,
       categorias: true,
       proveedores: true,
+      inventario: false,
       pedidosOnline: true,
       reportes: true,
       configuracion: false

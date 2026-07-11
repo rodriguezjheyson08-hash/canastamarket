@@ -22,7 +22,9 @@ import {
   UsuarioPayload,
   CajaSesion,
   PedidoOnline,
-  PedidoOnlineCreatePayload
+  PedidoOnlineCreatePayload,
+  InventarioMovimiento,
+  AuditoriaLog
 } from '../types';
 
 // SERVICIO: build Auth Headers comunica este modulo con una API o backend.
@@ -210,6 +212,14 @@ export const createVenta = async (ventaData: VentaCreatePayload, token?: string 
     return res.data;
 };
 
+export const anularVenta = async (id: number, motivo: string, token?: string | null): Promise<Venta> => {
+    const authToken = token ?? getToken();
+    const res = await axios.patch(`${API_URL}/ventas/${id}/anular`, { motivo }, {
+        headers: buildAuthHeaders(authToken)
+    });
+    return res.data;
+};
+
 export type ClienteCuentaPayload = {
   nombre: string; dni: string; email: string; telefono: string; direccion?: string; password?: string;
 };
@@ -326,10 +336,39 @@ export const getPedidosOnline = async (estado?: PedidoOnline['estado'], token?: 
 export const updatePedidoOnlineEstado = async (
   id: number,
   estado: PedidoOnline['estado'],
+  motivo?: string,
   token?: string | null
 ): Promise<PedidoOnline> => {
   const authToken = token ?? getToken();
-  const res = await axios.patch(`${API_URL}/pedidos-online/${id}/estado`, { estado }, {
+  const res = await axios.patch(`${API_URL}/pedidos-online/${id}/estado`, { estado, motivo }, {
+    headers: buildAuthHeaders(authToken)
+  });
+  return res.data;
+};
+
+export const getInventarioMovimientos = async (productoId?: number, token?: string | null): Promise<InventarioMovimiento[]> => {
+  const authToken = token ?? getToken();
+  const res = await axios.get(`${API_URL}/inventario/movimientos`, {
+    headers: buildAuthHeaders(authToken),
+    params: productoId ? { productoId } : undefined
+  });
+  return res.data;
+};
+
+export const registrarPerdidaInventario = async (
+  payload: { productoId: number; cantidad: number; tipo: string; motivo: string },
+  token?: string | null
+): Promise<{ productoId: number; stockAnterior: number; stockNuevo: number }> => {
+  const authToken = token ?? getToken();
+  const res = await axios.post(`${API_URL}/inventario/perdidas`, payload, {
+    headers: buildAuthHeaders(authToken)
+  });
+  return res.data;
+};
+
+export const getAuditoriaLogs = async (token?: string | null): Promise<AuditoriaLog[]> => {
+  const authToken = token ?? getToken();
+  const res = await axios.get(`${API_URL}/inventario/auditoria`, {
     headers: buildAuthHeaders(authToken)
   });
   return res.data;

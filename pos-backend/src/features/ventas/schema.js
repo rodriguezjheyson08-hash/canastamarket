@@ -24,7 +24,8 @@ const ensureVentaOptionalColumns = async (runner = pool) => {
           'tipo_comprobante', 'cliente_tipo_documento', 'cliente_numero_documento',
           'cliente_ruc', 'cliente_direccion',
           'vendedor_id', 'vendedor_usuario', 'vendedor_nombre',
-          'pago_referencia', 'pago_confirmado_at', 'caja_sesion_id'
+          'pago_referencia', 'pago_confirmado_at', 'caja_sesion_id',
+          'estado', 'anulada_at', 'anulada_motivo', 'anulada_por_id', 'anulada_por_nombre'
         )`
   );
 
@@ -88,6 +89,26 @@ const ensureVentaOptionalColumns = async (runner = pool) => {
 
   if (!columnSet.has('caja_sesion_id')) {
     await runner.query('ALTER TABLE ventas ADD COLUMN caja_sesion_id INT NULL');
+  }
+
+  if (!columnSet.has('estado')) {
+    await runner.query("ALTER TABLE ventas ADD COLUMN estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVA'");
+  }
+
+  if (!columnSet.has('anulada_at')) {
+    await runner.query('ALTER TABLE ventas ADD COLUMN anulada_at TIMESTAMP NULL');
+  }
+
+  if (!columnSet.has('anulada_motivo')) {
+    await runner.query('ALTER TABLE ventas ADD COLUMN anulada_motivo VARCHAR(255) NULL');
+  }
+
+  if (!columnSet.has('anulada_por_id')) {
+    await runner.query('ALTER TABLE ventas ADD COLUMN anulada_por_id INT NULL');
+  }
+
+  if (!columnSet.has('anulada_por_nombre')) {
+    await runner.query('ALTER TABLE ventas ADD COLUMN anulada_por_nombre VARCHAR(160) NULL');
   }
 
   ventasColumnsChecked = true;

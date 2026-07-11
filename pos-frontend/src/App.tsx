@@ -33,6 +33,7 @@ const ConfiguracionPage = lazy(() => import('./pages/08-ConfiguracionPage'));
 const ReportesPage = lazy(() => import('./pages/09-ReportesPage'));
 const ClienteTiendaPage = lazy(() => import('./pages/10-ClienteTiendaPage'));
 const PedidosOnlinePage = lazy(() => import('./pages/11-PedidosOnlinePage'));
+const InventarioPage = lazy(() => import('./pages/12-InventarioPage'));
 
 const PrivateLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
@@ -113,6 +114,14 @@ const App: React.FC = () => {
                           element={
                             <FeatureRoute permission="ventas">
                               <VentasPage />
+                            </FeatureRoute>
+                          }
+                        />
+                        <Route
+                          path="inventario"
+                          element={
+                            <FeatureRoute permission="inventario">
+                              <InventarioPage />
                             </FeatureRoute>
                           }
                         />

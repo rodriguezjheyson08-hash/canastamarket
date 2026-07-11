@@ -8,6 +8,8 @@ const pool = require('../db/pool');
 const { productAvailabilitySql } = require('../utils/catalogAvailability');
 const { ensurePedidosOnlineSchema } = require('../features/pedidosOnline/schema');
 const { mapPedidoOnline } = require('../features/pedidosOnline/mappers');
+const { registrarAuditoria } = require('../features/auditoria/service');
+const { registrarMovimientoInventario } = require('../features/inventario/service');
 
 const ESTADOS_VALIDOS = new Set(['PENDIENTE_RECOJO', 'PENDIENTE_PAGO', 'PAGADO', 'RECOGIDO', 'ANULADO']);
 const METODOS_VALIDOS = new Set(['RECOJO', 'MERCADO_PAGO']);
@@ -289,11 +291,25 @@ const createPedidoOnlinePublic = async (req, res) => {
          VALUES (?, ?, ?, ?, ?, ?)`,
         [pedidoId, detalle.productoId, detalle.nombre, detalle.cantidad, detalle.precioUnitario, detalle.subtotal]
       );
-      await connection.execute(
-        'UPDATE productos SET stock_actual = stock_actual - ? WHERE id = ?',
-        [detalle.cantidad, detalle.productoId]
-      );
+      await registrarMovimientoInventario(connection, {
+        req,
+        productoId: detalle.productoId,
+        tipo: 'PEDIDO_ONLINE',
+        cantidad: detalle.cantidad,
+        direccion: 'SALIDA',
+        referenciaTipo: 'PEDIDO_ONLINE',
+        referenciaId: pedidoId,
+        motivo: `Pedido online ${cleanCodigo}`
+      });
     }
+
+    await registrarAuditoria(connection, {
+      req,
+      accion: 'PEDIDO_ONLINE_CREADO',
+      entidad: 'pedido_online',
+      entidadId: pedidoId,
+      detalle: { codigo: cleanCodigo, total: totalCalculado, productos: detalles.length }
+    });
 
     await connection.commit();
     const pedido = await fetchPedidoById(pedidoId);
@@ -330,6 +346,7 @@ const updatePedidoOnlineEstado = async (req, res) => {
   await ensurePedidosOnlineSchema();
   const pedidoId = Number(req.params.id);
   const estado = cleanText(req.body.estado, 30);
+  const motivo = cleanText(req.body.motivo || 'Cambio de estado de pedido online', 255);
 
   if (!Number.isInteger(pedidoId) || pedidoId <= 0) {
     return res.status(400).json({ message: 'Pedido inválido.' });
@@ -338,9 +355,60 @@ const updatePedidoOnlineEstado = async (req, res) => {
     return res.status(400).json({ message: 'Estado inválido.' });
   }
 
-  const [result] = await pool.execute('UPDATE pedidos_online SET estado = ? WHERE id = ?', [estado, pedidoId]);
-  if (result.affectedRows === 0) {
-    return res.status(404).json({ message: 'Pedido online no encontrado.' });
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    await ensurePedidosOnlineSchema(connection);
+
+    const [pedidos] = await connection.query(
+      'SELECT id, estado FROM pedidos_online WHERE id = ? FOR UPDATE',
+      [pedidoId]
+    );
+    if (pedidos.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ message: 'Pedido online no encontrado.' });
+    }
+
+    const estadoAnterior = pedidos[0].estado;
+    if (estadoAnterior === 'ANULADO' && estado !== 'ANULADO') {
+      await connection.rollback();
+      return res.status(400).json({ message: 'No se puede reactivar un pedido anulado.' });
+    }
+
+    if (estado === 'ANULADO' && estadoAnterior !== 'ANULADO') {
+      const [detalles] = await connection.query(
+        'SELECT producto_id, cantidad FROM pedidos_online_detalles WHERE pedido_id = ?',
+        [pedidoId]
+      );
+      for (const detalle of detalles) {
+        await registrarMovimientoInventario(connection, {
+          req,
+          productoId: detalle.producto_id,
+          tipo: 'ANULACION_PEDIDO_ONLINE',
+          cantidad: Number(detalle.cantidad),
+          direccion: 'ENTRADA',
+          referenciaTipo: 'PEDIDO_ONLINE',
+          referenciaId: pedidoId,
+          motivo
+        });
+      }
+    }
+
+    await connection.execute('UPDATE pedidos_online SET estado = ? WHERE id = ?', [estado, pedidoId]);
+    await registrarAuditoria(connection, {
+      req,
+      accion: 'PEDIDO_ONLINE_CAMBIO_ESTADO',
+      entidad: 'pedido_online',
+      entidadId: pedidoId,
+      detalle: { estadoAnterior, estadoNuevo: estado, motivo }
+    });
+
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    return res.status(400).json({ message: error.message || 'No se pudo actualizar el pedido online.' });
+  } finally {
+    connection.release();
   }
 
   const pedido = await fetchPedidoById(pedidoId);

@@ -11,13 +11,15 @@ const { mapVenta } = require('../features/ventas/mappers');
 const { ensureVentaOptionalColumns } = require('../features/ventas/schema');
 const { ensureCajasSchema } = require('../features/cajas/schema');
 const { prepararPagosVenta } = require('../features/ventas/pagos');
+const { getActor, registrarAuditoria } = require('../features/auditoria/service');
+const { registrarMovimientoInventario } = require('../features/inventario/service');
 
 // CONTROLADOR BACKEND: fetch Venta By Id procesa request/respuesta de este flujo.
 const fetchVentaById = async (ventaId) => {
   await ensureCajasSchema();
   await ensureVentaOptionalColumns();
   const [ventas] = await pool.query(
-    `SELECT id, total, metodo_pago, recibido, vuelto, cliente_dni, cliente_nombre,
+    `SELECT id, total, estado, anulada_motivo, anulada_at, metodo_pago, recibido, vuelto, cliente_dni, cliente_nombre,
             tipo_comprobante, cliente_tipo_documento, cliente_numero_documento, cliente_ruc, cliente_direccion,
             vendedor_id, vendedor_usuario, vendedor_nombre, pago_referencia, pago_confirmado_at,
             caja_sesion_id, fecha
@@ -28,7 +30,7 @@ const fetchVentaById = async (ventaId) => {
 
   const [detalles] = await pool.query(
     `SELECT vd.venta_id, vd.producto_id, vd.cantidad, vd.precio_unitario, vd.subtotal,
-            p.nombre, p.descripcion, p.precio_venta, p.codigo_barras, p.stock_actual, p.categoria_id, p.imagen
+            p.nombre, p.descripcion, p.precio_venta, p.precio_compra, p.codigo_barras, p.stock_actual, p.categoria_id, p.imagen
        FROM venta_detalles vd
        JOIN productos p ON p.id = vd.producto_id
       WHERE vd.venta_id = ?`,
@@ -49,7 +51,7 @@ const listVentas = async (_req, res) => {
   await ensureCajasSchema();
   await ensureVentaOptionalColumns();
   const [ventas] = await pool.query(
-    `SELECT id, total, metodo_pago, recibido, vuelto, cliente_dni, cliente_nombre,
+    `SELECT id, total, estado, anulada_motivo, anulada_at, metodo_pago, recibido, vuelto, cliente_dni, cliente_nombre,
             tipo_comprobante, cliente_tipo_documento, cliente_numero_documento, cliente_ruc, cliente_direccion,
             vendedor_id, vendedor_usuario, vendedor_nombre, pago_referencia, pago_confirmado_at,
             caja_sesion_id, fecha
@@ -63,7 +65,7 @@ const listVentas = async (_req, res) => {
   const ventaIds = ventas.map((venta) => venta.id);
   const [detalles] = await pool.query(
     `SELECT vd.venta_id, vd.producto_id, vd.cantidad, vd.precio_unitario, vd.subtotal,
-            p.nombre, p.descripcion, p.precio_venta, p.codigo_barras, p.stock_actual, p.categoria_id, p.imagen
+            p.nombre, p.descripcion, p.precio_venta, p.precio_compra, p.codigo_barras, p.stock_actual, p.categoria_id, p.imagen
        FROM venta_detalles vd
        JOIN productos p ON p.id = vd.producto_id
       WHERE vd.venta_id IN (?)`,
@@ -294,11 +296,25 @@ const createVenta = async (req, res) => {
         [ventaId, detalle.productoId, detalle.cantidad, detalle.precioUnitario, detalle.subtotal]
       );
 
-      await connection.execute(
-        'UPDATE productos SET stock_actual = stock_actual - ? WHERE id = ?',
-        [detalle.cantidad, detalle.productoId]
-      );
+      await registrarMovimientoInventario(connection, {
+        req,
+        productoId: detalle.productoId,
+        tipo: 'VENTA',
+        cantidad: detalle.cantidad,
+        direccion: 'SALIDA',
+        referenciaTipo: 'VENTA',
+        referenciaId: ventaId,
+        motivo: `Venta #${ventaId}`
+      });
     }
+
+    await registrarAuditoria(connection, {
+      req,
+      accion: 'VENTA_CREADA',
+      entidad: 'venta',
+      entidadId: ventaId,
+      detalle: { total: totalCalculado, productos: preparedDetalles.length }
+    });
 
     await connection.commit();
 
@@ -312,7 +328,88 @@ const createVenta = async (req, res) => {
   }
 };
 
+const anularVenta = async (req, res) => {
+  await ensureCajasSchema();
+  await ensureVentaOptionalColumns();
+  const ventaId = Number(req.params.id);
+  const motivo = String(req.body?.motivo || '').trim().slice(0, 255);
+
+  if (!Number.isInteger(ventaId) || ventaId <= 0) {
+    return res.status(400).json({ message: 'Venta invalida.' });
+  }
+  if (!motivo) {
+    return res.status(400).json({ message: 'Debe indicar el motivo de anulacion.' });
+  }
+
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    await ensureVentaOptionalColumns(connection);
+
+    const [ventas] = await connection.query(
+      'SELECT id, estado FROM ventas WHERE id = ? FOR UPDATE',
+      [ventaId]
+    );
+    if (ventas.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ message: 'Venta no encontrada.' });
+    }
+    if (ventas[0].estado === 'ANULADA') {
+      await connection.rollback();
+      return res.status(400).json({ message: 'La venta ya esta anulada.' });
+    }
+
+    const [detalles] = await connection.query(
+      'SELECT producto_id, cantidad FROM venta_detalles WHERE venta_id = ?',
+      [ventaId]
+    );
+
+    for (const detalle of detalles) {
+      await registrarMovimientoInventario(connection, {
+        req,
+        productoId: detalle.producto_id,
+        tipo: 'ANULACION_VENTA',
+        cantidad: Number(detalle.cantidad),
+        direccion: 'ENTRADA',
+        referenciaTipo: 'VENTA',
+        referenciaId: ventaId,
+        motivo
+      });
+    }
+
+    const actor = getActor(req);
+    await connection.execute(
+      `UPDATE ventas
+          SET estado = 'ANULADA',
+              anulada_at = CURRENT_TIMESTAMP,
+              anulada_motivo = ?,
+              anulada_por_id = ?,
+              anulada_por_nombre = ?
+        WHERE id = ?`,
+      [motivo, actor.usuarioId, actor.usuarioNombre, ventaId]
+    );
+
+    await registrarAuditoria(connection, {
+      req,
+      accion: 'VENTA_ANULADA',
+      entidad: 'venta',
+      entidadId: ventaId,
+      detalle: { motivo, itemsDevueltos: detalles.length }
+    });
+
+    await connection.commit();
+    const venta = await fetchVentaById(ventaId);
+    res.json(venta);
+  } catch (error) {
+    await connection.rollback();
+    res.status(400).json({ message: error.message || 'No se pudo anular la venta.' });
+  } finally {
+    connection.release();
+  }
+};
+
 module.exports = {
   listVentas,
-  createVenta
+  createVenta,
+  anularVenta
 };

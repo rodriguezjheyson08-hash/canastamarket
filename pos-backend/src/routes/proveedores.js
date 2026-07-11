@@ -17,6 +17,7 @@ const {
   listPedidosCompra,
   getPedidoCompra,
   createPedidoCompra,
+  recibirPedidoCompra,
   deletePedidoCompra,
   deletePedidosCompraBatch,
   downloadPedidoCsv,
@@ -34,6 +35,7 @@ router.post('/pedidos', asyncHandler(createPedidoCompra));
 router.post('/pedidos/delete-batch', asyncHandler(deletePedidosCompraBatch));
 router.get('/pedidos/:id/csv', asyncHandler(downloadPedidoCsv));
 router.get('/pedidos/:id/pdf', asyncHandler(downloadPedidoPdf));
+router.patch('/pedidos/:id/recibir', asyncHandler(recibirPedidoCompra));
 // RUTA BACKEND: endpoint GET '/pedidos/:id'; conecta la URL con el controlador correspondiente.
 router.get('/pedidos/:id', asyncHandler(getPedidoCompra));
 router.delete('/pedidos/:id', asyncHandler(deletePedidoCompra));

@@ -9,6 +9,7 @@ const PERMISSION_KEYS = [
   'productos',
   'categorias',
   'proveedores',
+  'inventario',
   'pedidosOnline',
   'reportes',
   'configuracion'
@@ -20,6 +21,7 @@ const DEFAULT_ADMIN_PERMISOS = {
   productos: true,
   categorias: true,
   proveedores: true,
+  inventario: true,
   pedidosOnline: true,
   reportes: true,
   configuracion: true
@@ -31,6 +33,7 @@ const DEFAULT_CAJERO_PERMISOS = {
   productos: true,
   categorias: true,
   proveedores: true,
+  inventario: false,
   pedidosOnline: true,
   reportes: true,
   configuracion: false

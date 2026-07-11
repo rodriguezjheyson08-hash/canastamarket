@@ -11,6 +11,7 @@ export type PermissionKey =
   | 'productos'
   | 'categorias'
   | 'proveedores'
+  | 'inventario'
   | 'pedidosOnline'
   | 'reportes'
   | 'configuracion';
@@ -75,6 +76,7 @@ export interface Producto {
     nombre: string;
     descripcion: string;
     precioVenta: number;
+    precioCompra?: number | null;
     codigoBarras?: string | null;
     fechaVencimiento?: string | null;
     stockActual: number;
@@ -167,6 +169,9 @@ export interface Venta {
   productosVendidos: VentaProducto[];
   total: number;
   fecha: string; // ISO string
+  estado?: 'ACTIVA' | 'ANULADA' | string;
+  anuladaMotivo?: string | null;
+  anuladaAt?: string | null;
   metodoPago?: string;
   recibido?: number;
   vuelto?: number;
@@ -279,3 +284,31 @@ export interface DashboardStats {
   productosBajos: number;
   productosVendidos: number;
 } 
+
+export interface InventarioMovimiento {
+  id: number;
+  productoId: number;
+  productoNombre?: string;
+  tipo: string;
+  cantidad: number;
+  stockAnterior: number;
+  stockNuevo: number;
+  referenciaTipo?: string | null;
+  referenciaId?: string | null;
+  motivo?: string | null;
+  usuarioId?: number | null;
+  usuarioNombre?: string | null;
+  fecha: string;
+}
+
+export interface AuditoriaLog {
+  id: number;
+  usuarioId?: number | null;
+  usuarioNombre?: string | null;
+  accion: string;
+  entidad: string;
+  entidadId?: string | null;
+  detalle?: Record<string, any> | null;
+  ip?: string | null;
+  fecha: string;
+}
