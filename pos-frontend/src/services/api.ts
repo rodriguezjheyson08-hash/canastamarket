@@ -349,10 +349,16 @@ export const updatePedidoOnlineEstado = async (
   id: number,
   estado: PedidoOnline['estado'],
   motivo?: string,
+  pagoRecogida?: { metodo: string; recibido?: number | null },
   token?: string | null
 ): Promise<PedidoOnline> => {
   const authToken = token ?? getToken();
-  const res = await axios.patch(`${API_URL}/pedidos-online/${id}/estado`, { estado, motivo }, {
+  const res = await axios.patch(`${API_URL}/pedidos-online/${id}/estado`, {
+    estado,
+    motivo,
+    pagoRecogidaMetodo: pagoRecogida?.metodo,
+    pagoRecogidaRecibido: pagoRecogida?.recibido
+  }, {
     headers: buildAuthHeaders(authToken)
   });
   return res.data;

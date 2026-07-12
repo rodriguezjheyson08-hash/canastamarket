@@ -13,8 +13,27 @@ const { registrarMovimientoInventario } = require('../features/inventario/servic
 
 const ESTADOS_VALIDOS = new Set(['PENDIENTE_RECOJO', 'PENDIENTE_PAGO', 'PAGADO', 'RECOGIDO', 'ANULADO']);
 const METODOS_VALIDOS = new Set(['RECOJO', 'MERCADO_PAGO']);
+const METODOS_RECOJO_VALIDOS = new Set(['efectivo', 'yape', 'mercadopago_link', 'tarjeta']);
 
 const cleanText = (value, maxLength = 255) => String(value ?? '').trim().slice(0, maxLength);
+
+const metodoPagoLabel = (metodo) => {
+  const key = cleanText(metodo, 40).toLowerCase();
+  if (key === 'efectivo') return 'Efectivo';
+  if (key === 'yape') return 'Yape';
+  if (key === 'mercadopago_link') return 'Mercado Pago link';
+  if (key === 'tarjeta') return 'Tarjeta';
+  if (key === 'MERCADO_PAGO'.toLowerCase()) return 'Mercado Pago';
+  return metodo || 'Al recoger';
+};
+
+const actualizarBoletaPago = (boletaHtml, metodo) => {
+  if (!boletaHtml) return boletaHtml;
+  const label = metodoPagoLabel(metodo);
+  return String(boletaHtml)
+    .replace(/(<strong>Pago:<\/strong>\s*)Al recoger/gi, `$1${label}`)
+    .replace(/(Pago:\s*)Al recoger/gi, `$1${label}`);
+};
 
 const fetchPedidoById = async (pedidoId, runner = pool) => {
   await ensurePedidosOnlineSchema(runner);
@@ -22,6 +41,7 @@ const fetchPedidoById = async (pedidoId, runner = pool) => {
   const [pedidos] = await runner.query(
     `SELECT id, codigo, fecha, estado, metodo_pago, entrega, cliente_nombre, cliente_dni, cliente_email,
             cliente_telefono, cliente_direccion, total, boleta_html, pago_referencia,
+            pago_recogida_metodo, pago_recogida_recibido, pago_recogida_vuelto, pago_recogida_at,
             cancelado_por, cancelado_at, cancelacion_motivo, reembolso_estado
        FROM pedidos_online
       WHERE id = ?`,
@@ -46,6 +66,7 @@ const fetchPedidoByCodigo = async (codigo) => {
   const [pedidos] = await pool.query(
     `SELECT id, codigo, fecha, estado, metodo_pago, entrega, cliente_nombre, cliente_dni, cliente_email,
             cliente_telefono, cliente_direccion, total, boleta_html, pago_referencia,
+            pago_recogida_metodo, pago_recogida_recibido, pago_recogida_vuelto, pago_recogida_at,
             cancelado_por, cancelado_at, cancelacion_motivo, reembolso_estado
        FROM pedidos_online
       WHERE codigo = ?
@@ -79,6 +100,7 @@ const listPedidosOnline = async (req, res) => {
   const [pedidos] = await pool.query(
     `SELECT id, codigo, fecha, estado, metodo_pago, entrega, cliente_nombre, cliente_dni, cliente_email,
             cliente_telefono, cliente_direccion, total, boleta_html, pago_referencia,
+            pago_recogida_metodo, pago_recogida_recibido, pago_recogida_vuelto, pago_recogida_at,
             cancelado_por, cancelado_at, cancelacion_motivo, reembolso_estado
        FROM pedidos_online
        ${where}
@@ -121,6 +143,7 @@ const listPedidosOnlinePublic = async (req, res) => {
   const [pedidos] = await pool.query(
     `SELECT id, codigo, fecha, estado, metodo_pago, entrega, cliente_nombre, cliente_dni, cliente_email,
             cliente_telefono, cliente_direccion, total, boleta_html, pago_referencia,
+            pago_recogida_metodo, pago_recogida_recibido, pago_recogida_vuelto, pago_recogida_at,
             cancelado_por, cancelado_at, cancelacion_motivo, reembolso_estado
        FROM pedidos_online
       WHERE cliente_email = ?
@@ -416,6 +439,10 @@ const updatePedidoOnlineEstado = async (req, res) => {
   const pedidoId = Number(req.params.id);
   const estado = cleanText(req.body.estado, 30);
   const motivo = cleanText(req.body.motivo || 'Cambio de estado de pedido online', 255);
+  const pagoRecogidaMetodo = cleanText(req.body.pagoRecogidaMetodo, 40).toLowerCase();
+  const pagoRecogidaRecibido = req.body.pagoRecogidaRecibido === undefined || req.body.pagoRecogidaRecibido === null || req.body.pagoRecogidaRecibido === ''
+    ? null
+    : Number(req.body.pagoRecogidaRecibido);
 
   if (!Number.isInteger(pedidoId) || pedidoId <= 0) {
     return res.status(400).json({ message: 'Pedido inválido.' });
@@ -433,7 +460,7 @@ const updatePedidoOnlineEstado = async (req, res) => {
       await anularPedidoOnlineTransaccion(connection, { req, pedidoId, actor: 'ADMIN', motivo });
     } else {
       const [pedidos] = await connection.query(
-        'SELECT id, estado, metodo_pago FROM pedidos_online WHERE id = ? FOR UPDATE',
+        'SELECT id, estado, metodo_pago, total, boleta_html FROM pedidos_online WHERE id = ? FOR UPDATE',
         [pedidoId]
       );
       if (pedidos.length === 0) {
@@ -447,13 +474,48 @@ const updatePedidoOnlineEstado = async (req, res) => {
         return res.status(400).json({ message: 'No se puede reactivar un pedido anulado.' });
       }
 
-      await connection.execute('UPDATE pedidos_online SET estado = ? WHERE id = ?', [estado, pedidoId]);
+      const pedido = pedidos[0];
+      if (estado === 'RECOGIDO' && pedido.metodo_pago === 'RECOJO') {
+        if (!METODOS_RECOJO_VALIDOS.has(pagoRecogidaMetodo)) {
+          await connection.rollback();
+          return res.status(400).json({ message: 'Indica como pago el cliente al recoger.' });
+        }
+        const totalPedido = Number(pedido.total || 0);
+        const recibido = pagoRecogidaMetodo === 'efectivo'
+          ? pagoRecogidaRecibido
+          : totalPedido;
+        if (!Number.isFinite(recibido) || recibido < totalPedido) {
+          await connection.rollback();
+          return res.status(400).json({ message: 'El monto recibido no cubre el total del pedido.' });
+        }
+        const vuelto = pagoRecogidaMetodo === 'efectivo' ? Number((recibido - totalPedido).toFixed(2)) : 0;
+        await connection.execute(
+          `UPDATE pedidos_online
+              SET estado = ?,
+                  pago_recogida_metodo = ?,
+                  pago_recogida_recibido = ?,
+                  pago_recogida_vuelto = ?,
+                  pago_recogida_at = CURRENT_TIMESTAMP,
+                  boleta_html = ?
+            WHERE id = ?`,
+          [
+            estado,
+            pagoRecogidaMetodo,
+            recibido,
+            vuelto,
+            actualizarBoletaPago(pedido.boleta_html, pagoRecogidaMetodo),
+            pedidoId
+          ]
+        );
+      } else {
+        await connection.execute('UPDATE pedidos_online SET estado = ? WHERE id = ?', [estado, pedidoId]);
+      }
       await registrarAuditoria(connection, {
         req,
         accion: 'PEDIDO_ONLINE_CAMBIO_ESTADO',
         entidad: 'pedido_online',
         entidadId: pedidoId,
-        detalle: { estadoAnterior, estadoNuevo: estado, motivo }
+        detalle: { estadoAnterior, estadoNuevo: estado, motivo, pagoRecogidaMetodo: pagoRecogidaMetodo || null }
       });
     }
 

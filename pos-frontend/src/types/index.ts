@@ -256,6 +256,10 @@ export interface PedidoOnline {
   total: number;
   boletaHtml?: string;
   pagoReferencia?: string;
+  pagoRecogidaMetodo?: 'efectivo' | 'yape' | 'mercadopago_link' | 'tarjeta' | string;
+  pagoRecogidaRecibido?: number | null;
+  pagoRecogidaVuelto?: number | null;
+  pagoRecogidaAt?: string;
   canceladoPor?: string;
   canceladoAt?: string;
   cancelacionMotivo?: string;

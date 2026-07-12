@@ -70,7 +70,11 @@ const pedidoRow = {
   cliente_direccion: 'Av. Principal 123',
   total: '15.50',
   boleta_html: '<p>boleta</p>',
-  pago_referencia: null
+  pago_referencia: null,
+  pago_recogida_metodo: null,
+  pago_recogida_recibido: null,
+  pago_recogida_vuelto: null,
+  pago_recogida_at: null
 };
 
 const detalleRows = [
@@ -210,6 +214,10 @@ describe('pedidosOnlineController: generar pedido online', () => {
       total: 15.5,
       boletaHtml: '<p>boleta</p>',
       pagoReferencia: '',
+      pagoRecogidaMetodo: '',
+      pagoRecogidaRecibido: null,
+      pagoRecogidaVuelto: null,
+      pagoRecogidaAt: '',
       canceladoPor: '',
       canceladoAt: '',
       cancelacionMotivo: '',
@@ -307,7 +315,13 @@ describe('pedidosOnlineController: generar pedido online', () => {
   test('prepara el pedido online marcandolo como recogido y devuelve el pedido actualizado', async () => {
     const connection = createConnection();
     pool.getConnection.mockResolvedValue(connection);
-    connection.query.mockResolvedValueOnce([[{ id: 77, estado: 'PENDIENTE_RECOJO' }]]);
+    connection.query.mockResolvedValueOnce([[{
+      id: 77,
+      estado: 'PENDIENTE_RECOJO',
+      metodo_pago: 'RECOJO',
+      total: '15.50',
+      boleta_html: '<p><strong>Pago:</strong> Al recoger</p>'
+    }]]);
     connection.execute.mockResolvedValueOnce([{ affectedRows: 1 }]);
     pool.query
       .mockResolvedValueOnce([[{ ...pedidoRow, estado: 'RECOGIDO' }]])
@@ -316,7 +330,12 @@ describe('pedidosOnlineController: generar pedido online', () => {
 
     const req = {
       params: { id: '77' },
-      body: { estado: 'RECOGIDO', motivo: 'Pedido preparado y entregado' },
+      body: {
+        estado: 'RECOGIDO',
+        motivo: 'Pedido preparado y entregado',
+        pagoRecogidaMetodo: 'efectivo',
+        pagoRecogidaRecibido: 20
+      },
       auth: { sub: 3, type: 'admin' }
     };
     const res = createResponse();
@@ -327,13 +346,18 @@ describe('pedidosOnlineController: generar pedido online', () => {
     expect(ensurePedidosOnlineSchema).toHaveBeenCalledWith(connection);
     expect(connection.beginTransaction).toHaveBeenCalledTimes(1);
     expect(connection.query).toHaveBeenCalledWith(
-      'SELECT id, estado, metodo_pago FROM pedidos_online WHERE id = ? FOR UPDATE',
+      'SELECT id, estado, metodo_pago, total, boleta_html FROM pedidos_online WHERE id = ? FOR UPDATE',
       [77]
     );
-    expect(connection.execute).toHaveBeenCalledWith(
-      'UPDATE pedidos_online SET estado = ? WHERE id = ?',
-      ['RECOGIDO', 77]
-    );
+    expect(connection.execute.mock.calls[0][0]).toContain('pago_recogida_metodo');
+    expect(connection.execute.mock.calls[0][1]).toEqual([
+      'RECOGIDO',
+      'efectivo',
+      20,
+      4.5,
+      '<p><strong>Pago:</strong> Efectivo</p>',
+      77
+    ]);
     expect(registrarMovimientoInventario).not.toHaveBeenCalled();
     expect(registrarAuditoria).toHaveBeenCalledWith(connection, expect.objectContaining({
       accion: 'PEDIDO_ONLINE_CAMBIO_ESTADO',
@@ -342,7 +366,8 @@ describe('pedidosOnlineController: generar pedido online', () => {
       detalle: {
         estadoAnterior: 'PENDIENTE_RECOJO',
         estadoNuevo: 'RECOGIDO',
-        motivo: 'Pedido preparado y entregado'
+        motivo: 'Pedido preparado y entregado',
+        pagoRecogidaMetodo: 'efectivo'
       }
     }));
     expect(connection.commit).toHaveBeenCalledTimes(1);
@@ -363,6 +388,32 @@ describe('pedidosOnlineController: generar pedido online', () => {
       codigo: 'WEB-001',
       estado: 'RECOGIDO'
     }));
+  });
+
+  test('rechaza marcar recogido si el pedido al recoger no trae metodo de pago', async () => {
+    const connection = createConnection();
+    pool.getConnection.mockResolvedValue(connection);
+    connection.query.mockResolvedValueOnce([[{
+      id: 77,
+      estado: 'PENDIENTE_RECOJO',
+      metodo_pago: 'RECOJO',
+      total: '15.50',
+      boleta_html: '<p><strong>Pago:</strong> Al recoger</p>'
+    }]]);
+
+    const req = {
+      params: { id: '77' },
+      body: { estado: 'RECOGIDO' },
+      auth: { sub: 3, type: 'admin' }
+    };
+    const res = createResponse();
+
+    await updatePedidoOnlineEstado(req, res);
+
+    expect(connection.rollback).toHaveBeenCalledTimes(1);
+    expect(connection.execute).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ message: 'Indica como pago el cliente al recoger.' });
   });
 
   test('anula el pedido online y registra entrada de inventario por cada producto', async () => {

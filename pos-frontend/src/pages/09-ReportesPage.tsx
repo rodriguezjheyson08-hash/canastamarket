@@ -83,6 +83,15 @@ const getProductoDetalle = (item: VentaProducto) => {
   return `${producto?.nombre || 'Producto'} x${item.cantidad} (${formatCurrency(precio)} c/u)`;
 };
 
+const getMetodoPagoOnline = (pedido: PedidoOnline) => {
+  if (pedido.metodoPago === 'MERCADO_PAGO') return 'Mercado Pago online';
+  if (pedido.pagoRecogidaMetodo === 'efectivo') return 'Efectivo al recoger';
+  if (pedido.pagoRecogidaMetodo === 'yape') return 'Yape al recoger';
+  if (pedido.pagoRecogidaMetodo === 'mercadopago_link') return 'Mercado Pago link al recoger';
+  if (pedido.pagoRecogidaMetodo === 'tarjeta') return 'Tarjeta al recoger';
+  return 'Pago al recoger';
+};
+
 const ReportesPage: React.FC = () => {
   // LOGICA REPORTES - ESTADOS:
   // Guarda estadisticas, ventas, filtro de fecha, venta seleccionada y estados de carga/error.
@@ -151,9 +160,9 @@ const ReportesPage: React.FC = () => {
         numero: pedido.id,
         fecha: pedido.fecha,
         total: pedido.total,
-        metodoPago: pedido.metodoPago === 'MERCADO_PAGO' ? 'mercadopago' : 'recojo_tienda',
-        recibido: pedido.total,
-        vuelto: 0,
+        metodoPago: getMetodoPagoOnline(pedido),
+        recibido: pedido.pagoRecogidaRecibido ?? pedido.total,
+        vuelto: pedido.pagoRecogidaVuelto ?? 0,
         clienteDni: pedido.cliente.email,
         clienteNombre: `${pedido.cliente.nombre} (Online)`,
         vendedorId: null,

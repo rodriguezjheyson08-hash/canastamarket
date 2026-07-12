@@ -56,6 +56,14 @@ const estadoColor = (estado: PedidoOnline['estado']) => {
   return 'warning';
 };
 
+const getMetodoCobroLabel = (metodo?: string) => {
+  if (metodo === 'efectivo') return 'Efectivo';
+  if (metodo === 'yape') return 'Yape';
+  if (metodo === 'mercadopago_link') return 'Mercado Pago link';
+  if (metodo === 'tarjeta') return 'Tarjeta';
+  return metodo || 'Al recoger';
+};
+
 const getPagoInfo = (pedido: PedidoOnline) => {
   if (pedido.metodoPago === 'RECOJO') {
     return {
@@ -85,6 +93,9 @@ const PedidosOnlinePage: React.FC = () => {
   const [estadoFiltro, setEstadoFiltro] = useState<'TODOS' | PedidoOnline['estado']>('TODOS');
   const [busqueda, setBusqueda] = useState('');
   const [selectedPedido, setSelectedPedido] = useState<PedidoOnline | null>(null);
+  const [pedidoCobro, setPedidoCobro] = useState<PedidoOnline | null>(null);
+  const [cobroMetodo, setCobroMetodo] = useState('efectivo');
+  const [cobroRecibido, setCobroRecibido] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -140,15 +151,38 @@ const PedidosOnlinePage: React.FC = () => {
 
   // LOGICA PEDIDOS ONLINE - CAMBIO DE ESTADO:
   // Actualiza el estado y descuenta automaticamente del contador si pasa a RECOGIDO o ANULADO.
-  const cambiarEstado = async (pedido: PedidoOnline, estado: PedidoOnline['estado']) => {
+  const cambiarEstado = async (
+    pedido: PedidoOnline,
+    estado: PedidoOnline['estado'],
+    pagoRecogida?: { metodo: string; recibido?: number | null }
+  ) => {
     try {
-      const actualizado = await updatePedidoOnlineEstado(pedido.id, estado);
+      const actualizado = await updatePedidoOnlineEstado(pedido.id, estado, undefined, pagoRecogida);
       setPedidos((prev) => prev.map((item) => (item.id === actualizado.id ? actualizado : item)));
       setSelectedPedido((prev) => (prev?.id === actualizado.id ? actualizado : prev));
+      setPedidoCobro((prev) => (prev?.id === actualizado.id ? null : prev));
       globalThis.dispatchEvent(new Event(PEDIDOS_ONLINE_UPDATE_EVENT));
     } catch (err: any) {
       setError(err?.response?.data?.message || 'No se pudo actualizar el estado del pedido.');
     }
+  };
+
+  const iniciarRecogido = (pedido: PedidoOnline) => {
+    if (pedido.metodoPago === 'RECOJO') {
+      setPedidoCobro(pedido);
+      setCobroMetodo('efectivo');
+      setCobroRecibido(String(pedido.total));
+      return;
+    }
+    void cambiarEstado(pedido, 'RECOGIDO');
+  };
+
+  const confirmarCobroRecogida = () => {
+    if (!pedidoCobro) return;
+    void cambiarEstado(pedidoCobro, 'RECOGIDO', {
+      metodo: cobroMetodo,
+      recibido: cobroMetodo === 'efectivo' ? Number(cobroRecibido) : pedidoCobro.total
+    });
   };
 
   const openBoleta = (pedido: PedidoOnline) => {
@@ -285,7 +319,7 @@ const PedidosOnlinePage: React.FC = () => {
                         <Button
                           size="small"
                           variant="contained"
-                          onClick={() => cambiarEstado(pedido, 'RECOGIDO')}
+                          onClick={() => iniciarRecogido(pedido)}
                           disabled={pedido.metodoPago === 'MERCADO_PAGO' && pedido.estado === 'PENDIENTE_PAGO'}
                         >
                           Recogido
@@ -318,6 +352,14 @@ const PedidosOnlinePage: React.FC = () => {
                 <Grid item xs={12} sm={6}>
                   <Alert severity={getPagoInfo(selectedPedido).color} icon={<Payment />}>
                     <strong>Pago:</strong> {getPagoInfo(selectedPedido).label}. {getPagoInfo(selectedPedido).detail}
+                    {selectedPedido.pagoRecogidaMetodo && (
+                      <>
+                        <br />
+                        Cobrado al recoger: {getMetodoCobroLabel(selectedPedido.pagoRecogidaMetodo)}
+                        {selectedPedido.pagoRecogidaRecibido != null ? ` - Recibido: ${formatCurrency(selectedPedido.pagoRecogidaRecibido)}` : ''}
+                        {selectedPedido.pagoRecogidaVuelto ? ` - Vuelto: ${formatCurrency(selectedPedido.pagoRecogidaVuelto)}` : ''}
+                      </>
+                    )}
                   </Alert>
                 </Grid>
                 <Grid item xs={12} sm={6}>
@@ -362,13 +404,46 @@ const PedidosOnlinePage: React.FC = () => {
             <Button
               startIcon={<AssignmentTurnedIn />}
               variant="contained"
-              onClick={() => cambiarEstado(selectedPedido, 'RECOGIDO')}
+              onClick={() => iniciarRecogido(selectedPedido)}
               disabled={selectedPedido.metodoPago === 'MERCADO_PAGO' && selectedPedido.estado === 'PENDIENTE_PAGO'}
             >
               Marcar recogido
             </Button>
           )}
           <Button onClick={() => setSelectedPedido(null)}>Cerrar</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(pedidoCobro)} onClose={() => setPedidoCobro(null)} fullWidth maxWidth="xs">
+        <DialogTitle>Registrar pago al recoger</DialogTitle>
+        <DialogContent dividers>
+          {pedidoCobro && (
+            <Stack spacing={2}>
+              <Alert severity="warning">
+                Este pedido fue elegido como paga al recoger. Registra como pago el cliente antes de marcarlo recogido.
+              </Alert>
+              <Typography fontWeight={700}>Total: {formatCurrency(pedidoCobro.total)}</Typography>
+              <TextField select label="Metodo de pago" value={cobroMetodo} onChange={(event) => setCobroMetodo(event.target.value)} fullWidth>
+                <MenuItem value="efectivo">Efectivo</MenuItem>
+                <MenuItem value="yape">Yape</MenuItem>
+                <MenuItem value="mercadopago_link">Mercado Pago link</MenuItem>
+                <MenuItem value="tarjeta">Tarjeta</MenuItem>
+              </TextField>
+              {cobroMetodo === 'efectivo' && (
+                <TextField
+                  label="Monto recibido"
+                  type="number"
+                  value={cobroRecibido}
+                  onChange={(event) => setCobroRecibido(event.target.value)}
+                  fullWidth
+                />
+              )}
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPedidoCobro(null)}>Cancelar</Button>
+          <Button variant="contained" onClick={confirmarCobroRecogida}>Confirmar cobro</Button>
         </DialogActions>
       </Dialog>
     </Container>
