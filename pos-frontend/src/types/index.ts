@@ -259,6 +259,7 @@ export interface PedidoOnline {
   pagoRecogidaMetodo?: 'efectivo' | 'yape' | 'mercadopago_link' | 'tarjeta' | string;
   pagoRecogidaRecibido?: number | null;
   pagoRecogidaVuelto?: number | null;
+  pagoRecogidaDetalle?: { efectivo?: number; yape?: number } | null;
   pagoRecogidaAt?: string;
   canceladoPor?: string;
   canceladoAt?: string;

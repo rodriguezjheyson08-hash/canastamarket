@@ -78,6 +78,7 @@ const CLIENT_CART_KEY = 'cliente_tienda_carrito';
 const CLIENT_PROFILE_KEY = 'cliente_tienda_perfil';
 const CLIENT_ORDERS_KEY = 'cliente_tienda_pedidos';
 const CLIENT_TOKEN_KEY = 'cliente_tienda_token';
+const CLIENT_PENDING_MP_ORDER_KEY = 'cliente_tienda_mp_pendiente';
 
 type CartItems = Record<number, number>;
 
@@ -102,6 +103,7 @@ type ClientePedido = {
   total: number;
   boletaHtml?: string;
   boletaEnviada?: boolean;
+  pagoReferencia?: string;
   cancelacionMotivo?: string;
   reembolsoEstado?: string;
   productos: Array<{
@@ -923,7 +925,7 @@ const ClienteTiendaPage: React.FC = () => {
 
   // SERVICIO CLIENTE - REGISTRO DE PEDIDO:
   // Envia la compra al backend para que aparezca en el panel interno de admin/cajero.
-  const finishLocalOrder = async (pedido: ClientePedido) => {
+  const finishLocalOrder = useCallback(async (pedido: ClientePedido) => {
     const clienteActual = perfil.email ? perfil : perfilForm;
     const pedidoConBoleta: ClientePedido = {
       ...pedido,
@@ -946,6 +948,7 @@ const ClienteTiendaPage: React.FC = () => {
       },
       total: pedidoConBoleta.total,
       boletaHtml: pedidoConBoleta.boletaHtml,
+      pagoReferencia: pedidoConBoleta.pagoReferencia,
       productos: pedidoConBoleta.productos
     }, clienteToken);
 
@@ -953,7 +956,40 @@ const ClienteTiendaPage: React.FC = () => {
     setCartItems({});
     setCheckoutOpen(false);
     showSnackbar(`Pedido registrado. Boleta generada y enviada a ${clienteActual.email}.`);
-  };
+  }, [clienteToken, config.appName, perfil, perfilForm, showSnackbar]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const status = (params.get('status') || params.get('collection_status') || '').toLowerCase();
+    const paymentId = params.get('payment_id') || params.get('collection_id') || params.get('preference_id') || '';
+    const hasMercadoPagoReturn = Boolean(status || paymentId || params.get('merchant_order_id'));
+    if (!hasMercadoPagoReturn || !clienteToken) return;
+
+    const rawPending = localStorage.getItem(CLIENT_PENDING_MP_ORDER_KEY);
+    if (!rawPending) return;
+
+    try {
+      const pending = JSON.parse(rawPending) as ClientePedido;
+      if (['approved', 'accredited'].includes(status)) {
+        void finishLocalOrder({
+          ...pending,
+          estado: 'PAGADO',
+          metodoPago: 'MERCADO_PAGO',
+          pagoReferencia: paymentId
+        }).then(() => {
+          localStorage.removeItem(CLIENT_PENDING_MP_ORDER_KEY);
+          window.history.replaceState({}, document.title, window.location.pathname);
+          showSnackbar('Pago confirmado. Tu pedido fue registrado correctamente.');
+        });
+      } else if (['rejected', 'cancelled', 'failure'].includes(status)) {
+        localStorage.removeItem(CLIENT_PENDING_MP_ORDER_KEY);
+        window.history.replaceState({}, document.title, window.location.pathname);
+        showSnackbar('El pago no fue completado. No se genero ningun pedido.', 'error');
+      }
+    } catch {
+      localStorage.removeItem(CLIENT_PENDING_MP_ORDER_KEY);
+    }
+  }, [clienteToken, finishLocalOrder, showSnackbar]);
 
   const canCancelPedido = (pedido: ClientePedido) => (
     Boolean(pedido.backendId) && !['ANULADO', 'RECOGIDO'].includes(pedido.estado)
@@ -1022,7 +1058,7 @@ const ClienteTiendaPage: React.FC = () => {
         }
       });
 
-      await finishLocalOrder(pedido);
+      localStorage.setItem(CLIENT_PENDING_MP_ORDER_KEY, JSON.stringify(pedido));
       window.location.href = preference.init_point || preference.sandbox_init_point || window.location.href;
     } catch (error: any) {
       showSnackbar(getPedidoOnlineErrorMessage(error), 'error');
@@ -1309,15 +1345,12 @@ const ClienteTiendaPage: React.FC = () => {
                     <Typography color="text.secondary">Total a pagar</Typography>
                     <Typography variant="h6" fontWeight={900}>{formatCurrency(cartTotal)}</Typography>
                   </Stack>
-                  <Alert severity="info" sx={{ mb: 2 }}>
-                    Puedes pagar con Mercado Pago o elegir pago al momento de recoger.
-                  </Alert>
                   <Divider sx={{ my: 2 }} />
                   <Typography fontWeight={900} mb={1}>Entrega</Typography>
                   <Chip label="Recojo en tienda" color="success" sx={{ mb: 2 }} />
-                  <Alert severity="info" sx={{ mb: 2 }}>
-                    Recojo en tienda: no se cobra delivery.
-                  </Alert>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Retira tu compra en tienda. No se cobra delivery.
+                  </Typography>
                   <TextField
                     select
                     label="Metodo de pago"
@@ -1333,9 +1366,9 @@ const ClienteTiendaPage: React.FC = () => {
                     {paying ? 'Preparando pago...' : metodoPago === 'MERCADO_PAGO' ? 'Pagar con Mercado Pago' : 'Registrar pedido'}
                   </Button>
                   {metodoPago === 'MERCADO_PAGO' && (
-                    <Alert severity="warning" sx={{ mt: 2 }}>
-                      Mercado Pago redirige a su checkout externo. Al volver se mantiene tu historial en la tienda.
-                    </Alert>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                      Seras dirigido al checkout seguro de Mercado Pago. El pedido se registra cuando el pago sea aprobado.
+                    </Typography>
                   )}
                 </Paper>
               </Grid>

@@ -61,6 +61,7 @@ const getMetodoCobroLabel = (metodo?: string) => {
   if (metodo === 'yape') return 'Yape';
   if (metodo === 'mercadopago_link') return 'Mercado Pago link';
   if (metodo === 'tarjeta') return 'Tarjeta';
+  if (metodo === 'mixto_efectivo_yape') return 'Mixto: efectivo + Yape';
   return metodo || 'Al recoger';
 };
 
@@ -96,6 +97,8 @@ const PedidosOnlinePage: React.FC = () => {
   const [pedidoCobro, setPedidoCobro] = useState<PedidoOnline | null>(null);
   const [cobroMetodo, setCobroMetodo] = useState('efectivo');
   const [cobroRecibido, setCobroRecibido] = useState('');
+  const [cobroMixtoEfectivo, setCobroMixtoEfectivo] = useState('');
+  const [cobroMixtoYape, setCobroMixtoYape] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -154,7 +157,7 @@ const PedidosOnlinePage: React.FC = () => {
   const cambiarEstado = async (
     pedido: PedidoOnline,
     estado: PedidoOnline['estado'],
-    pagoRecogida?: { metodo: string; recibido?: number | null }
+    pagoRecogida?: { metodo: string; recibido?: number | null; efectivo?: number | null; yape?: number | null }
   ) => {
     try {
       const actualizado = await updatePedidoOnlineEstado(pedido.id, estado, undefined, pagoRecogida);
@@ -172,6 +175,8 @@ const PedidosOnlinePage: React.FC = () => {
       setPedidoCobro(pedido);
       setCobroMetodo('efectivo');
       setCobroRecibido(String(pedido.total));
+      setCobroMixtoEfectivo('');
+      setCobroMixtoYape(String(pedido.total));
       return;
     }
     void cambiarEstado(pedido, 'RECOGIDO');
@@ -181,7 +186,9 @@ const PedidosOnlinePage: React.FC = () => {
     if (!pedidoCobro) return;
     void cambiarEstado(pedidoCobro, 'RECOGIDO', {
       metodo: cobroMetodo,
-      recibido: cobroMetodo === 'efectivo' ? Number(cobroRecibido) : pedidoCobro.total
+      recibido: cobroMetodo === 'efectivo' ? Number(cobroRecibido) : pedidoCobro.total,
+      efectivo: cobroMetodo === 'mixto_efectivo_yape' ? Number(cobroMixtoEfectivo || 0) : null,
+      yape: cobroMetodo === 'mixto_efectivo_yape' ? Number(cobroMixtoYape || 0) : null
     });
   };
 
@@ -358,6 +365,7 @@ const PedidosOnlinePage: React.FC = () => {
                         Cobrado al recoger: {getMetodoCobroLabel(selectedPedido.pagoRecogidaMetodo)}
                         {selectedPedido.pagoRecogidaRecibido != null ? ` - Recibido: ${formatCurrency(selectedPedido.pagoRecogidaRecibido)}` : ''}
                         {selectedPedido.pagoRecogidaVuelto ? ` - Vuelto: ${formatCurrency(selectedPedido.pagoRecogidaVuelto)}` : ''}
+                        {selectedPedido.pagoRecogidaDetalle ? ` - Efectivo: ${formatCurrency(selectedPedido.pagoRecogidaDetalle.efectivo)} / Yape: ${formatCurrency(selectedPedido.pagoRecogidaDetalle.yape)}` : ''}
                       </>
                     )}
                   </Alert>
@@ -428,6 +436,7 @@ const PedidosOnlinePage: React.FC = () => {
                 <MenuItem value="yape">Yape</MenuItem>
                 <MenuItem value="mercadopago_link">Mercado Pago link</MenuItem>
                 <MenuItem value="tarjeta">Tarjeta</MenuItem>
+                <MenuItem value="mixto_efectivo_yape">Mixto: efectivo + Yape</MenuItem>
               </TextField>
               {cobroMetodo === 'efectivo' && (
                 <TextField
@@ -437,6 +446,24 @@ const PedidosOnlinePage: React.FC = () => {
                   onChange={(event) => setCobroRecibido(event.target.value)}
                   fullWidth
                 />
+              )}
+              {cobroMetodo === 'mixto_efectivo_yape' && (
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                  <TextField
+                    label="Efectivo"
+                    type="number"
+                    value={cobroMixtoEfectivo}
+                    onChange={(event) => setCobroMixtoEfectivo(event.target.value)}
+                    fullWidth
+                  />
+                  <TextField
+                    label="Yape"
+                    type="number"
+                    value={cobroMixtoYape}
+                    onChange={(event) => setCobroMixtoYape(event.target.value)}
+                    fullWidth
+                  />
+                </Stack>
               )}
             </Stack>
           )}

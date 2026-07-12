@@ -13,7 +13,7 @@ const { registrarMovimientoInventario } = require('../features/inventario/servic
 
 const ESTADOS_VALIDOS = new Set(['PENDIENTE_RECOJO', 'PENDIENTE_PAGO', 'PAGADO', 'RECOGIDO', 'ANULADO']);
 const METODOS_VALIDOS = new Set(['RECOJO', 'MERCADO_PAGO']);
-const METODOS_RECOJO_VALIDOS = new Set(['efectivo', 'yape', 'mercadopago_link', 'tarjeta']);
+const METODOS_RECOJO_VALIDOS = new Set(['efectivo', 'yape', 'mercadopago_link', 'tarjeta', 'mixto_efectivo_yape']);
 
 const cleanText = (value, maxLength = 255) => String(value ?? '').trim().slice(0, maxLength);
 
@@ -23,6 +23,7 @@ const metodoPagoLabel = (metodo) => {
   if (key === 'yape') return 'Yape';
   if (key === 'mercadopago_link') return 'Mercado Pago link';
   if (key === 'tarjeta') return 'Tarjeta';
+  if (key === 'mixto_efectivo_yape') return 'Mixto: efectivo + Yape';
   if (key === 'MERCADO_PAGO'.toLowerCase()) return 'Mercado Pago';
   return metodo || 'Al recoger';
 };
@@ -41,7 +42,7 @@ const fetchPedidoById = async (pedidoId, runner = pool) => {
   const [pedidos] = await runner.query(
     `SELECT id, codigo, fecha, estado, metodo_pago, entrega, cliente_nombre, cliente_dni, cliente_email,
             cliente_telefono, cliente_direccion, total, boleta_html, pago_referencia,
-            pago_recogida_metodo, pago_recogida_recibido, pago_recogida_vuelto, pago_recogida_at,
+            pago_recogida_metodo, pago_recogida_recibido, pago_recogida_vuelto, pago_recogida_detalle, pago_recogida_at,
             cancelado_por, cancelado_at, cancelacion_motivo, reembolso_estado
        FROM pedidos_online
       WHERE id = ?`,
@@ -66,7 +67,7 @@ const fetchPedidoByCodigo = async (codigo) => {
   const [pedidos] = await pool.query(
     `SELECT id, codigo, fecha, estado, metodo_pago, entrega, cliente_nombre, cliente_dni, cliente_email,
             cliente_telefono, cliente_direccion, total, boleta_html, pago_referencia,
-            pago_recogida_metodo, pago_recogida_recibido, pago_recogida_vuelto, pago_recogida_at,
+            pago_recogida_metodo, pago_recogida_recibido, pago_recogida_vuelto, pago_recogida_detalle, pago_recogida_at,
             cancelado_por, cancelado_at, cancelacion_motivo, reembolso_estado
        FROM pedidos_online
       WHERE codigo = ?
@@ -100,7 +101,7 @@ const listPedidosOnline = async (req, res) => {
   const [pedidos] = await pool.query(
     `SELECT id, codigo, fecha, estado, metodo_pago, entrega, cliente_nombre, cliente_dni, cliente_email,
             cliente_telefono, cliente_direccion, total, boleta_html, pago_referencia,
-            pago_recogida_metodo, pago_recogida_recibido, pago_recogida_vuelto, pago_recogida_at,
+            pago_recogida_metodo, pago_recogida_recibido, pago_recogida_vuelto, pago_recogida_detalle, pago_recogida_at,
             cancelado_por, cancelado_at, cancelacion_motivo, reembolso_estado
        FROM pedidos_online
        ${where}
@@ -143,7 +144,7 @@ const listPedidosOnlinePublic = async (req, res) => {
   const [pedidos] = await pool.query(
     `SELECT id, codigo, fecha, estado, metodo_pago, entrega, cliente_nombre, cliente_dni, cliente_email,
             cliente_telefono, cliente_direccion, total, boleta_html, pago_referencia,
-            pago_recogida_metodo, pago_recogida_recibido, pago_recogida_vuelto, pago_recogida_at,
+            pago_recogida_metodo, pago_recogida_recibido, pago_recogida_vuelto, pago_recogida_detalle, pago_recogida_at,
             cancelado_por, cancelado_at, cancelacion_motivo, reembolso_estado
        FROM pedidos_online
       WHERE cliente_email = ?
@@ -443,6 +444,12 @@ const updatePedidoOnlineEstado = async (req, res) => {
   const pagoRecogidaRecibido = req.body.pagoRecogidaRecibido === undefined || req.body.pagoRecogidaRecibido === null || req.body.pagoRecogidaRecibido === ''
     ? null
     : Number(req.body.pagoRecogidaRecibido);
+  const pagoMixtoEfectivo = req.body.pagoMixtoEfectivo === undefined || req.body.pagoMixtoEfectivo === null || req.body.pagoMixtoEfectivo === ''
+    ? 0
+    : Number(req.body.pagoMixtoEfectivo);
+  const pagoMixtoYape = req.body.pagoMixtoYape === undefined || req.body.pagoMixtoYape === null || req.body.pagoMixtoYape === ''
+    ? 0
+    : Number(req.body.pagoMixtoYape);
 
   if (!Number.isInteger(pedidoId) || pedidoId <= 0) {
     return res.status(400).json({ message: 'Pedido inválido.' });
@@ -481,20 +488,27 @@ const updatePedidoOnlineEstado = async (req, res) => {
           return res.status(400).json({ message: 'Indica como pago el cliente al recoger.' });
         }
         const totalPedido = Number(pedido.total || 0);
-        const recibido = pagoRecogidaMetodo === 'efectivo'
-          ? pagoRecogidaRecibido
-          : totalPedido;
+        const esMixto = pagoRecogidaMetodo === 'mixto_efectivo_yape';
+        const recibido = esMixto
+          ? Number((pagoMixtoEfectivo + pagoMixtoYape).toFixed(2))
+          : pagoRecogidaMetodo === 'efectivo'
+            ? pagoRecogidaRecibido
+            : totalPedido;
         if (!Number.isFinite(recibido) || recibido < totalPedido) {
           await connection.rollback();
           return res.status(400).json({ message: 'El monto recibido no cubre el total del pedido.' });
         }
-        const vuelto = pagoRecogidaMetodo === 'efectivo' ? Number((recibido - totalPedido).toFixed(2)) : 0;
+        const vuelto = ['efectivo', 'mixto_efectivo_yape'].includes(pagoRecogidaMetodo) ? Number((recibido - totalPedido).toFixed(2)) : 0;
+        const detallePago = esMixto
+          ? { efectivo: pagoMixtoEfectivo, yape: pagoMixtoYape }
+          : null;
         await connection.execute(
           `UPDATE pedidos_online
               SET estado = ?,
                   pago_recogida_metodo = ?,
                   pago_recogida_recibido = ?,
                   pago_recogida_vuelto = ?,
+                  pago_recogida_detalle = ?,
                   pago_recogida_at = CURRENT_TIMESTAMP,
                   boleta_html = ?
             WHERE id = ?`,
@@ -503,6 +517,7 @@ const updatePedidoOnlineEstado = async (req, res) => {
             pagoRecogidaMetodo,
             recibido,
             vuelto,
+            detallePago ? JSON.stringify(detallePago) : null,
             actualizarBoletaPago(pedido.boleta_html, pagoRecogidaMetodo),
             pedidoId
           ]

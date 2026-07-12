@@ -27,6 +27,9 @@ const mapPedidoOnline = (pedidoRow, detalleRows = []) => ({
   pagoRecogidaMetodo: pedidoRow.pago_recogida_metodo || '',
   pagoRecogidaRecibido: pedidoRow.pago_recogida_recibido === null || pedidoRow.pago_recogida_recibido === undefined ? null : Number(pedidoRow.pago_recogida_recibido),
   pagoRecogidaVuelto: pedidoRow.pago_recogida_vuelto === null || pedidoRow.pago_recogida_vuelto === undefined ? null : Number(pedidoRow.pago_recogida_vuelto),
+  pagoRecogidaDetalle: typeof pedidoRow.pago_recogida_detalle === 'string'
+    ? JSON.parse(pedidoRow.pago_recogida_detalle || 'null')
+    : (pedidoRow.pago_recogida_detalle || null),
   pagoRecogidaAt: pedidoRow.pago_recogida_at instanceof Date ? pedidoRow.pago_recogida_at.toISOString() : (pedidoRow.pago_recogida_at || ''),
   canceladoPor: pedidoRow.cancelado_por || '',
   canceladoAt: pedidoRow.cancelado_at instanceof Date ? pedidoRow.cancelado_at.toISOString() : (pedidoRow.cancelado_at || ''),

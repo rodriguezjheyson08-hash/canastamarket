@@ -349,7 +349,7 @@ export const updatePedidoOnlineEstado = async (
   id: number,
   estado: PedidoOnline['estado'],
   motivo?: string,
-  pagoRecogida?: { metodo: string; recibido?: number | null },
+  pagoRecogida?: { metodo: string; recibido?: number | null; efectivo?: number | null; yape?: number | null },
   token?: string | null
 ): Promise<PedidoOnline> => {
   const authToken = token ?? getToken();
@@ -357,7 +357,9 @@ export const updatePedidoOnlineEstado = async (
     estado,
     motivo,
     pagoRecogidaMetodo: pagoRecogida?.metodo,
-    pagoRecogidaRecibido: pagoRecogida?.recibido
+    pagoRecogidaRecibido: pagoRecogida?.recibido,
+    pagoMixtoEfectivo: pagoRecogida?.efectivo,
+    pagoMixtoYape: pagoRecogida?.yape
   }, {
     headers: buildAuthHeaders(authToken)
   });

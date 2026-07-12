@@ -89,6 +89,7 @@ const getMetodoPagoOnline = (pedido: PedidoOnline) => {
   if (pedido.pagoRecogidaMetodo === 'yape') return 'Yape al recoger';
   if (pedido.pagoRecogidaMetodo === 'mercadopago_link') return 'Mercado Pago link al recoger';
   if (pedido.pagoRecogidaMetodo === 'tarjeta') return 'Tarjeta al recoger';
+  if (pedido.pagoRecogidaMetodo === 'mixto_efectivo_yape') return 'Mixto: efectivo + Yape al recoger';
   return 'Pago al recoger';
 };
 

@@ -74,6 +74,7 @@ const pedidoRow = {
   pago_recogida_metodo: null,
   pago_recogida_recibido: null,
   pago_recogida_vuelto: null,
+  pago_recogida_detalle: null,
   pago_recogida_at: null
 };
 
@@ -217,6 +218,7 @@ describe('pedidosOnlineController: generar pedido online', () => {
       pagoRecogidaMetodo: '',
       pagoRecogidaRecibido: null,
       pagoRecogidaVuelto: null,
+      pagoRecogidaDetalle: null,
       pagoRecogidaAt: '',
       canceladoPor: '',
       canceladoAt: '',
@@ -355,6 +357,7 @@ describe('pedidosOnlineController: generar pedido online', () => {
       'efectivo',
       20,
       4.5,
+      null,
       '<p><strong>Pago:</strong> Efectivo</p>',
       77
     ]);

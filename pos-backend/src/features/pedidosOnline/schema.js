@@ -41,7 +41,7 @@ const ensurePedidosOnlineSchema = async (runner = pool) => {
         AND TABLE_NAME = 'pedidos_online'
         AND COLUMN_NAME IN (
           'cliente_dni', 'cancelado_por', 'cancelado_at', 'cancelacion_motivo', 'reembolso_estado',
-          'pago_recogida_metodo', 'pago_recogida_recibido', 'pago_recogida_vuelto', 'pago_recogida_at'
+          'pago_recogida_metodo', 'pago_recogida_recibido', 'pago_recogida_vuelto', 'pago_recogida_detalle', 'pago_recogida_at'
         )`
   );
   const columnSet = new Set(columns.map((column) => column.COLUMN_NAME));
@@ -69,8 +69,11 @@ const ensurePedidosOnlineSchema = async (runner = pool) => {
   if (!columnSet.has('pago_recogida_vuelto')) {
     await runner.query("ALTER TABLE pedidos_online ADD COLUMN pago_recogida_vuelto DECIMAL(10,2) NULL AFTER pago_recogida_recibido");
   }
+  if (!columnSet.has('pago_recogida_detalle')) {
+    await runner.query("ALTER TABLE pedidos_online ADD COLUMN pago_recogida_detalle JSON NULL AFTER pago_recogida_vuelto");
+  }
   if (!columnSet.has('pago_recogida_at')) {
-    await runner.query("ALTER TABLE pedidos_online ADD COLUMN pago_recogida_at TIMESTAMP NULL AFTER pago_recogida_vuelto");
+    await runner.query("ALTER TABLE pedidos_online ADD COLUMN pago_recogida_at TIMESTAMP NULL AFTER pago_recogida_detalle");
   }
 
   // BASE DE DATOS - DETALLE DEL PEDIDO:
