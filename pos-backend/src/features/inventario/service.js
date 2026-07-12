@@ -5,6 +5,61 @@ const TIPOS_PERDIDA = new Set(['VENCIMIENTO', 'ROBO', 'ROTURA', 'MERMA', 'AJUSTE
 
 const cleanText = (value, maxLength = 255) => String(value ?? '').trim().slice(0, maxLength);
 
+const normalizeDate = (value) => {
+  const text = cleanText(value, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null;
+};
+
+const consumirLotesInventario = async (runner, productoId, cantidad) => {
+  const [lotes] = await runner.execute(
+    `SELECT id, cantidad_actual
+       FROM inventario_lotes
+      WHERE producto_id = ? AND cantidad_actual > 0
+      ORDER BY fecha_vencimiento IS NULL ASC, fecha_vencimiento ASC, id ASC
+      FOR UPDATE`,
+    [productoId]
+  );
+
+  let restante = cantidad;
+  for (const lote of lotes) {
+    if (restante <= 0) break;
+    const disponible = Number(lote.cantidad_actual);
+    const usado = Math.min(disponible, restante);
+    await runner.execute(
+      'UPDATE inventario_lotes SET cantidad_actual = cantidad_actual - ? WHERE id = ?',
+      [usado, lote.id]
+    );
+    restante -= usado;
+  }
+};
+
+const registrarLoteEntrada = async (runner, {
+  productoId,
+  cantidad,
+  fechaVencimiento,
+  costoUnitario,
+  proveedorId,
+  pedidoCompraId,
+  codigoLote
+}) => {
+  await runner.execute(
+    `INSERT INTO inventario_lotes
+      (producto_id, codigo_lote, fecha_vencimiento, cantidad_inicial, cantidad_actual,
+       costo_unitario, proveedor_id, pedido_compra_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      productoId,
+      cleanText(codigoLote, 80) || null,
+      normalizeDate(fechaVencimiento),
+      cantidad,
+      cantidad,
+      costoUnitario === undefined || costoUnitario === null || costoUnitario === '' ? null : Number(costoUnitario),
+      proveedorId === undefined || proveedorId === null ? null : Number(proveedorId),
+      pedidoCompraId === undefined || pedidoCompraId === null ? null : Number(pedidoCompraId)
+    ]
+  );
+};
+
 const registrarMovimientoInventario = async (runner, {
   req,
   productoId,
@@ -13,7 +68,12 @@ const registrarMovimientoInventario = async (runner, {
   direccion,
   referenciaTipo = null,
   referenciaId = null,
-  motivo = null
+  motivo = null,
+  fechaVencimiento = null,
+  costoUnitario = null,
+  proveedorId = null,
+  pedidoCompraId = null,
+  codigoLote = null
 }) => {
   await ensureInventarioSchema(runner);
 
@@ -50,6 +110,20 @@ const registrarMovimientoInventario = async (runner, {
     'UPDATE productos SET stock_actual = ? WHERE id = ?',
     [stockNuevo, parsedProductoId]
   );
+
+  if (direccion === 'SALIDA') {
+    await consumirLotesInventario(runner, parsedProductoId, parsedCantidad);
+  } else if (direccion === 'ENTRADA') {
+    await registrarLoteEntrada(runner, {
+      productoId: parsedProductoId,
+      cantidad: parsedCantidad,
+      fechaVencimiento,
+      costoUnitario,
+      proveedorId,
+      pedidoCompraId,
+      codigoLote
+    });
+  }
 
   const actor = getActor(req);
   await runner.execute(
@@ -113,5 +187,6 @@ const registrarPerdidaInventario = async (runner, { req, productoId, cantidad, t
 module.exports = {
   TIPOS_PERDIDA,
   registrarMovimientoInventario,
+  registrarLoteEntrada,
   registrarPerdidaInventario
 };

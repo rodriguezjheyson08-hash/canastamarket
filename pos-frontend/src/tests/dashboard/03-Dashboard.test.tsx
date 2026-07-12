@@ -235,9 +235,9 @@ describe('Dashboard negocio', () => {
   // ============================================================
   // Objetivo:
   // - Renderiza el Dashboard como cajero.
-  // - Verifica que no se carguen las estadisticas administrativas.
+  // - Verifica que tambien se carguen las estadisticas superiores.
   // - Mantiene visible la seccion de funciones principales.
-  it('muestra dashboard basico para cajero sin cargar estadisticas administrativas', () => {
+  it('muestra dashboard para cajero con estadisticas superiores', async () => {
     mockedUseAuth.mockReturnValue({
       isAuthenticated: true,
       loading: false,
@@ -250,7 +250,7 @@ describe('Dashboard negocio', () => {
 
     expect(screen.getByText('Bienvenido, Caja Uno')).toBeInTheDocument();
     expect(screen.getByText('Funciones Principales')).toBeInTheDocument();
-    expect(screen.queryByText('Productos Activos')).not.toBeInTheDocument();
-    expect(mockedGetDashboardStats).not.toHaveBeenCalled();
+    expect(screen.getByText('Productos Activos')).toBeInTheDocument();
+    await waitFor(() => expect(mockedGetDashboardStats).toHaveBeenCalledTimes(1));
   });
 });

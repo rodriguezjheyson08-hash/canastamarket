@@ -24,6 +24,10 @@ const mapPedidoOnline = (pedidoRow, detalleRows = []) => ({
   total: Number(pedidoRow.total || 0),
   boletaHtml: pedidoRow.boleta_html || '',
   pagoReferencia: pedidoRow.pago_referencia || '',
+  canceladoPor: pedidoRow.cancelado_por || '',
+  canceladoAt: pedidoRow.cancelado_at instanceof Date ? pedidoRow.cancelado_at.toISOString() : (pedidoRow.cancelado_at || ''),
+  cancelacionMotivo: pedidoRow.cancelacion_motivo || '',
+  reembolsoEstado: pedidoRow.reembolso_estado || '',
   productos: detalleRows.map((detalle) => ({
     id: Number(detalle.producto_id),
     nombre: detalle.producto_nombre,

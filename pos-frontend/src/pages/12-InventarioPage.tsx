@@ -23,11 +23,12 @@ import {
 import { Refresh, Save } from '@mui/icons-material';
 import {
   getAuditoriaLogs,
+  getInventarioLotes,
   getInventarioMovimientos,
   getProductos,
   registrarPerdidaInventario
 } from '../services/api';
-import { AuditoriaLog, InventarioMovimiento, Producto } from '../types';
+import { AuditoriaLog, InventarioLote, InventarioMovimiento, Producto } from '../types';
 
 const tiposPerdida = ['VENCIMIENTO', 'ROBO', 'ROTURA', 'MERMA', 'AJUSTE'];
 
@@ -38,6 +39,7 @@ const InventarioPage: React.FC = () => {
   const [tab, setTab] = useState(0);
   const [productos, setProductos] = useState<Producto[]>([]);
   const [movimientos, setMovimientos] = useState<InventarioMovimiento[]>([]);
+  const [lotes, setLotes] = useState<InventarioLote[]>([]);
   const [auditoria, setAuditoria] = useState<AuditoriaLog[]>([]);
   const [productoId, setProductoId] = useState('');
   const [tipo, setTipo] = useState('VENCIMIENTO');
@@ -52,13 +54,15 @@ const InventarioPage: React.FC = () => {
   );
 
   const fetchData = async () => {
-    const [productosData, movimientosData, auditoriaData] = await Promise.all([
+    const [productosData, movimientosData, lotesData, auditoriaData] = await Promise.all([
       getProductos(),
       getInventarioMovimientos(),
+      getInventarioLotes(),
       getAuditoriaLogs()
     ]);
     setProductos(productosData);
     setMovimientos(movimientosData);
+    setLotes(lotesData);
     setAuditoria(auditoriaData);
   };
 
@@ -99,6 +103,7 @@ const InventarioPage: React.FC = () => {
       <Tabs value={tab} onChange={(_, value) => setTab(value)} sx={{ mb: 2 }}>
         <Tab label="Registrar perdida" />
         <Tab label="Movimientos" />
+        <Tab label="Lotes" />
         <Tab label="Auditoria" />
       </Tabs>
 
@@ -166,6 +171,37 @@ const InventarioPage: React.FC = () => {
       )}
 
       {tab === 2 && (
+        <TableContainer component={Paper}>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Producto</TableCell>
+                <TableCell>Lote</TableCell>
+                <TableCell>Vencimiento</TableCell>
+                <TableCell align="right">Inicial</TableCell>
+                <TableCell align="right">Actual</TableCell>
+                <TableCell align="right">Costo</TableCell>
+                <TableCell>Referencia</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {lotes.map((lote) => (
+                <TableRow key={lote.id}>
+                  <TableCell>{lote.productoNombre}</TableCell>
+                  <TableCell>{lote.codigoLote || '-'}</TableCell>
+                  <TableCell>{lote.fechaVencimiento || 'Sin fecha'}</TableCell>
+                  <TableCell align="right">{lote.cantidadInicial}</TableCell>
+                  <TableCell align="right">{lote.cantidadActual}</TableCell>
+                  <TableCell align="right">{lote.costoUnitario !== null && lote.costoUnitario !== undefined ? `S/ ${lote.costoUnitario.toFixed(2)}` : '-'}</TableCell>
+                  <TableCell>{lote.pedidoCompraId ? `PEDIDO_COMPRA ${lote.pedidoCompraId}` : '-'}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
+
+      {tab === 3 && (
         <Stack spacing={1}>
           {auditoria.map((log) => (
             <Paper key={log.id} sx={{ p: 1.5 }}>

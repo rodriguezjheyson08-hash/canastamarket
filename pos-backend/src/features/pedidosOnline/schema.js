@@ -39,11 +39,23 @@ const ensurePedidosOnlineSchema = async (runner = pool) => {
        FROM INFORMATION_SCHEMA.COLUMNS
       WHERE TABLE_SCHEMA = DATABASE()
         AND TABLE_NAME = 'pedidos_online'
-        AND COLUMN_NAME IN ('cliente_dni')`
+        AND COLUMN_NAME IN ('cliente_dni', 'cancelado_por', 'cancelado_at', 'cancelacion_motivo', 'reembolso_estado')`
   );
   const columnSet = new Set(columns.map((column) => column.COLUMN_NAME));
   if (!columnSet.has('cliente_dni')) {
     await runner.query('ALTER TABLE pedidos_online ADD COLUMN cliente_dni VARCHAR(8) NULL AFTER cliente_nombre');
+  }
+  if (!columnSet.has('cancelado_por')) {
+    await runner.query("ALTER TABLE pedidos_online ADD COLUMN cancelado_por VARCHAR(30) NULL AFTER pago_referencia");
+  }
+  if (!columnSet.has('cancelado_at')) {
+    await runner.query('ALTER TABLE pedidos_online ADD COLUMN cancelado_at TIMESTAMP NULL AFTER cancelado_por');
+  }
+  if (!columnSet.has('cancelacion_motivo')) {
+    await runner.query('ALTER TABLE pedidos_online ADD COLUMN cancelacion_motivo VARCHAR(255) NULL AFTER cancelado_at');
+  }
+  if (!columnSet.has('reembolso_estado')) {
+    await runner.query("ALTER TABLE pedidos_online ADD COLUMN reembolso_estado VARCHAR(40) NULL AFTER cancelacion_motivo");
   }
 
   // BASE DE DATOS - DETALLE DEL PEDIDO:

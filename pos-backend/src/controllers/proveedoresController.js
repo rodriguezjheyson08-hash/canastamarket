@@ -275,7 +275,8 @@ const getPedidoCompra = async (req, res) => {
 
   const pedido = mapPedidoCompraRow(rows[0]);
   const [items] = await pool.query(
-    `SELECT d.id, d.producto_id, d.cantidad, pr.nombre, pr.stock_actual, pr.stock_minimo
+    `SELECT d.id, d.producto_id, d.cantidad, pr.nombre, pr.stock_actual, pr.stock_minimo,
+            pr.fecha_vencimiento, pr.precio_compra
        FROM pedidos_compra_detalles d
        JOIN productos pr ON pr.id = d.producto_id
       WHERE d.pedido_compra_id = ?
@@ -288,7 +289,9 @@ const getPedidoCompra = async (req, res) => {
     productoNombre: row.nombre,
     cantidad: Number(row.cantidad),
     stockActual: Number(row.stock_actual),
-    stockMinimo: Number(row.stock_minimo)
+    stockMinimo: Number(row.stock_minimo),
+    fechaVencimiento: row.fecha_vencimiento instanceof Date ? row.fecha_vencimiento.toISOString().slice(0, 10) : row.fecha_vencimiento,
+    precioCompra: row.precio_compra === null ? null : Number(row.precio_compra)
   }));
   res.json(pedido);
 };
@@ -373,6 +376,12 @@ const recibirPedidoCompra = async (req, res) => {
   await ensureProveedoresSchema();
   const pedidoId = Number(req.params.id);
   const motivo = cleanText(req.body?.motivo, 255) || `Recepcion de orden de compra #${pedidoId}`;
+  const lotesInput = Array.isArray(req.body?.items) ? req.body.items : [];
+  const lotesPorProducto = new Map(
+    lotesInput
+      .map((item) => [Number(item.productoId), item])
+      .filter(([productoId]) => Number.isInteger(productoId) && productoId > 0)
+  );
 
   if (!Number.isInteger(pedidoId) || pedidoId <= 0) {
     return res.status(400).json({ message: 'Pedido de compra invalido.' });
@@ -382,7 +391,7 @@ const recibirPedidoCompra = async (req, res) => {
   try {
     await conn.beginTransaction();
     const [pedidos] = await conn.query(
-      'SELECT id, estado FROM pedidos_compra WHERE id = ? FOR UPDATE',
+      'SELECT id, estado, proveedor_id FROM pedidos_compra WHERE id = ? FOR UPDATE',
       [pedidoId]
     );
     if (pedidos.length === 0) {
@@ -395,7 +404,10 @@ const recibirPedidoCompra = async (req, res) => {
     }
 
     const [items] = await conn.query(
-      'SELECT producto_id, cantidad FROM pedidos_compra_detalles WHERE pedido_compra_id = ?',
+      `SELECT d.producto_id, d.cantidad, p.fecha_vencimiento, p.precio_compra
+         FROM pedidos_compra_detalles d
+         JOIN productos p ON p.id = d.producto_id
+        WHERE d.pedido_compra_id = ?`,
       [pedidoId]
     );
     if (items.length === 0) {
@@ -404,15 +416,22 @@ const recibirPedidoCompra = async (req, res) => {
     }
 
     for (const item of items) {
+      const loteInput = lotesPorProducto.get(Number(item.producto_id)) || {};
+      const cantidadRecibida = Number(loteInput.cantidadRecibida || item.cantidad);
       await registrarMovimientoInventario(conn, {
         req,
         productoId: item.producto_id,
         tipo: 'COMPRA_RECIBIDA',
-        cantidad: Number(item.cantidad),
+        cantidad: cantidadRecibida,
         direccion: 'ENTRADA',
         referenciaTipo: 'PEDIDO_COMPRA',
         referenciaId: pedidoId,
-        motivo
+        motivo,
+        fechaVencimiento: loteInput.fechaVencimiento || item.fecha_vencimiento,
+        costoUnitario: loteInput.costoUnitario ?? item.precio_compra,
+        proveedorId: pedidos[0].proveedor_id,
+        pedidoCompraId: pedidoId,
+        codigoLote: loteInput.codigoLote || `OC-${pedidoId}-P${item.producto_id}`
       });
     }
 

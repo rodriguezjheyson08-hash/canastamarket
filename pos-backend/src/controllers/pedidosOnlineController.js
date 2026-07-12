@@ -21,7 +21,8 @@ const fetchPedidoById = async (pedidoId, runner = pool) => {
 
   const [pedidos] = await runner.query(
     `SELECT id, codigo, fecha, estado, metodo_pago, entrega, cliente_nombre, cliente_dni, cliente_email,
-            cliente_telefono, cliente_direccion, total, boleta_html, pago_referencia
+            cliente_telefono, cliente_direccion, total, boleta_html, pago_referencia,
+            cancelado_por, cancelado_at, cancelacion_motivo, reembolso_estado
        FROM pedidos_online
       WHERE id = ?`,
     [pedidoId]
@@ -44,7 +45,8 @@ const fetchPedidoByCodigo = async (codigo) => {
 
   const [pedidos] = await pool.query(
     `SELECT id, codigo, fecha, estado, metodo_pago, entrega, cliente_nombre, cliente_dni, cliente_email,
-            cliente_telefono, cliente_direccion, total, boleta_html, pago_referencia
+            cliente_telefono, cliente_direccion, total, boleta_html, pago_referencia,
+            cancelado_por, cancelado_at, cancelacion_motivo, reembolso_estado
        FROM pedidos_online
       WHERE codigo = ?
       LIMIT 1`,
@@ -76,7 +78,8 @@ const listPedidosOnline = async (req, res) => {
 
   const [pedidos] = await pool.query(
     `SELECT id, codigo, fecha, estado, metodo_pago, entrega, cliente_nombre, cliente_dni, cliente_email,
-            cliente_telefono, cliente_direccion, total, boleta_html, pago_referencia
+            cliente_telefono, cliente_direccion, total, boleta_html, pago_referencia,
+            cancelado_por, cancelado_at, cancelacion_motivo, reembolso_estado
        FROM pedidos_online
        ${where}
       ORDER BY fecha DESC
@@ -117,7 +120,8 @@ const listPedidosOnlinePublic = async (req, res) => {
 
   const [pedidos] = await pool.query(
     `SELECT id, codigo, fecha, estado, metodo_pago, entrega, cliente_nombre, cliente_dni, cliente_email,
-            cliente_telefono, cliente_direccion, total, boleta_html, pago_referencia
+            cliente_telefono, cliente_direccion, total, boleta_html, pago_referencia,
+            cancelado_por, cancelado_at, cancelacion_motivo, reembolso_estado
        FROM pedidos_online
       WHERE cliente_email = ?
       ORDER BY fecha DESC
@@ -340,6 +344,71 @@ const createPedidoOnlineCliente = async (req, res) => {
   return createPedidoOnlinePublic(req, res);
 };
 
+const calcularReembolsoEstado = (pedido) => {
+  if (pedido.metodo_pago !== 'MERCADO_PAGO') return null;
+  if (['PAGADO', 'RECOGIDO'].includes(pedido.estado)) return 'PENDIENTE_MANUAL';
+  return 'NO_CAPTURADO';
+};
+
+const anularPedidoOnlineTransaccion = async (connection, { req, pedidoId, actor, motivo }) => {
+  const [pedidos] = await connection.query(
+    'SELECT id, estado, metodo_pago, reembolso_estado FROM pedidos_online WHERE id = ? FOR UPDATE',
+    [pedidoId]
+  );
+  if (pedidos.length === 0) {
+    const error = new Error('Pedido online no encontrado.');
+    error.status = 404;
+    throw error;
+  }
+
+  const pedido = pedidos[0];
+  if (pedido.estado === 'ANULADO') {
+    return { estadoAnterior: pedido.estado, reembolsoEstado: pedido.reembolso_estado || null, yaAnulado: true };
+  }
+  if (pedido.estado === 'RECOGIDO') {
+    throw new Error('No se puede cancelar un pedido ya recogido.');
+  }
+
+  const [detalles] = await connection.query(
+    'SELECT producto_id, cantidad FROM pedidos_online_detalles WHERE pedido_id = ?',
+    [pedidoId]
+  );
+  for (const detalle of detalles) {
+    await registrarMovimientoInventario(connection, {
+      req,
+      productoId: detalle.producto_id,
+      tipo: 'ANULACION_PEDIDO_ONLINE',
+      cantidad: Number(detalle.cantidad),
+      direccion: 'ENTRADA',
+      referenciaTipo: 'PEDIDO_ONLINE',
+      referenciaId: pedidoId,
+      motivo
+    });
+  }
+
+  const reembolsoEstado = calcularReembolsoEstado(pedido);
+  await connection.execute(
+    `UPDATE pedidos_online
+        SET estado = 'ANULADO',
+            cancelado_por = ?,
+            cancelado_at = CURRENT_TIMESTAMP,
+            cancelacion_motivo = ?,
+            reembolso_estado = ?
+      WHERE id = ?`,
+    [actor, motivo, reembolsoEstado, pedidoId]
+  );
+
+  await registrarAuditoria(connection, {
+    req,
+    accion: 'PEDIDO_ONLINE_ANULADO',
+    entidad: 'pedido_online',
+    entidadId: pedidoId,
+    detalle: { estadoAnterior: pedido.estado, estadoNuevo: 'ANULADO', motivo, actor, reembolsoEstado }
+  });
+
+  return { estadoAnterior: pedido.estado, reembolsoEstado, yaAnulado: false };
+};
+
 // CONTROLADOR ADMIN - CAMBIAR ESTADO:
 // Permite marcar un pedido como recogido, pagado o anulado desde el modulo interno.
 const updatePedidoOnlineEstado = async (req, res) => {
@@ -360,53 +429,83 @@ const updatePedidoOnlineEstado = async (req, res) => {
     await connection.beginTransaction();
     await ensurePedidosOnlineSchema(connection);
 
-    const [pedidos] = await connection.query(
-      'SELECT id, estado FROM pedidos_online WHERE id = ? FOR UPDATE',
-      [pedidoId]
-    );
-    if (pedidos.length === 0) {
-      await connection.rollback();
-      return res.status(404).json({ message: 'Pedido online no encontrado.' });
-    }
-
-    const estadoAnterior = pedidos[0].estado;
-    if (estadoAnterior === 'ANULADO' && estado !== 'ANULADO') {
-      await connection.rollback();
-      return res.status(400).json({ message: 'No se puede reactivar un pedido anulado.' });
-    }
-
-    if (estado === 'ANULADO' && estadoAnterior !== 'ANULADO') {
-      const [detalles] = await connection.query(
-        'SELECT producto_id, cantidad FROM pedidos_online_detalles WHERE pedido_id = ?',
+    if (estado === 'ANULADO') {
+      await anularPedidoOnlineTransaccion(connection, { req, pedidoId, actor: 'ADMIN', motivo });
+    } else {
+      const [pedidos] = await connection.query(
+        'SELECT id, estado, metodo_pago FROM pedidos_online WHERE id = ? FOR UPDATE',
         [pedidoId]
       );
-      for (const detalle of detalles) {
-        await registrarMovimientoInventario(connection, {
-          req,
-          productoId: detalle.producto_id,
-          tipo: 'ANULACION_PEDIDO_ONLINE',
-          cantidad: Number(detalle.cantidad),
-          direccion: 'ENTRADA',
-          referenciaTipo: 'PEDIDO_ONLINE',
-          referenciaId: pedidoId,
-          motivo
-        });
+      if (pedidos.length === 0) {
+        await connection.rollback();
+        return res.status(404).json({ message: 'Pedido online no encontrado.' });
       }
-    }
 
-    await connection.execute('UPDATE pedidos_online SET estado = ? WHERE id = ?', [estado, pedidoId]);
-    await registrarAuditoria(connection, {
-      req,
-      accion: 'PEDIDO_ONLINE_CAMBIO_ESTADO',
-      entidad: 'pedido_online',
-      entidadId: pedidoId,
-      detalle: { estadoAnterior, estadoNuevo: estado, motivo }
-    });
+      const estadoAnterior = pedidos[0].estado;
+      if (estadoAnterior === 'ANULADO') {
+        await connection.rollback();
+        return res.status(400).json({ message: 'No se puede reactivar un pedido anulado.' });
+      }
+
+      await connection.execute('UPDATE pedidos_online SET estado = ? WHERE id = ?', [estado, pedidoId]);
+      await registrarAuditoria(connection, {
+        req,
+        accion: 'PEDIDO_ONLINE_CAMBIO_ESTADO',
+        entidad: 'pedido_online',
+        entidadId: pedidoId,
+        detalle: { estadoAnterior, estadoNuevo: estado, motivo }
+      });
+    }
 
     await connection.commit();
   } catch (error) {
     await connection.rollback();
     return res.status(400).json({ message: error.message || 'No se pudo actualizar el pedido online.' });
+  } finally {
+    connection.release();
+  }
+
+  const pedido = await fetchPedidoById(pedidoId);
+  res.json(pedido);
+};
+
+const cancelarPedidoOnlineCliente = async (req, res) => {
+  await ensurePedidosOnlineSchema();
+  const pedidoId = Number(req.params.id);
+  const motivo = cleanText(req.body?.motivo || 'Cancelado por el cliente', 255);
+
+  if (!Number.isInteger(pedidoId) || pedidoId <= 0) {
+    return res.status(400).json({ message: 'Pedido invalido.' });
+  }
+
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    await ensurePedidosOnlineSchema(connection);
+
+    const [clienteRows] = await connection.query(
+      'SELECT email FROM clientes WHERE id = ? AND is_active = 1 LIMIT 1',
+      [req.auth.sub]
+    );
+    if (!clienteRows[0]) {
+      await connection.rollback();
+      return res.status(404).json({ message: 'Cliente no encontrado.' });
+    }
+
+    const [ownerRows] = await connection.query(
+      'SELECT id FROM pedidos_online WHERE id = ? AND cliente_email = ? LIMIT 1',
+      [pedidoId, clienteRows[0].email]
+    );
+    if (!ownerRows[0]) {
+      await connection.rollback();
+      return res.status(404).json({ message: 'Pedido online no encontrado.' });
+    }
+
+    await anularPedidoOnlineTransaccion(connection, { req, pedidoId, actor: 'CLIENTE', motivo });
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    return res.status(error.status || 400).json({ message: error.message || 'No se pudo cancelar el pedido.' });
   } finally {
     connection.release();
   }
@@ -431,5 +530,6 @@ module.exports = {
   createPedidoOnlineCliente,
   listPedidosOnlineMine,
   updatePedidoOnlineEstado,
+  cancelarPedidoOnlineCliente,
   getPedidoOnlineByCodigo
 };

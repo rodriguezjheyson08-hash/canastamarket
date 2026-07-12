@@ -57,6 +57,7 @@ import {
 import {
   createPedidoOnlineCliente,
   createPublicMercadoPagoPreference,
+  cancelarPedidoOnlineCliente,
   getCategorias,
   getClienteActual,
   getMisPedidosCliente,
@@ -92,6 +93,7 @@ type ClientePerfil = {
 
 type ClientePedido = {
   id: string;
+  backendId?: number;
   fecha: string;
   estado: 'PENDIENTE_RECOJO' | 'PENDIENTE_PAGO' | 'PAGADO' | 'RECOGIDO' | 'ANULADO';
   metodoPago: 'RECOJO' | 'MERCADO_PAGO';
@@ -100,6 +102,8 @@ type ClientePedido = {
   total: number;
   boletaHtml?: string;
   boletaEnviada?: boolean;
+  cancelacionMotivo?: string;
+  reembolsoEstado?: string;
   productos: Array<{
     id: number;
     nombre: string;
@@ -651,6 +655,7 @@ const ClienteTiendaPage: React.FC = () => {
           pedidosBackend.forEach((pedidoBackend) => {
             byCodigo.set(pedidoBackend.codigo, {
               id: pedidoBackend.codigo,
+              backendId: pedidoBackend.id,
               fecha: pedidoBackend.fecha,
               estado: pedidoBackend.estado,
               metodoPago: pedidoBackend.metodoPago,
@@ -659,6 +664,8 @@ const ClienteTiendaPage: React.FC = () => {
               total: pedidoBackend.total,
               boletaHtml: pedidoBackend.boletaHtml,
               boletaEnviada: Boolean(pedidoBackend.cliente.email),
+              cancelacionMotivo: pedidoBackend.cancelacionMotivo,
+              reembolsoEstado: pedidoBackend.reembolsoEstado,
               productos: pedidoBackend.productos
             });
           });
@@ -925,7 +932,7 @@ const ClienteTiendaPage: React.FC = () => {
     };
 
     if (!clienteToken) throw new Error('Inicia sesión para registrar el pedido.');
-    await createPedidoOnlineCliente({
+    const pedidoBackend = await createPedidoOnlineCliente({
       codigo: pedidoConBoleta.id,
       estado: pedidoConBoleta.estado,
       metodoPago: pedidoConBoleta.metodoPago,
@@ -942,10 +949,43 @@ const ClienteTiendaPage: React.FC = () => {
       productos: pedidoConBoleta.productos
     }, clienteToken);
 
-    setPedidos((prev) => [pedidoConBoleta, ...prev]);
+    setPedidos((prev) => [{ ...pedidoConBoleta, backendId: pedidoBackend.id }, ...prev]);
     setCartItems({});
     setCheckoutOpen(false);
     showSnackbar(`Pedido registrado. Boleta generada y enviada a ${clienteActual.email}.`);
+  };
+
+  const canCancelPedido = (pedido: ClientePedido) => (
+    Boolean(pedido.backendId) && !['ANULADO', 'RECOGIDO'].includes(pedido.estado)
+  );
+
+  const handleCancelarPedido = async (pedido: ClientePedido) => {
+    if (!clienteToken || !pedido.backendId) {
+      showSnackbar('Actualiza tus pedidos antes de cancelar.', 'error');
+      return;
+    }
+    const ok = window.confirm(`Cancelar pedido ${pedido.id}? Se devolvera el stock al sistema.`);
+    if (!ok) return;
+
+    try {
+      const actualizado = await cancelarPedidoOnlineCliente(pedido.backendId, 'Cancelado por el cliente', clienteToken);
+      setPedidos((prev) => prev.map((item) => (
+        item.id === pedido.id
+          ? {
+              ...item,
+              estado: actualizado.estado,
+              cancelacionMotivo: actualizado.cancelacionMotivo,
+              reembolsoEstado: actualizado.reembolsoEstado
+            }
+          : item
+      )));
+      const reembolsoMsg = actualizado.reembolsoEstado === 'PENDIENTE_MANUAL'
+        ? ' Reembolso Mercado Pago pendiente de revision manual.'
+        : '';
+      showSnackbar(`Pedido cancelado.${reembolsoMsg}`);
+    } catch (error: any) {
+      showSnackbar(error?.response?.data?.message || 'No se pudo cancelar el pedido.', 'error');
+    }
   };
 
   const confirmOrder = async () => {
@@ -1182,6 +1222,11 @@ const ClienteTiendaPage: React.FC = () => {
                               <Button size="small" startIcon={<Download />} onClick={() => downloadBoleta(pedido)}>
                                 Descargar
                               </Button>
+                              {canCancelPedido(pedido) && (
+                                <Button size="small" color="error" onClick={() => handleCancelarPedido(pedido)}>
+                                  Cancelar
+                                </Button>
+                              )}
                             </Stack>
                           }>
                               <ListItemAvatar>
@@ -1585,6 +1630,11 @@ const ClienteTiendaPage: React.FC = () => {
 	                      <Button size="small" startIcon={<Download />} onClick={() => downloadBoleta(pedido)}>
 	                        Descargar
 	                      </Button>
+	                      {canCancelPedido(pedido) && (
+	                        <Button size="small" color="error" onClick={() => handleCancelarPedido(pedido)}>
+	                          Cancelar
+	                        </Button>
+	                      )}
 	                    </Stack>
 	                  }
 	                >
@@ -1601,6 +1651,18 @@ const ClienteTiendaPage: React.FC = () => {
                           {pedido.estado} · Recojo en tienda · {new Date(pedido.fecha).toLocaleString('es-PE')}
                         </Typography>
                         <br />
+                        {pedido.cancelacionMotivo && (
+                          <>
+                            Cancelacion: {pedido.cancelacionMotivo}
+                            <br />
+                          </>
+                        )}
+                        {pedido.reembolsoEstado && (
+                          <>
+                            Reembolso: {pedido.reembolsoEstado}
+                            <br />
+                          </>
+                        )}
                         {pedido.productos.map((item) => `${item.nombre} x${item.cantidad}`).join(', ')}
                       </>
                     }

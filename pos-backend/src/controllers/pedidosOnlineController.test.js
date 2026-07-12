@@ -26,7 +26,8 @@ const { registrarMovimientoInventario } = require('../features/inventario/servic
 const { registrarAuditoria } = require('../features/auditoria/service');
 const {
   createPedidoOnlineCliente,
-  createPedidoOnlinePublic
+  createPedidoOnlinePublic,
+  updatePedidoOnlineEstado
 } = require('./pedidosOnlineController');
 
 const createResponse = () => {
@@ -209,6 +210,10 @@ describe('pedidosOnlineController: generar pedido online', () => {
       total: 15.5,
       boletaHtml: '<p>boleta</p>',
       pagoReferencia: '',
+      canceladoPor: '',
+      canceladoAt: '',
+      cancelacionMotivo: '',
+      reembolsoEstado: '',
       productos: [
         { id: 10, nombre: 'Leche', cantidad: 2, precioVenta: 4.5, subtotal: 9 },
         { id: 12, nombre: 'Pan', cantidad: 1, precioVenta: 6.5, subtotal: 6.5 }
@@ -296,6 +301,151 @@ describe('pedidosOnlineController: generar pedido online', () => {
     expect(connection.execute).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ id: 77, codigo: 'WEB-001' }));
+    expect(connection.release).toHaveBeenCalledTimes(1);
+  });
+
+  test('prepara el pedido online marcandolo como recogido y devuelve el pedido actualizado', async () => {
+    const connection = createConnection();
+    pool.getConnection.mockResolvedValue(connection);
+    connection.query.mockResolvedValueOnce([[{ id: 77, estado: 'PENDIENTE_RECOJO' }]]);
+    connection.execute.mockResolvedValueOnce([{ affectedRows: 1 }]);
+    pool.query
+      .mockResolvedValueOnce([[{ ...pedidoRow, estado: 'RECOGIDO' }]])
+      .mockResolvedValueOnce([detalleRows]);
+    registrarAuditoria.mockResolvedValue(undefined);
+
+    const req = {
+      params: { id: '77' },
+      body: { estado: 'RECOGIDO', motivo: 'Pedido preparado y entregado' },
+      auth: { sub: 3, type: 'admin' }
+    };
+    const res = createResponse();
+
+    await updatePedidoOnlineEstado(req, res);
+
+    expect(ensurePedidosOnlineSchema).toHaveBeenCalledWith();
+    expect(ensurePedidosOnlineSchema).toHaveBeenCalledWith(connection);
+    expect(connection.beginTransaction).toHaveBeenCalledTimes(1);
+    expect(connection.query).toHaveBeenCalledWith(
+      'SELECT id, estado, metodo_pago FROM pedidos_online WHERE id = ? FOR UPDATE',
+      [77]
+    );
+    expect(connection.execute).toHaveBeenCalledWith(
+      'UPDATE pedidos_online SET estado = ? WHERE id = ?',
+      ['RECOGIDO', 77]
+    );
+    expect(registrarMovimientoInventario).not.toHaveBeenCalled();
+    expect(registrarAuditoria).toHaveBeenCalledWith(connection, expect.objectContaining({
+      accion: 'PEDIDO_ONLINE_CAMBIO_ESTADO',
+      entidad: 'pedido_online',
+      entidadId: 77,
+      detalle: {
+        estadoAnterior: 'PENDIENTE_RECOJO',
+        estadoNuevo: 'RECOGIDO',
+        motivo: 'Pedido preparado y entregado'
+      }
+    }));
+    expect(connection.commit).toHaveBeenCalledTimes(1);
+    expect(connection.rollback).not.toHaveBeenCalled();
+    expect(connection.release).toHaveBeenCalledTimes(1);
+    expect(pool.query).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining('FROM pedidos_online'),
+      [77]
+    );
+    expect(pool.query).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining('FROM pedidos_online_detalles'),
+      [77]
+    );
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      id: 77,
+      codigo: 'WEB-001',
+      estado: 'RECOGIDO'
+    }));
+  });
+
+  test('anula el pedido online y registra entrada de inventario por cada producto', async () => {
+    const connection = createConnection();
+    pool.getConnection.mockResolvedValue(connection);
+    connection.query
+      .mockResolvedValueOnce([[{ id: 77, estado: 'PENDIENTE_RECOJO' }]])
+      .mockResolvedValueOnce([[{ producto_id: 10, cantidad: 2 }, { producto_id: 12, cantidad: 1 }]]);
+    connection.execute.mockResolvedValueOnce([{ affectedRows: 1 }]);
+    pool.query
+      .mockResolvedValueOnce([[{ ...pedidoRow, estado: 'ANULADO' }]])
+      .mockResolvedValueOnce([detalleRows]);
+    registrarMovimientoInventario.mockResolvedValue(undefined);
+    registrarAuditoria.mockResolvedValue(undefined);
+
+    const req = {
+      params: { id: '77' },
+      body: { estado: 'ANULADO', motivo: 'Cliente cancelo el pedido' },
+      auth: { sub: 3, type: 'admin' }
+    };
+    const res = createResponse();
+
+    await updatePedidoOnlineEstado(req, res);
+
+    expect(connection.query).toHaveBeenNthCalledWith(
+      2,
+      'SELECT producto_id, cantidad FROM pedidos_online_detalles WHERE pedido_id = ?',
+      [77]
+    );
+    expect(registrarMovimientoInventario).toHaveBeenCalledTimes(2);
+    expect(registrarMovimientoInventario).toHaveBeenNthCalledWith(1, connection, expect.objectContaining({
+      productoId: 10,
+      tipo: 'ANULACION_PEDIDO_ONLINE',
+      cantidad: 2,
+      direccion: 'ENTRADA',
+      referenciaId: 77,
+      motivo: 'Cliente cancelo el pedido'
+    }));
+    expect(registrarMovimientoInventario).toHaveBeenNthCalledWith(2, connection, expect.objectContaining({
+      productoId: 12,
+      cantidad: 1,
+      direccion: 'ENTRADA'
+    }));
+    expect(connection.execute.mock.calls.some((call) => (
+      call[0].includes("SET estado = 'ANULADO'") &&
+      call[1][0] === 'ADMIN' &&
+      call[1][1] === 'Cliente cancelo el pedido' &&
+      call[1][3] === 77
+    ))).toBe(true);
+    expect(connection.commit).toHaveBeenCalledTimes(1);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      id: 77,
+      estado: 'ANULADO'
+    }));
+  });
+
+  test('rechaza preparar pedido con estado invalido sin abrir conexion', async () => {
+    const req = { params: { id: '77' }, body: { estado: 'PREPARANDO' } };
+    const res = createResponse();
+
+    await updatePedidoOnlineEstado(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ message: 'Estado inválido.' });
+    expect(pool.getConnection).not.toHaveBeenCalled();
+  });
+
+  test('no permite reactivar un pedido online anulado', async () => {
+    const connection = createConnection();
+    pool.getConnection.mockResolvedValue(connection);
+    connection.query.mockResolvedValueOnce([[{ id: 77, estado: 'ANULADO' }]]);
+    const req = { params: { id: '77' }, body: { estado: 'RECOGIDO' } };
+    const res = createResponse();
+
+    await updatePedidoOnlineEstado(req, res);
+
+    expect(connection.beginTransaction).toHaveBeenCalledTimes(1);
+    expect(connection.rollback).toHaveBeenCalledTimes(1);
+    expect(connection.commit).not.toHaveBeenCalled();
+    expect(connection.execute).not.toHaveBeenCalled();
+    expect(registrarMovimientoInventario).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ message: 'No se puede reactivar un pedido anulado.' });
     expect(connection.release).toHaveBeenCalledTimes(1);
   });
 });

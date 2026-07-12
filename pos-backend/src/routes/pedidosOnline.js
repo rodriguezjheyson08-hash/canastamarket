@@ -12,7 +12,8 @@ const {
   createPedidoOnlineCliente,
   listPedidosOnlineMine,
   listPedidosOnline,
-  updatePedidoOnlineEstado
+  updatePedidoOnlineEstado,
+  cancelarPedidoOnlineCliente
 } = require('../controllers/pedidosOnlineController');
 
 const router = express.Router();
@@ -20,6 +21,7 @@ const router = express.Router();
 // RUTAS DE CLIENTE AUTENTICADO:
 router.post('/cliente', requireAuth({ type: 'cliente' }), asyncHandler(createPedidoOnlineCliente));
 router.get('/mine', requireAuth({ type: 'cliente' }), asyncHandler(listPedidosOnlineMine));
+router.patch('/mine/:id/cancelar', requireAuth({ type: 'cliente' }), asyncHandler(cancelarPedidoOnlineCliente));
 
 // RUTAS INTERNAS - ADMIN/CAJERO:
 // Permiten ver pedidos recibidos y actualizar su estado desde el sistema POS.

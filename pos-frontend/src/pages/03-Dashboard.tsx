@@ -167,12 +167,12 @@ const Dashboard: React.FC = () => {
       }
     };
 
-    if (isDashboardRoot && user?.rol === 'ADMINISTRADOR') {
+    if (isDashboardRoot) {
       fetchStats();
     } else {
       setLoading(false);
     }
-  }, [isDashboardRoot, user?.rol]);
+  }, [isDashboardRoot]);
 
   useEffect(() => {
     if (!isDashboardRoot || !canAccess(user, 'pedidosOnline')) {
@@ -228,7 +228,7 @@ const Dashboard: React.FC = () => {
       </Box>
 
       {/* Estadísticas rápidas solo para administrador */}
-      {isDashboardRoot && user?.rol === 'ADMINISTRADOR' && (
+      {isDashboardRoot && (
         <>
           {/* DISEÑO - FILA DE CAJAS DE DATOS:
               Grid ordena las 4 tarjetas superiores de forma horizontal en desktop

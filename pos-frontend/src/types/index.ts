@@ -127,6 +127,8 @@ export interface PedidoCompraItem {
   cantidad: number;
   stockActual?: number;
   stockMinimo?: number;
+  fechaVencimiento?: string | null;
+  precioCompra?: number | null;
 }
 
 // TIPOS FRONTEND: estructura de datos PedidoCompra usada para tipar objetos del modulo.
@@ -254,6 +256,10 @@ export interface PedidoOnline {
   total: number;
   boletaHtml?: string;
   pagoReferencia?: string;
+  canceladoPor?: string;
+  canceladoAt?: string;
+  cancelacionMotivo?: string;
+  reembolsoEstado?: 'PENDIENTE_MANUAL' | 'NO_CAPTURADO' | string;
   productos: Array<{
     id: number;
     nombre: string;
@@ -298,6 +304,20 @@ export interface InventarioMovimiento {
   motivo?: string | null;
   usuarioId?: number | null;
   usuarioNombre?: string | null;
+  fecha: string;
+}
+
+export interface InventarioLote {
+  id: number;
+  productoId: number;
+  productoNombre?: string;
+  codigoLote?: string | null;
+  fechaVencimiento?: string | null;
+  cantidadInicial: number;
+  cantidadActual: number;
+  costoUnitario?: number | null;
+  proveedorId?: number | null;
+  pedidoCompraId?: number | null;
   fecha: string;
 }
 

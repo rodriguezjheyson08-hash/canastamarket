@@ -24,6 +24,7 @@ import {
   PedidoOnline,
   PedidoOnlineCreatePayload,
   InventarioMovimiento,
+  InventarioLote,
   AuditoriaLog
 } from '../types';
 
@@ -321,6 +322,17 @@ export const getMisPedidosCliente = async (token: string): Promise<PedidoOnline[
   return res.data;
 };
 
+export const cancelarPedidoOnlineCliente = async (
+  id: number,
+  motivo: string,
+  token: string
+): Promise<PedidoOnline> => {
+  const res = await axios.patch(`${API_URL}/pedidos-online/mine/${id}/cancelar`, { motivo }, {
+    headers: buildAuthHeaders(token)
+  });
+  return res.data;
+};
+
 // SERVICIO FRONTEND ADMIN: lista pedidos web para que admin/cajero los atienda desde el POS.
 export const getPedidosOnline = async (estado?: PedidoOnline['estado'], token?: string | null): Promise<PedidoOnline[]> => {
   const authToken = token ?? getToken();
@@ -351,6 +363,14 @@ export const getInventarioMovimientos = async (productoId?: number, token?: stri
   const res = await axios.get(`${API_URL}/inventario/movimientos`, {
     headers: buildAuthHeaders(authToken),
     params: productoId ? { productoId } : undefined
+  });
+  return res.data;
+};
+
+export const getInventarioLotes = async (token?: string | null): Promise<InventarioLote[]> => {
+  const authToken = token ?? getToken();
+  const res = await axios.get(`${API_URL}/inventario/lotes`, {
+    headers: buildAuthHeaders(authToken)
   });
   return res.data;
 };

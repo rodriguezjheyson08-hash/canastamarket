@@ -38,6 +38,7 @@ import {
   deletePedidosCompraByIds,
   deleteProveedor,
   downloadPedidoCompraPdf,
+  getPedidoCompra,
   getProveedores,
   listPedidosCompra,
   recibirPedidoCompra,
@@ -240,7 +241,25 @@ const ProveedoresPage: React.FC = () => {
     const ok = window.confirm(`${t('¿Recibir pedido de compra y aumentar stock?', 'Receive purchase order and increase stock?')}\n#${pedido.id}`);
     if (!ok) return;
     try {
-      const updated = await recibirPedidoCompra(pedido.id);
+      const detalle = await getPedidoCompra(pedido.id);
+      const items = (detalle.items || []).map((item) => {
+        const fechaVencimiento = window.prompt(
+          `Fecha de vencimiento para ${item.productoNombre || `producto ${item.productoId}`} (YYYY-MM-DD). Deja vacio si no aplica:`,
+          item.fechaVencimiento || ''
+        ) || '';
+        const costoTexto = window.prompt(
+          `Costo unitario para ${item.productoNombre || `producto ${item.productoId}`}. Deja vacio para usar el precio compra actual:`,
+          item.precioCompra !== undefined && item.precioCompra !== null ? String(item.precioCompra) : ''
+        ) || '';
+        return {
+          productoId: item.productoId,
+          cantidadRecibida: item.cantidad,
+          fechaVencimiento: fechaVencimiento.trim() || undefined,
+          costoUnitario: costoTexto.trim() ? Number(costoTexto) : undefined,
+          codigoLote: `OC-${pedido.id}-P${item.productoId}`
+        };
+      });
+      const updated = await recibirPedidoCompra(pedido.id, undefined, items);
       setPedidos((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
       showSnackbar(t('Compra recibida y stock actualizado', 'Purchase received and stock updated'), 'success');
     } catch (error: any) {

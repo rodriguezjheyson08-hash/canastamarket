@@ -85,11 +85,16 @@ export const createPedidoCompra = async (
   return res.data;
 };
 
-export const recibirPedidoCompra = async (pedidoId: number, motivo?: string, token?: string | null): Promise<PedidoCompra> => {
+export const recibirPedidoCompra = async (
+  pedidoId: number,
+  motivo?: string,
+  items?: Array<{ productoId: number; cantidadRecibida?: number; fechaVencimiento?: string; costoUnitario?: number; codigoLote?: string }>,
+  token?: string | null
+): Promise<PedidoCompra> => {
   const authToken = token ?? getToken();
   const res = await axios.patch(
     `${API_URL}/proveedores/pedidos/${pedidoId}/recibir`,
-    { motivo },
+    { motivo, items },
     { headers: buildAuthHeaders(authToken) }
   );
   return res.data;

@@ -7,11 +7,22 @@ jest.mock('../auditoria/service', () => ({
 const { registrarMovimientoInventario, registrarPerdidaInventario } = require('./service');
 const { registrarAuditoria } = require('../auditoria/service');
 
-const buildRunner = (stockActual = 10) => ({
-  execute: jest.fn()
-    .mockResolvedValueOnce([[{ id: 5, nombre: 'Leche', stock_actual: stockActual }]])
-    .mockResolvedValueOnce([{ affectedRows: 1 }])
-    .mockResolvedValueOnce([{ insertId: 1 }])
+const buildRunner = (stockActual = 10, lotes = []) => ({
+  execute: jest.fn(async (sql) => {
+    if (sql.includes('SELECT id, nombre, stock_actual FROM productos')) {
+      return [[{ id: 5, nombre: 'Leche', stock_actual: stockActual }]];
+    }
+    if (sql.includes('SELECT id, cantidad_actual')) {
+      return [lotes];
+    }
+    if (sql.includes('INSERT INTO inventario_movimientos')) {
+      return [{ insertId: 1 }];
+    }
+    if (sql.includes('INSERT INTO inventario_lotes')) {
+      return [{ insertId: 2 }];
+    }
+    return [{ affectedRows: 1 }];
+  })
 });
 
 describe('inventario service', () => {
@@ -32,8 +43,8 @@ describe('inventario service', () => {
     });
 
     expect(result).toEqual({ productoId: 5, stockAnterior: 10, stockNuevo: 7 });
-    expect(runner.execute).toHaveBeenNthCalledWith(2, 'UPDATE productos SET stock_actual = ? WHERE id = ?', [7, 5]);
-    expect(runner.execute.mock.calls[2][0]).toContain('INSERT INTO inventario_movimientos');
+    expect(runner.execute).toHaveBeenCalledWith('UPDATE productos SET stock_actual = ? WHERE id = ?', [7, 5]);
+    expect(runner.execute.mock.calls.some((call) => call[0].includes('INSERT INTO inventario_movimientos'))).toBe(true);
     expect(registrarAuditoria).toHaveBeenCalledWith(runner, expect.objectContaining({
       accion: 'INVENTARIO_VENTA',
       entidad: 'producto',
@@ -52,7 +63,8 @@ describe('inventario service', () => {
     });
 
     expect(result.stockNuevo).toBe(10);
-    expect(runner.execute).toHaveBeenNthCalledWith(2, 'UPDATE productos SET stock_actual = ? WHERE id = ?', [10, 5]);
+    expect(runner.execute).toHaveBeenCalledWith('UPDATE productos SET stock_actual = ? WHERE id = ?', [10, 5]);
+    expect(runner.execute.mock.calls.some((call) => call[0].includes('INSERT INTO inventario_lotes'))).toBe(true);
   });
 
   test('rechaza salidas que dejarian stock negativo', async () => {
@@ -78,7 +90,8 @@ describe('inventario service', () => {
       motivo: 'Producto derramado'
     });
 
-    expect(runner.execute.mock.calls[2][1][1]).toBe('PERDIDA_MERMA');
+    const movimientoCall = runner.execute.mock.calls.find((call) => call[0].includes('INSERT INTO inventario_movimientos'));
+    expect(movimientoCall[1][1]).toBe('PERDIDA_MERMA');
   });
 
   test('rechaza perdida sin motivo', async () => {

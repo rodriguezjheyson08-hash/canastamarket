@@ -29,6 +29,26 @@ const ensureInventarioSchema = async (runner = pool) => {
     )
   `);
 
+  await runner.query(`
+    CREATE TABLE IF NOT EXISTS inventario_lotes (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      producto_id INT NOT NULL,
+      codigo_lote VARCHAR(80) NULL,
+      fecha_vencimiento DATE NULL,
+      cantidad_inicial INT NOT NULL,
+      cantidad_actual INT NOT NULL,
+      costo_unitario DECIMAL(10,2) NULL,
+      proveedor_id INT NULL,
+      pedido_compra_id INT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CONSTRAINT fk_inventario_lotes_producto
+        FOREIGN KEY (producto_id) REFERENCES productos(id),
+      INDEX idx_inv_lotes_producto_vencimiento (producto_id, fecha_vencimiento, id),
+      INDEX idx_inv_lotes_pedido_compra (pedido_compra_id)
+    )
+  `);
+
   inventarioSchemaChecked = true;
 };
 

@@ -32,6 +32,20 @@ const mapAuditoria = (row) => ({
   fecha: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at
 });
 
+const mapLote = (row) => ({
+  id: Number(row.id),
+  productoId: Number(row.producto_id),
+  productoNombre: row.producto_nombre,
+  codigoLote: row.codigo_lote,
+  fechaVencimiento: row.fecha_vencimiento instanceof Date ? row.fecha_vencimiento.toISOString().slice(0, 10) : row.fecha_vencimiento,
+  cantidadInicial: Number(row.cantidad_inicial),
+  cantidadActual: Number(row.cantidad_actual),
+  costoUnitario: row.costo_unitario === null ? null : Number(row.costo_unitario),
+  proveedorId: row.proveedor_id === null ? null : Number(row.proveedor_id),
+  pedidoCompraId: row.pedido_compra_id === null ? null : Number(row.pedido_compra_id),
+  fecha: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at
+});
+
 const listMovimientosInventario = async (req, res) => {
   await ensureInventarioSchema();
   const productoId = Number(req.query.productoId);
@@ -101,8 +115,21 @@ const listAuditoria = async (_req, res) => {
   res.json(rows.map(mapAuditoria));
 };
 
+const listLotesInventario = async (_req, res) => {
+  await ensureInventarioSchema();
+  const [rows] = await pool.query(
+    `SELECT il.*, p.nombre AS producto_nombre
+       FROM inventario_lotes il
+       JOIN productos p ON p.id = il.producto_id
+      ORDER BY il.fecha_vencimiento IS NULL ASC, il.fecha_vencimiento ASC, il.id DESC
+      LIMIT 300`
+  );
+  res.json(rows.map(mapLote));
+};
+
 module.exports = {
   listMovimientosInventario,
   registrarPerdida,
+  listLotesInventario,
   listAuditoria
 };
