@@ -282,11 +282,29 @@ const buildBoletaPdfBlob = (pedido: ClientePedido, cliente: ClientePerfil, appNa
   const boletaEmpresa = loadBoletaConfig();
   const empresaNombre = boletaEmpresa.nombre || appName.toUpperCase();
   const correlativo = pedido.id.replace(/\D/g, '').slice(-6).padStart(6, '0');
-  const serieNumero = `${boletaEmpresa.serie || '001'}-${correlativo}`;
+  const serieNumero = `B${String(boletaEmpresa.serie || '001').replace(/\D/g, '').padStart(3, '0')}-${correlativo}`;
   const totalItems = pedido.productos.reduce((sum, item) => sum + Math.max(1, item.cantidad || 1), 0);
   const clienteNombre = cliente.nombre || 'PUBLICO GENERAL';
   const clienteDocumento = cliente.dni || '00000000';
   const metodoPago = pedido.metodoPago === 'MERCADO_PAGO' ? 'Mercado Pago' : 'Al recoger';
+  const ventaBoleta: Venta = {
+    id: Number(correlativo),
+    fecha: pedido.fecha,
+    total: pedido.total,
+    metodoPago,
+    productosVendidos: pedido.productos.map((producto) => ({
+      producto: {
+        id: producto.id,
+        nombre: producto.nombre,
+        descripcion: '',
+        precioVenta: producto.precioVenta,
+        stockActual: 0,
+        categoriaId: 0
+      },
+      cantidad: producto.cantidad
+    }))
+  };
+  const resumen = getBoletaResumenTributario(ventaBoleta, 'boleta');
   const separator = '--------------------------------';
   const lines: PdfLine[] = [
     ...wrapPdfText(empresaNombre.toUpperCase(), 26).map((text) => ({ text, bold: true, center: true, size: 12 })),
@@ -294,26 +312,18 @@ const buildBoletaPdfBlob = (pedido: ClientePedido, cliente: ClientePerfil, appNa
     ...wrapPdfText((boletaEmpresa.direccion || '-').toUpperCase(), 30).map((text) => ({ text, center: true })),
     { text: `Tel: ${boletaEmpresa.telefono || '-'}`, center: true },
     { text: separator, center: true },
-    { text: 'COMPROBANTE SIMPLE', bold: true, center: true, size: 11 },
+    { text: 'BOLETA DE VENTA ELECTRONICA', bold: true, center: true, size: 11 },
     { text: serieNumero, bold: true, center: true, size: 11 },
     { text: 'Control interno', center: true },
     { text: separator, center: true },
-    { text: 'DATOS DEL PEDIDO', bold: true, size: 10 },
     { label: 'Fecha', value: new Date(pedido.fecha).toLocaleDateString('es-PE') },
-    { label: 'Pedido', value: pedido.id },
+    { label: 'Cliente', value: clienteNombre },
+    { label: 'Doc.', value: clienteDocumento },
     { label: 'Pago', value: metodoPago },
-    { label: 'Entrega', value: 'Recojo en tienda' },
+    { label: 'Pedido', value: pedido.id },
     { label: 'Moneda', value: 'SOL' },
     { text: separator, center: true },
-    { text: 'DATOS DEL CLIENTE', bold: true, size: 10 },
-    ...wrapPdfText(clienteNombre, 26).map((text, index) => (
-      index === 0 ? { label: 'Cliente', value: text } : { text: `        ${text}` }
-    )),
-    ...wrapPdfText(clienteDocumento, 26).map((text, index) => (
-      index === 0 ? { label: 'Doc.', value: text } : { text: `        ${text}` }
-    )),
-    { text: separator, center: true },
-    { text: 'DETALLE DE PRODUCTOS', bold: true, size: 10 }
+    { text: 'DETALLES DE LA BOLETA', bold: true, size: 10 }
   ];
 
   pedido.productos.forEach((item) => {
@@ -325,11 +335,12 @@ const buildBoletaPdfBlob = (pedido: ClientePedido, cliente: ClientePerfil, appNa
 
   lines.push(
     { text: separator, center: true },
-    { text: 'RESUMEN', bold: true, size: 10 },
     { label: 'Items', value: String(totalItems) },
-    { label: 'Total', value: formatCurrency(pedido.total), bold: true, size: 12 },
+    { label: 'Op. Gravada', value: formatCurrency(resumen.opGravada) },
+    { label: 'IGV (18%)', value: formatCurrency(resumen.igv) },
+    { label: 'TOTAL', value: formatCurrency(resumen.total), bold: true, size: 12 },
     { text: separator, center: true },
-    ...wrapPdfText(montoEnLetras(pedido.total).toUpperCase(), 34).map((text) => ({ text, bold: true })),
+    ...wrapPdfText(`SON: ${montoEnLetras(pedido.total).toUpperCase()}`, 34).map((text) => ({ text, bold: true })),
     { text: separator, center: true },
     { text: 'Representacion impresa de boleta electronica', center: true },
     { text: 'Gracias por su compra', center: true }
@@ -384,21 +395,14 @@ const buildBoletaHtml = (pedido: ClientePedido, cliente: ClientePerfil, appName:
   const resumen = getBoletaResumenTributario(ventaBoleta, 'boleta');
   const rows = pedido.productos.map((item) => `
     <tr>
-      <td>${escapeHtml(item.cantidad)}</td>
+      <td class="center">${escapeHtml(item.cantidad)}</td>
       <td>NIU</td>
       <td>PROD-${String(item.id).padStart(3, '0')}</td>
-      <td>
-        <strong>${escapeHtml(item.nombre)}</strong>
-        <div class="item-note">Online - recojo tienda</div>
-      </td>
+      <td>${escapeHtml(item.nombre)}</td>
       <td class="num">${formatMoneyNumber(item.precioVenta)}</td>
-      <td class="num">${formatMoneyNumber(item.subtotal)}</td>
+      <td class="num strong">${formatMoneyNumber(item.subtotal)}</td>
     </tr>
   `).join('');
-  const logoSrc = (boletaEmpresa.logo || '').replace(/%20/g, ' ');
-  const logoHtml = logoSrc
-    ? `<img class="logo" src="${escapeHtml(logoSrc)}" alt="${escapeHtml(empresaNombre)}" onerror="this.style.display='none'" />`
-    : '';
 
   return `
     <!doctype html>
@@ -411,7 +415,7 @@ const buildBoletaHtml = (pedido: ClientePedido, cliente: ClientePerfil, appName:
           * { box-sizing: border-box; }
           body {
             margin: 0;
-            padding: 0;
+            padding: 24px 0;
             font-family: Arial, Helvetica, sans-serif;
             color: #000;
             background: #fff;
@@ -419,40 +423,35 @@ const buildBoletaHtml = (pedido: ClientePedido, cliente: ClientePerfil, appName:
             print-color-adjust: exact;
           }
           .boleta {
-            width: 148mm;
-            min-height: 210mm;
+            width: 100%;
+            max-width: 560px;
             margin: 0 auto;
-            padding: 18mm 14mm;
+            padding: 14px;
+            border: 1px solid #cfcfcf;
             background: #fff;
           }
           .top {
             display: grid;
-            grid-template-columns: 1fr 44mm;
-            gap: 12mm;
+            grid-template-columns: 1fr 160px;
+            gap: 14px;
             align-items: start;
           }
-          .logo {
-            max-width: 36mm;
-            max-height: 22mm;
-            object-fit: contain;
-            margin-bottom: 8mm;
-          }
           h1 {
-            margin: 0 0 6mm;
-            font-size: 25px;
+            margin: 0 0 10px;
+            font-size: 20px;
             line-height: 1.08;
             font-weight: 900;
-            letter-spacing: .2px;
+            text-transform: uppercase;
           }
           .company {
-            font-size: 12px;
+            font-size: 11px;
             line-height: 1.22;
           }
           .docbox {
-            border: 1.4px solid #333;
+            border: 1.5px solid #111;
             text-align: center;
-            padding: 7mm 3mm;
-            font-size: 12px;
+            padding: 10px 8px;
+            font-size: 10px;
             line-height: 1.2;
           }
           .docbox strong {
@@ -462,87 +461,86 @@ const buildBoletaHtml = (pedido: ClientePedido, cliente: ClientePerfil, appName:
           }
           .serie {
             display: block;
-            margin-top: 2mm;
+            margin-top: 4px;
             font-size: 13px;
             font-weight: 800;
           }
           .meta {
-            margin-top: 9mm;
+            margin-top: 14px;
             border-top: 1px solid #000;
             border-bottom: 1px solid #000;
-            padding: 3mm 0;
+            padding: 8px 0;
             display: grid;
             grid-template-columns: 1fr 1fr;
-            row-gap: 1.5mm;
-            column-gap: 8mm;
+            row-gap: 5px;
+            column-gap: 14px;
             font-size: 11px;
           }
           table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 7mm;
-            font-size: 9px;
+            margin-top: 14px;
+            font-size: 10px;
           }
           thead th {
             background: #000;
             color: #fff;
-            padding: 3px 4px;
-            font-size: 8px;
+            padding: 5px 4px;
+            font-size: 10px;
             text-align: left;
           }
           tbody td {
             border-bottom: 1px solid #ddd;
-            padding: 4px;
+            padding: 5px 4px;
             vertical-align: top;
           }
+          .center { text-align: center; }
           .num { text-align: right; }
-          .item-note {
-            margin-top: 2px;
-            font-size: 8px;
-            color: #444;
-          }
+          .strong { font-weight: 700; }
           .summary {
-            margin-top: 5mm;
-            display: grid;
-            grid-template-columns: 1fr 45mm;
-            gap: 6mm;
-            align-items: start;
-            font-size: 12px;
-          }
-          .items-line {
+            margin-top: 12px;
             display: flex;
             justify-content: flex-end;
-            gap: 18mm;
-            margin-bottom: 3mm;
-            font-size: 13px;
+            font-size: 12px;
+          }
+          .summary-box { width: 220px; }
+          .items-line {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+            font-size: 12px;
           }
           .total-box {
             display: flex;
             justify-content: space-between;
             background: #000;
             color: #fff;
-            padding: 3mm;
+            padding: 6px;
             font-weight: 900;
+            font-size: 13px;
           }
           .words {
-            margin-top: 6mm;
+            margin-top: 12px;
             border: 1px solid #333;
-            padding: 3mm;
+            padding: 6px;
             font-size: 10px;
             font-weight: 800;
           }
           .tax {
-            margin-top: 2mm;
-            font-size: 12px;
+            margin-top: 8px;
+            text-align: right;
+            color: #444;
+            font-size: 9.5px;
           }
           .footer {
-            margin-top: 11mm;
+            margin-top: 20px;
             text-align: center;
-            font-size: 9px;
+            font-size: 10px;
             line-height: 1.25;
           }
           @media print {
-            .boleta { padding: 0; width: 100%; min-height: auto; }
+            body { padding: 0; }
+            .boleta { border: none; max-width: 560px; }
           }
         </style>
       </head>
@@ -550,7 +548,6 @@ const buildBoletaHtml = (pedido: ClientePedido, cliente: ClientePerfil, appName:
         <main id="boleta-print" class="boleta">
           <section class="top">
             <div>
-              ${logoHtml}
               <h1>${escapeHtml(empresaNombre)}</h1>
               <div class="company">
                 <div>RUC: ${escapeHtml(boletaEmpresa.ruc || '-')}</div>
@@ -577,11 +574,14 @@ const buildBoletaHtml = (pedido: ClientePedido, cliente: ClientePerfil, appName:
           <table>
             <thead>
               <tr>
-                <th style="width:9%">Cant.</th>
-                <th style="width:10%">Unid.</th>
-                <th style="width:18%">Codigo</th>
+                <th colspan="6">DETALLES DE LA BOLETA</th>
+              </tr>
+              <tr>
+                <th style="width:9%;text-align:center">Cant.</th>
+                <th style="width:10%;text-align:center">Unid.</th>
+                <th style="width:18%;text-align:center">Codigo</th>
                 <th>Descripcion</th>
-                <th style="width:14%;text-align:right">P.Unit.</th>
+                <th style="width:14%;text-align:right">P. Unit.</th>
                 <th style="width:14%;text-align:right">Total</th>
               </tr>
             </thead>
@@ -589,8 +589,7 @@ const buildBoletaHtml = (pedido: ClientePedido, cliente: ClientePerfil, appName:
           </table>
 
           <section class="summary">
-            <div></div>
-            <div>
+            <div class="summary-box">
               <div class="items-line"><span>Items:</span><strong>${totalItems}</strong></div>
               <div class="total-box"><span>IMPORTE TOTAL:</span><span>${formatCurrency(resumen.total)}</span></div>
             </div>
@@ -968,21 +967,21 @@ const ClienteTiendaPage: React.FC = () => {
       return;
     }
 
-    const boletaWindow = window.open('', '_blank');
+    const html = buildBoletaHtml(pedido, perfil, config.appName);
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const boletaWindow = window.open(url, '_blank');
     if (!boletaWindow) {
+      URL.revokeObjectURL(url);
       showSnackbar('Permite ventanas emergentes para ver la boleta.', 'error');
       return;
     }
-
-    boletaWindow.document.open();
-    boletaWindow.document.write(buildBoletaHtml(pedido, perfil, config.appName));
-    boletaWindow.document.close();
   };
 
   // LOGICA CLIENTE - DESCARGA DE BOLETA:
   // Descarga el comprobante como PDF desde el perfil/historial del cliente.
   const downloadBoleta = (pedido: ClientePedido) => {
-    if (!pedido.boletaHtml) {
+    if (!pedido.productos.length) {
       showSnackbar('Este pedido aun no tiene boleta para descargar.', 'error');
       return;
     }
