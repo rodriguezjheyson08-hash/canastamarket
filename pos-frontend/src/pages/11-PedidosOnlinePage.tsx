@@ -66,6 +66,23 @@ const getMetodoCobroLabel = (metodo?: string) => {
 };
 
 const getPagoInfo = (pedido: PedidoOnline) => {
+  if (pedido.metodoPago === 'RECOJO' && pedido.estado === 'RECOGIDO') {
+    const labelMetodo = getMetodoCobroLabel(pedido.pagoRecogidaMetodo);
+    return {
+      label: pedido.pagoRecogidaMetodo ? `Cobrado: ${labelMetodo}` : 'Cobrado al recoger',
+      detail: pedido.pagoRecogidaMetodo
+        ? `El cliente pago al recoger con ${labelMetodo}.`
+        : 'El pedido fue entregado y cobrado al recoger.',
+      color: 'success' as const
+    };
+  }
+  if (pedido.metodoPago === 'RECOJO' && pedido.estado === 'ANULADO') {
+    return {
+      label: 'Pedido anulado',
+      detail: 'No corresponde cobrar este pedido.',
+      color: 'error' as const
+    };
+  }
   if (pedido.metodoPago === 'RECOJO') {
     return {
       label: 'Paga al recoger',
