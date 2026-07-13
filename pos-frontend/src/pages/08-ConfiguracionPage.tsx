@@ -81,6 +81,8 @@ const createDefaultUserForm = (): UserFormState => ({
 
 // LOGICA: is Usuario Active concentra una operacion de este archivo.
 const isUsuarioActive = (usuario: UsuarioItem) => usuario.is_active !== 0 && usuario.is_active !== false;
+const PASSWORD_MESSAGE = 'La contraseña debe tener 8 caracteres, mayúscula, minúscula y número.';
+const isStrongPassword = (value: string) => /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,72}$/.test(value);
 
 type ConfigPanel = 'personalizacion' | 'boleta' | 'vueltos';
 
@@ -312,6 +314,9 @@ const ConfiguracionPage: React.FC = () => {
     }
     if (!editingUserId && !userForm.password.trim()) {
       return 'La contraseña es obligatoria para crear usuario.';
+    }
+    if (userForm.password.trim() && !isStrongPassword(userForm.password.trim())) {
+      return PASSWORD_MESSAGE;
     }
     if (userForm.dni && !/^\d{8}$/.test(userForm.dni)) {
       return 'El DNI debe tener 8 dígitos.';

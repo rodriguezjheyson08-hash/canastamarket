@@ -220,6 +220,29 @@ describe('ConfiguracionPage usuarios y permisos', () => {
     expect(await screen.findByText('Usuario creado correctamente.')).toBeInTheDocument();
   });
 
+  it('bloquea contrasenas debiles antes de crear usuario', async () => {
+    mockedGetUsuarios.mockResolvedValueOnce([]);
+    mockedUseAuth.mockReturnValue({
+      isAuthenticated: true,
+      loading: false,
+      login: jest.fn(),
+      logout: jest.fn(),
+      user: adminUser
+    });
+
+    render(<ConfiguracionPage />);
+
+    await screen.findByText('No hay usuarios registrados.');
+    fireEvent.change(screen.getByLabelText('Usuario'), { target: { value: 'caja03' } });
+    fireEvent.change(screen.getByLabelText('Nombre completo'), { target: { value: 'Caja Tres' } });
+    fireEvent.change(screen.getByLabelText(/Contrase/i), { target: { value: 'debil' } });
+    fireEvent.change(screen.getByLabelText(/Correo para/i), { target: { value: 'caja03@test.com' } });
+    fireEvent.click(screen.getByRole('button', { name: /agregar/i }));
+
+    expect(await screen.findByText(/8 caracteres/i)).toBeInTheDocument();
+    expect(mockedCreateUsuario).not.toHaveBeenCalled();
+  });
+
   it('carga un usuario existente para editar y actualiza sus permisos', async () => {
     const usuarioEditado: UsuarioItem = {
       ...usuariosBase[0],
