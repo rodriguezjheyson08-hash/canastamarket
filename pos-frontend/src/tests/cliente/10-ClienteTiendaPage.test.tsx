@@ -15,6 +15,7 @@ jest.mock('../../services/api', () => ({
   getClienteActual: jest.fn(),
   getMisPedidosCliente: jest.fn(),
   getProductos: jest.fn(),
+  getPublicMercadoPagoPayment: jest.fn(),
   loginCliente: jest.fn(),
   loginClienteGoogle: jest.fn(),
   registerCliente: jest.fn(),

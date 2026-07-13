@@ -10,12 +10,16 @@ const { ensurePedidosOnlineSchema } = require('../features/pedidosOnline/schema'
 const { mapPedidoOnline } = require('../features/pedidosOnline/mappers');
 const { registrarAuditoria } = require('../features/auditoria/service');
 const { registrarMovimientoInventario } = require('../features/inventario/service');
+const { ensureCajasSchema } = require('../features/cajas/schema');
+const { getPayment } = require('../pagos/mercadopagoService');
 
 const ESTADOS_VALIDOS = new Set(['PENDIENTE_RECOJO', 'PENDIENTE_PAGO', 'PAGADO', 'RECOGIDO', 'ANULADO']);
 const METODOS_VALIDOS = new Set(['RECOJO', 'MERCADO_PAGO']);
 const METODOS_RECOJO_VALIDOS = new Set(['efectivo', 'yape', 'mercadopago_link', 'tarjeta', 'mixto_efectivo_yape']);
 
 const cleanText = (value, maxLength = 255) => String(value ?? '').trim().slice(0, maxLength);
+
+const paymentAmountMatches = (expected, paid) => Math.abs(Number(expected || 0) - Number(paid || 0)) <= 0.01;
 
 const metodoPagoLabel = (metodo) => {
   const key = cleanText(metodo, 40).toLowerCase();
@@ -214,12 +218,19 @@ const createPedidoOnlinePublic = async (req, res) => {
   const clienteTelefono = cleanText(cliente?.telefono, 40);
   const clienteDireccion = cleanText(cliente?.direccion, 255);
   const requestedTotal = Number(total);
+  const cleanPagoReferencia = cleanText(pagoReferencia, 120);
 
   if (!ESTADOS_VALIDOS.has(cleanEstado)) {
     return res.status(400).json({ message: 'Estado de pedido inválido.' });
   }
   if (!METODOS_VALIDOS.has(cleanMetodo)) {
     return res.status(400).json({ message: 'Método de pago inválido.' });
+  }
+  if (cleanMetodo === 'MERCADO_PAGO' && cleanEstado !== 'PAGADO') {
+    return res.status(400).json({ message: 'El pedido con Mercado Pago solo se registra cuando el pago esta aprobado.' });
+  }
+  if (cleanMetodo === 'MERCADO_PAGO' && !cleanPagoReferencia) {
+    return res.status(400).json({ message: 'Falta la referencia real del pago de Mercado Pago.' });
   }
   if (!clienteNombre || !clienteDni || !clienteEmail || !clienteTelefono) {
     return res.status(400).json({ message: 'Nombre, DNI, correo y teléfono del cliente son obligatorios.' });
@@ -290,6 +301,16 @@ const createPedidoOnlinePublic = async (req, res) => {
       throw new Error('Total inválido. Revisa el carrito.');
     }
 
+    if (cleanMetodo === 'MERCADO_PAGO') {
+      const pago = await getPayment(cleanPagoReferencia);
+      if (pago.status !== 'approved') {
+        throw new Error(`Mercado Pago no confirmo el pago. Estado actual: ${pago.status || 'desconocido'}.`);
+      }
+      if (!paymentAmountMatches(totalCalculado, Number(pago.transaction_amount))) {
+        throw new Error('El monto pagado en Mercado Pago no coincide con el total del pedido.');
+      }
+    }
+
     const [pedidoResult] = await connection.execute(
       `INSERT INTO pedidos_online (
         codigo, estado, metodo_pago, entrega, cliente_nombre, cliente_dni, cliente_email,
@@ -307,7 +328,7 @@ const createPedidoOnlinePublic = async (req, res) => {
         clienteDireccion || null,
         totalCalculado,
         cleanText(boletaHtml, 5_000_000) || null,
-        cleanText(pagoReferencia, 120) || null
+        cleanPagoReferencia || null
       ]
     );
 
@@ -483,6 +504,16 @@ const updatePedidoOnlineEstado = async (req, res) => {
 
       const pedido = pedidos[0];
       if (estado === 'RECOGIDO' && pedido.metodo_pago === 'RECOJO') {
+        await ensureCajasSchema(connection);
+        const [cajas] = await connection.query(
+          "SELECT id FROM caja_sesiones WHERE usuario_id = ? AND estado = 'ABIERTA' ORDER BY id DESC LIMIT 1 FOR UPDATE",
+          [Number(req.auth?.sub)]
+        );
+        if (cajas.length === 0) {
+          await connection.rollback();
+          return res.status(409).json({ message: 'Debes abrir caja antes de cobrar un pedido online al recoger.' });
+        }
+        const cajaSesionId = Number(cajas[0].id);
         if (!METODOS_RECOJO_VALIDOS.has(pagoRecogidaMetodo)) {
           await connection.rollback();
           return res.status(400).json({ message: 'Indica como pago el cliente al recoger.' });
@@ -510,6 +541,7 @@ const updatePedidoOnlineEstado = async (req, res) => {
                   pago_recogida_vuelto = ?,
                   pago_recogida_detalle = ?,
                   pago_recogida_at = CURRENT_TIMESTAMP,
+                  caja_sesion_id = ?,
                   boleta_html = ?
             WHERE id = ?`,
           [
@@ -518,6 +550,7 @@ const updatePedidoOnlineEstado = async (req, res) => {
             recibido,
             vuelto,
             detallePago ? JSON.stringify(detallePago) : null,
+            cajaSesionId,
             actualizarBoletaPago(pedido.boleta_html, pagoRecogidaMetodo),
             pedidoId
           ]

@@ -62,6 +62,7 @@ import {
   getClienteActual,
   getMisPedidosCliente,
   getProductos,
+  getPublicMercadoPagoPayment,
   loginCliente,
   loginClienteGoogle,
   registerCliente,
@@ -176,6 +177,7 @@ const escapeHtml = (value: string | number | undefined | null) =>
     .replace(/'/g, '&#039;');
 
 const formatMoneyNumber = (value: number) => Number(value || 0).toFixed(2);
+const paymentAmountMatches = (expected: number, paid: number) => Math.abs(Number(expected || 0) - Number(paid || 0)) <= 0.01;
 
 // LOGICA CLIENTE - PDF:
 // Normaliza texto para escribirlo dentro del PDF generado en el navegador.
@@ -1004,7 +1006,7 @@ const ClienteTiendaPage: React.FC = () => {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const status = (params.get('status') || params.get('collection_status') || '').toLowerCase();
-    const paymentId = params.get('payment_id') || params.get('collection_id') || params.get('preference_id') || '';
+    const paymentId = params.get('payment_id') || params.get('collection_id') || '';
     const hasMercadoPagoReturn = Boolean(status || paymentId || params.get('merchant_order_id'));
     if (!hasMercadoPagoReturn || !clienteToken) return;
 
@@ -1014,16 +1016,39 @@ const ClienteTiendaPage: React.FC = () => {
     try {
       const pending = JSON.parse(rawPending) as ClientePedido;
       if (['approved', 'accredited'].includes(status)) {
-        void finishLocalOrder({
-          ...pending,
-          estado: 'PAGADO',
-          metodoPago: 'MERCADO_PAGO',
-          pagoReferencia: paymentId
-        }).then(() => {
+        if (!paymentId) {
           localStorage.removeItem(CLIENT_PENDING_MP_ORDER_KEY);
           window.history.replaceState({}, document.title, window.location.pathname);
-          showSnackbar('Pago confirmado. Tu pedido fue registrado correctamente.');
-        });
+          showSnackbar('Mercado Pago no devolvio una referencia de pago valida. No se registro el pedido.', 'error');
+          return;
+        }
+        void (async () => {
+          try {
+            const pago = await getPublicMercadoPagoPayment(paymentId);
+            if (pago.status !== 'approved') {
+              localStorage.removeItem(CLIENT_PENDING_MP_ORDER_KEY);
+              showSnackbar(`Mercado Pago no confirmo el cobro. Estado: ${pago.status}. No se registro el pedido.`, 'error');
+              return;
+            }
+            if (pago.transaction_amount !== undefined && !paymentAmountMatches(pending.total, Number(pago.transaction_amount))) {
+              localStorage.removeItem(CLIENT_PENDING_MP_ORDER_KEY);
+              showSnackbar('El monto pagado no coincide con el total del pedido. No se registro el pedido.', 'error');
+              return;
+            }
+            await finishLocalOrder({
+              ...pending,
+              estado: 'PAGADO',
+              metodoPago: 'MERCADO_PAGO',
+              pagoReferencia: paymentId
+            });
+            localStorage.removeItem(CLIENT_PENDING_MP_ORDER_KEY);
+            showSnackbar('Pago confirmado. Tu pedido fue registrado correctamente.');
+          } catch (error: any) {
+            showSnackbar(error?.response?.data?.message || 'No se pudo validar el pago con Mercado Pago. No se registro el pedido.', 'error');
+          } finally {
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        })();
       } else if (['rejected', 'cancelled', 'failure'].includes(status)) {
         localStorage.removeItem(CLIENT_PENDING_MP_ORDER_KEY);
         window.history.replaceState({}, document.title, window.location.pathname);

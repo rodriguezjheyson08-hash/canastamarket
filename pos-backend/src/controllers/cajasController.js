@@ -1,5 +1,6 @@
 const pool = require('../db/pool');
 const { ensureCajasSchema } = require('../features/cajas/schema');
+const { ensurePedidosOnlineSchema } = require('../features/pedidosOnline/schema');
 
 const toMoney = (value) => Number(Number(value || 0).toFixed(2));
 
@@ -12,6 +13,7 @@ const getUsuarioNombre = async (usuarioId, runner = pool) => {
 };
 
 const getResumenCaja = async (caja, runner = pool) => {
+  await ensurePedidosOnlineSchema(runner);
   const [rows] = await runner.query(
     `SELECT vp.metodo,
             COUNT(DISTINCT vp.venta_id) AS cantidad_ventas,
@@ -27,6 +29,36 @@ const getResumenCaja = async (caja, runner = pool) => {
     cantidadVentas: Number(row.cantidad_ventas),
     total: toMoney(row.total)
   }));
+  const [pedidosOnlineRows] = await runner.query(
+    `SELECT id, pago_recogida_metodo, total, pago_recogida_detalle
+       FROM pedidos_online
+      WHERE caja_sesion_id = ?
+        AND estado = 'RECOGIDO'
+        AND pago_recogida_metodo IS NOT NULL`,
+    [caja.id]
+  );
+  const addPago = (metodo, monto) => {
+    const total = toMoney(monto);
+    if (total <= 0) return;
+    const existente = pagos.find((pago) => pago.metodo === metodo);
+    if (existente) {
+      existente.cantidadVentas += 1;
+      existente.total = toMoney(existente.total + total);
+    } else {
+      pagos.push({ metodo, cantidadVentas: 1, total });
+    }
+  };
+  pedidosOnlineRows.forEach((pedido) => {
+    if (pedido.pago_recogida_metodo === 'mixto_efectivo_yape') {
+      const detalle = typeof pedido.pago_recogida_detalle === 'string'
+        ? JSON.parse(pedido.pago_recogida_detalle || '{}')
+        : (pedido.pago_recogida_detalle || {});
+      addPago('efectivo', detalle.efectivo || 0);
+      addPago('yape', detalle.yape || 0);
+      return;
+    }
+    addPago(pedido.pago_recogida_metodo, pedido.total);
+  });
   const efectivoVentas = pagos
     .filter((pago) => pago.metodo === 'efectivo')
     .reduce((sum, pago) => sum + pago.total, 0);

@@ -80,6 +80,20 @@ const getPagoInfo = (pedido: PedidoOnline) => {
       color: 'warning' as const
     };
   }
+  if (pedido.estado === 'ANULADO' && pedido.reembolsoEstado === 'NO_CAPTURADO') {
+    return {
+      label: 'Pago no capturado',
+      detail: 'El pedido fue anulado sin confirmar cobro en Mercado Pago.',
+      color: 'info' as const
+    };
+  }
+  if (pedido.estado === 'ANULADO' && pedido.reembolsoEstado === 'PENDIENTE_MANUAL') {
+    return {
+      label: 'Reembolso manual pendiente',
+      detail: 'Hubo pago online y queda pendiente revisar/devolver en Mercado Pago.',
+      color: 'warning' as const
+    };
+  }
   return {
     label: 'Pagado con Mercado Pago',
     detail: 'Pago online registrado mediante Mercado Pago.',

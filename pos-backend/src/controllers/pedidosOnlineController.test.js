@@ -13,17 +13,24 @@ jest.mock('../db/pool', () => ({
 jest.mock('../features/pedidosOnline/schema', () => ({
   ensurePedidosOnlineSchema: jest.fn()
 }));
+jest.mock('../features/cajas/schema', () => ({
+  ensureCajasSchema: jest.fn()
+}));
 jest.mock('../features/inventario/service', () => ({
   registrarMovimientoInventario: jest.fn()
 }));
 jest.mock('../features/auditoria/service', () => ({
   registrarAuditoria: jest.fn()
 }));
+jest.mock('../pagos/mercadopagoService', () => ({
+  getPayment: jest.fn()
+}));
 
 const pool = require('../db/pool');
 const { ensurePedidosOnlineSchema } = require('../features/pedidosOnline/schema');
 const { registrarMovimientoInventario } = require('../features/inventario/service');
 const { registrarAuditoria } = require('../features/auditoria/service');
+const { getPayment } = require('../pagos/mercadopagoService');
 const {
   createPedidoOnlineCliente,
   createPedidoOnlinePublic,
@@ -288,6 +295,59 @@ describe('pedidosOnlineController: generar pedido online', () => {
     expect(connection.release).toHaveBeenCalledTimes(1);
   });
 
+  test('rechaza registrar Mercado Pago si el pago aun no esta aprobado', async () => {
+    const req = {
+      body: {
+        codigo: 'WEB-MP-PENDIENTE',
+        estado: 'PENDIENTE_PAGO',
+        metodoPago: 'MERCADO_PAGO',
+        pagoReferencia: '123',
+        cliente: { nombre: 'Ana Perez', dni: '12345678', email: 'ana@correo.com', telefono: '999888777' },
+        productos: [{ id: 10, cantidad: 1 }],
+        total: 4.5
+      }
+    };
+    const res = createResponse();
+
+    await createPedidoOnlinePublic(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ message: 'El pedido con Mercado Pago solo se registra cuando el pago esta aprobado.' });
+    expect(pool.getConnection).not.toHaveBeenCalled();
+    expect(getPayment).not.toHaveBeenCalled();
+  });
+
+  test('revierte si Mercado Pago no confirma el cobro real', async () => {
+    const connection = createConnection();
+    pool.getConnection.mockResolvedValue(connection);
+    connection.query.mockResolvedValueOnce([[]]);
+    connection.execute.mockResolvedValueOnce([
+      [{ id: 10, nombre: 'Leche', stock_actual: 8, precio_venta: '4.50' }]
+    ]);
+    getPayment.mockResolvedValueOnce({ status: 'pending', transaction_amount: 4.5 });
+    const req = {
+      body: {
+        codigo: 'WEB-MP-FALSO',
+        estado: 'PAGADO',
+        metodoPago: 'MERCADO_PAGO',
+        pagoReferencia: '123',
+        cliente: { nombre: 'Ana Perez', dni: '12345678', email: 'ana@correo.com', telefono: '999888777' },
+        productos: [{ id: 10, cantidad: 1 }],
+        total: 4.5
+      }
+    };
+    const res = createResponse();
+
+    await createPedidoOnlinePublic(req, res);
+
+    expect(getPayment).toHaveBeenCalledWith('123');
+    expect(connection.rollback).toHaveBeenCalledTimes(1);
+    expect(connection.commit).not.toHaveBeenCalled();
+    expect(connection.execute).toHaveBeenCalledTimes(1);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ message: 'Mercado Pago no confirmo el pago. Estado actual: pending.' });
+  });
+
   test('devuelve el pedido existente cuando el codigo ya fue registrado', async () => {
     const connection = createConnection();
     pool.getConnection.mockResolvedValue(connection);
@@ -317,13 +377,15 @@ describe('pedidosOnlineController: generar pedido online', () => {
   test('prepara el pedido online marcandolo como recogido y devuelve el pedido actualizado', async () => {
     const connection = createConnection();
     pool.getConnection.mockResolvedValue(connection);
-    connection.query.mockResolvedValueOnce([[{
-      id: 77,
-      estado: 'PENDIENTE_RECOJO',
-      metodo_pago: 'RECOJO',
-      total: '15.50',
-      boleta_html: '<p><strong>Pago:</strong> Al recoger</p>'
-    }]]);
+    connection.query
+      .mockResolvedValueOnce([[{
+        id: 77,
+        estado: 'PENDIENTE_RECOJO',
+        metodo_pago: 'RECOJO',
+        total: '15.50',
+        boleta_html: '<p><strong>Pago:</strong> Al recoger</p>'
+      }]])
+      .mockResolvedValueOnce([[{ id: 44 }]]);
     connection.execute.mockResolvedValueOnce([{ affectedRows: 1 }]);
     pool.query
       .mockResolvedValueOnce([[{ ...pedidoRow, estado: 'RECOGIDO' }]])
@@ -358,6 +420,7 @@ describe('pedidosOnlineController: generar pedido online', () => {
       20,
       4.5,
       null,
+      44,
       '<p><strong>Pago:</strong> Efectivo</p>',
       77
     ]);
@@ -396,13 +459,15 @@ describe('pedidosOnlineController: generar pedido online', () => {
   test('rechaza marcar recogido si el pedido al recoger no trae metodo de pago', async () => {
     const connection = createConnection();
     pool.getConnection.mockResolvedValue(connection);
-    connection.query.mockResolvedValueOnce([[{
-      id: 77,
-      estado: 'PENDIENTE_RECOJO',
-      metodo_pago: 'RECOJO',
-      total: '15.50',
-      boleta_html: '<p><strong>Pago:</strong> Al recoger</p>'
-    }]]);
+    connection.query
+      .mockResolvedValueOnce([[{
+        id: 77,
+        estado: 'PENDIENTE_RECOJO',
+        metodo_pago: 'RECOJO',
+        total: '15.50',
+        boleta_html: '<p><strong>Pago:</strong> Al recoger</p>'
+      }]])
+      .mockResolvedValueOnce([[{ id: 44 }]]);
 
     const req = {
       params: { id: '77' },

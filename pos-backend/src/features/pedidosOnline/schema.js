@@ -41,7 +41,8 @@ const ensurePedidosOnlineSchema = async (runner = pool) => {
         AND TABLE_NAME = 'pedidos_online'
         AND COLUMN_NAME IN (
           'cliente_dni', 'cancelado_por', 'cancelado_at', 'cancelacion_motivo', 'reembolso_estado',
-          'pago_recogida_metodo', 'pago_recogida_recibido', 'pago_recogida_vuelto', 'pago_recogida_detalle', 'pago_recogida_at'
+          'pago_recogida_metodo', 'pago_recogida_recibido', 'pago_recogida_vuelto', 'pago_recogida_detalle', 'pago_recogida_at',
+          'caja_sesion_id'
         )`
   );
   const columnSet = new Set(columns.map((column) => column.COLUMN_NAME));
@@ -74,6 +75,10 @@ const ensurePedidosOnlineSchema = async (runner = pool) => {
   }
   if (!columnSet.has('pago_recogida_at')) {
     await runner.query("ALTER TABLE pedidos_online ADD COLUMN pago_recogida_at TIMESTAMP NULL AFTER pago_recogida_detalle");
+  }
+  if (!columnSet.has('caja_sesion_id')) {
+    await runner.query('ALTER TABLE pedidos_online ADD COLUMN caja_sesion_id INT NULL AFTER pago_recogida_at');
+    await runner.query('CREATE INDEX idx_pedidos_online_caja_sesion ON pedidos_online (caja_sesion_id)');
   }
 
   // BASE DE DATOS - DETALLE DEL PEDIDO:

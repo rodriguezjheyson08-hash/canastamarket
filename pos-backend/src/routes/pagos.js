@@ -23,6 +23,7 @@ router.post('/mercadopago/preference', requireAuth({ type: 'admin' }), asyncHand
 // Permite que la tienda publica cree una preferencia de Mercado Pago sin sesion admin/cajero.
 router.post('/public/mercadopago/preference', asyncHandler(createMercadoPagoPreference));
 router.get('/mercadopago/payments/:id', requireAuth({ type: 'admin' }), asyncHandler(getMercadoPagoPayment));
+router.get('/public/mercadopago/payments/:id', asyncHandler(getMercadoPagoPayment));
 router.post('/mercadopago/webhook', asyncHandler(mercadoPagoWebhook));
 
 module.exports = router;

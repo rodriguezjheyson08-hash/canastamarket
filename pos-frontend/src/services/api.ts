@@ -459,6 +459,17 @@ export const getMercadoPagoPayment = async (paymentId: string, token?: string | 
   return res.data;
 };
 
+export const getPublicMercadoPagoPayment = async (paymentId: string): Promise<{
+  id: number;
+  status: string;
+  status_detail?: string;
+  transaction_amount?: number;
+  currency_id?: string;
+}> => {
+  const res = await axios.get(`${API_URL}/pagos/public/mercadopago/payments/${paymentId}`);
+  return res.data;
+};
+
 // Estadísticas
 // SERVICIO FRONTEND: get Dashboard Stats llama al backend y devuelve la respuesta a React.
 export const getDashboardStats = async (): Promise<DashboardStats> => {
