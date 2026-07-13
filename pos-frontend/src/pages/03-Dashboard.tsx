@@ -46,17 +46,21 @@ const StatCard = ({ title, value, loading, icon }: { title: string; value: strin
     return (
         // DISEÑO: Card es la caja blanca; aqui se define padding, ancho, alto minimo,
         // direccion vertical, alineacion hacia la izquierda y sombra.
-        <Card sx={{ p: 3, width: '100%', minHeight: 120, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', boxShadow: 3 }}>
-            <Box sx={{ mb: 1 }}>{icon}</Box>
-            {/* DISEÑO: titulo pequeno de la caja, por ejemplo "Ventas Hoy". */}
-            <Typography variant="subtitle1" color="text.secondary">{title}</Typography>
-            {loading ? (
-                 // DISEÑO: esqueleto/carga visual mientras llegan los datos del backend.
-                 <Skeleton className="w-2/3 h-8 mt-1" />
-            ) : (
-                // DISEÑO: numero grande en negrita que aparece dentro de la caja.
-                <Typography variant="h4" component="div" sx={{ fontWeight: 'bold', mt: 1 }}>{value}</Typography>
-            )}
+        <Card sx={{ p: 3, width: '100%', minHeight: 120, boxShadow: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, height: '100%' }}>
+                <Box sx={{ minWidth: 0 }}>
+                    {/* DISEÑO: titulo pequeno de la caja, por ejemplo "Ventas Hoy". */}
+                    <Typography variant="subtitle1" color="text.secondary">{title}</Typography>
+                    {loading ? (
+                         // DISEÑO: esqueleto/carga visual mientras llegan los datos del backend.
+                         <Skeleton className="w-2/3 h-8 mt-1" />
+                    ) : (
+                        // DISEÑO: numero grande en negrita que aparece dentro de la caja.
+                        <Typography variant="h4" component="div" sx={{ fontWeight: 'bold', mt: 1 }}>{value}</Typography>
+                    )}
+                </Box>
+                <Box sx={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{icon}</Box>
+            </Box>
         </Card>
     );
 };
