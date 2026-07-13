@@ -4,6 +4,13 @@ const { getActor, registrarAuditoria } = require('../auditoria/service');
 const TIPOS_PERDIDA = new Set(['VENCIMIENTO', 'ROBO', 'ROTURA', 'MERMA', 'AJUSTE']);
 
 const cleanText = (value, maxLength = 255) => String(value ?? '').trim().slice(0, maxLength);
+const cleanCustomTipoPerdida = (value) => cleanText(value, 40)
+  .toUpperCase()
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^A-Z0-9_ ]/g, '')
+  .trim()
+  .replace(/\s+/g, '_');
 
 const normalizeDate = (value) => {
   const text = cleanText(value, 10);
@@ -165,8 +172,8 @@ const registrarMovimientoInventario = async (runner, {
 };
 
 const registrarPerdidaInventario = async (runner, { req, productoId, cantidad, tipo, motivo }) => {
-  const cleanTipo = cleanText(tipo, 40).toUpperCase();
-  if (!TIPOS_PERDIDA.has(cleanTipo)) {
+  const cleanTipo = cleanCustomTipoPerdida(tipo);
+  if (!cleanTipo || (!TIPOS_PERDIDA.has(cleanTipo) && cleanTipo.length < 3)) {
     throw new Error('Tipo de perdida invalido.');
   }
   if (!cleanText(motivo, 255)) {

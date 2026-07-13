@@ -30,7 +30,7 @@ import {
 } from '../services/api';
 import { AuditoriaLog, InventarioLote, InventarioMovimiento, Producto } from '../types';
 
-const tiposPerdida = ['VENCIMIENTO', 'ROBO', 'ROTURA', 'MERMA', 'AJUSTE'];
+const tiposPerdida = ['VENCIMIENTO', 'ROBO', 'ROTURA', 'MERMA', 'AJUSTE', 'OTRO'];
 
 const formatDateTime = (value: string) =>
   new Intl.DateTimeFormat('es-PE', { dateStyle: 'short', timeStyle: 'medium' }).format(new Date(value));
@@ -43,6 +43,7 @@ const InventarioPage: React.FC = () => {
   const [auditoria, setAuditoria] = useState<AuditoriaLog[]>([]);
   const [productoId, setProductoId] = useState('');
   const [tipo, setTipo] = useState('VENCIMIENTO');
+  const [tipoPersonalizado, setTipoPersonalizado] = useState('');
   const [cantidad, setCantidad] = useState('1');
   const [motivo, setMotivo] = useState('');
   const [message, setMessage] = useState('');
@@ -76,9 +77,11 @@ const InventarioPage: React.FC = () => {
       setMessage('');
       const id = Number(productoId);
       const qty = Number(cantidad);
-      await registrarPerdidaInventario({ productoId: id, cantidad: qty, tipo, motivo });
+      const tipoFinal = tipo === 'OTRO' ? tipoPersonalizado : tipo;
+      await registrarPerdidaInventario({ productoId: id, cantidad: qty, tipo: tipoFinal, motivo });
       setMessage('Perdida registrada y stock actualizado.');
       setMotivo('');
+      setTipoPersonalizado('');
       await fetchData();
     } catch (err: any) {
       setError(err?.response?.data?.message || 'No se pudo registrar la perdida.');
@@ -124,10 +127,21 @@ const InventarioPage: React.FC = () => {
                 {tiposPerdida.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
               </TextField>
             </Grid>
+            {tipo === 'OTRO' && (
+              <Grid item xs={12} md={3}>
+                <TextField
+                  fullWidth
+                  label="Tipo personalizado"
+                  value={tipoPersonalizado}
+                  onChange={(e) => setTipoPersonalizado(e.target.value)}
+                  placeholder="Ej. error de conteo"
+                />
+              </Grid>
+            )}
             <Grid item xs={12} sm={6} md={2}>
               <TextField fullWidth label="Cantidad" type="number" value={cantidad} onChange={(e) => setCantidad(e.target.value)} />
             </Grid>
-            <Grid item xs={12} md={3}>
+            <Grid item xs={12} md={tipo === 'OTRO' ? 12 : 3}>
               <Button fullWidth variant="contained" startIcon={<Save />} sx={{ height: '100%' }} onClick={handleRegistrarPerdida}>
                 Registrar
               </Button>

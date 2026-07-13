@@ -24,7 +24,9 @@ import {
   Assessment,
   Settings,
   ShoppingBag,
-  Assignment
+  Assignment,
+  AttachMoney,
+  Warning
 } from '@mui/icons-material';
 import { useNavigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -40,11 +42,12 @@ import { PEDIDOS_ONLINE_UPDATE_EVENT } from '../components/layout/Header';
 // DISEÑO - CAJA DE DATOS DEL DASHBOARD:
 // Este componente arma la tarjeta superior donde se muestran los indicadores
 // como "Productos Activos", "Ventas Hoy", "Ingresos Hoy" y "Productos Bajos".
-const StatCard = ({ title, value, loading }: { title: string; value: string | number, loading: boolean }) => {
+const StatCard = ({ title, value, loading, icon }: { title: string; value: string | number, loading: boolean; icon: React.ReactNode }) => {
     return (
         // DISEÑO: Card es la caja blanca; aqui se define padding, ancho, alto minimo,
         // direccion vertical, alineacion hacia la izquierda y sombra.
         <Card sx={{ p: 3, width: '100%', minHeight: 120, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', boxShadow: 3 }}>
+            <Box sx={{ mb: 1 }}>{icon}</Box>
             {/* DISEÑO: titulo pequeno de la caja, por ejemplo "Ventas Hoy". */}
             <Typography variant="subtitle1" color="text.secondary">{title}</Typography>
             {loading ? (
@@ -235,16 +238,16 @@ const Dashboard: React.FC = () => {
               y las acomoda en columnas cuando la pantalla es pequena. */}
           <Grid container spacing={3} mb={4}>
             <Grid item xs={12} sm={6} lg={3}>
-              <StatCard title={t('Productos Activos', 'Active Products')} loading={loading} value={stats?.productosActivos ?? 0} />
+              <StatCard icon={<Inventory sx={{ fontSize: 34, color: '#1976d2' }} />} title={t('Productos Activos', 'Active Products')} loading={loading} value={stats?.productosActivos ?? 0} />
             </Grid>
             <Grid item xs={12} sm={6} lg={3}>
-              <StatCard title={t('Ventas Hoy', 'Sales Today')} loading={loading} value={stats?.ventasHoy ?? 0} />
+              <StatCard icon={<PointOfSale sx={{ fontSize: 34, color: '#2e7d32' }} />} title={t('Ventas Hoy', 'Sales Today')} loading={loading} value={stats?.ventasHoy ?? 0} />
             </Grid>
             <Grid item xs={12} sm={6} lg={3}>
-              <StatCard title={t('Ingresos Hoy', 'Revenue Today')} loading={loading} value={stats ? formatCurrency(stats.ingresosHoy) : 'S/ 0.00'} />
+              <StatCard icon={<AttachMoney sx={{ fontSize: 34, color: '#ef6c00' }} />} title={t('Ingresos Hoy', 'Revenue Today')} loading={loading} value={stats ? formatCurrency(stats.ingresosHoy) : 'S/ 0.00'} />
             </Grid>
             <Grid item xs={12} sm={6} lg={3}>
-              <StatCard title={t('Productos Bajos', 'Low Stock Products')} loading={loading} value={stats?.productosBajos ?? 0} />
+              <StatCard icon={<Warning sx={{ fontSize: 34, color: '#d32f2f' }} />} title={t('Productos Bajos', 'Low Stock Products')} loading={loading} value={stats?.productosBajos ?? 0} />
             </Grid>
           </Grid>
         </>

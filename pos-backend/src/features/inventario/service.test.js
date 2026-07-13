@@ -94,6 +94,20 @@ describe('inventario service', () => {
     expect(movimientoCall[1][1]).toBe('PERDIDA_MERMA');
   });
 
+  test('registra perdida con tipo personalizado', async () => {
+    const runner = buildRunner(8);
+
+    await registrarPerdidaInventario(runner, {
+      productoId: 5,
+      cantidad: 1,
+      tipo: 'Error de conteo',
+      motivo: 'Diferencia detectada en inventario fisico'
+    });
+
+    const movimientoCall = runner.execute.mock.calls.find((call) => call[0].includes('INSERT INTO inventario_movimientos'));
+    expect(movimientoCall[1][1]).toBe('PERDIDA_ERROR_DE_CONTEO');
+  });
+
   test('rechaza perdida sin motivo', async () => {
     const runner = buildRunner(8);
 
