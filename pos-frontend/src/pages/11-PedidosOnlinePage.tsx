@@ -66,6 +66,7 @@ const getMetodoCobroLabel = (metodo?: string) => {
 };
 
 const getPagoInfo = (pedido: PedidoOnline) => {
+  const hasPagoReferencia = Boolean(String(pedido.pagoReferencia || '').trim());
   if (pedido.metodoPago === 'RECOJO' && pedido.estado === 'RECOGIDO') {
     const labelMetodo = getMetodoCobroLabel(pedido.pagoRecogidaMetodo);
     return {
@@ -108,6 +109,13 @@ const getPagoInfo = (pedido: PedidoOnline) => {
     return {
       label: 'Reembolso manual pendiente',
       detail: 'Hubo pago online y queda pendiente revisar/devolver en Mercado Pago.',
+      color: 'warning' as const
+    };
+  }
+  if (pedido.metodoPago === 'MERCADO_PAGO' && !hasPagoReferencia) {
+    return {
+      label: 'Revisar pago MP',
+      detail: 'No hay referencia real de Mercado Pago registrada. Verificar antes de considerarlo cobrado.',
       color: 'warning' as const
     };
   }

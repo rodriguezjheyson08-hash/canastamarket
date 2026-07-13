@@ -86,6 +86,7 @@ const getProductoDetalle = (item: VentaProducto) => {
 const getMetodoPagoOnline = (pedido: PedidoOnline) => {
   if (pedido.estado === 'ANULADO' && pedido.reembolsoEstado === 'NO_CAPTURADO') return 'Mercado Pago no capturado';
   if (pedido.estado === 'ANULADO' && pedido.reembolsoEstado === 'PENDIENTE_MANUAL') return 'Mercado Pago: reembolso manual pendiente';
+  if (pedido.metodoPago === 'MERCADO_PAGO' && !String(pedido.pagoReferencia || '').trim()) return 'Mercado Pago sin referencia';
   if (pedido.metodoPago === 'MERCADO_PAGO') return 'Mercado Pago online';
   if (pedido.pagoRecogidaMetodo === 'efectivo') return 'Efectivo al recoger';
   if (pedido.pagoRecogidaMetodo === 'yape') return 'Yape al recoger';
