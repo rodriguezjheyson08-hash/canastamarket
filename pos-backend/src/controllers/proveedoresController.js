@@ -208,12 +208,12 @@ const updateProveedor = async (req, res) => {
 const deleteProveedor = async (req, res) => {
   await ensureProveedoresSchema();
   const [pedidos] = await pool.query(
-    'SELECT COUNT(*) AS total FROM pedidos_compra WHERE proveedor_id = ?',
+    "SELECT COUNT(*) AS total FROM pedidos_compra WHERE proveedor_id = ? AND estado <> 'RECIBIDO'",
     [req.params.id]
   );
   if (Number(pedidos[0]?.total || 0) > 0) {
     return res.status(409).json({
-      message: 'No se puede eliminar el proveedor porque tiene pedidos de compra registrados.'
+      message: 'No se puede eliminar el proveedor porque tiene pedidos de compra pendientes. Primero reciba o revise esos pedidos.'
     });
   }
   const [result] = await pool.execute('UPDATE proveedores SET activo = 0 WHERE id = ?', [req.params.id]);
@@ -367,6 +367,13 @@ const createPedidoCompra = async (req, res) => {
 // LOGICA BACKEND: elimina un pedido de compra por ID.
 const deletePedidoCompra = async (req, res) => {
   await ensureProveedoresSchema();
+  const [pedidos] = await pool.query('SELECT id, estado FROM pedidos_compra WHERE id = ? LIMIT 1', [req.params.id]);
+  if (pedidos.length === 0) return res.status(404).json({ message: 'Pedido de compra no encontrado.' });
+  if (pedidos[0].estado !== 'RECIBIDO') {
+    return res.status(409).json({
+      message: 'No se puede eliminar el pedido de compra mientras este pendiente. Primero marque el pedido como recibido.'
+    });
+  }
   const [result] = await pool.execute('DELETE FROM pedidos_compra WHERE id = ?', [req.params.id]);
   if (result.affectedRows === 0) return res.status(404).json({ message: 'Pedido de compra no encontrado.' });
   res.status(204).send();
@@ -467,6 +474,16 @@ const deletePedidosCompraBatch = async (req, res) => {
   await ensureProveedoresSchema();
   const ids = [...new Set((Array.isArray(req.body?.ids) ? req.body.ids : []).map(Number).filter((id) => Number.isInteger(id) && id > 0))];
   if (ids.length === 0) return res.status(400).json({ message: 'Debes enviar IDs válidos.' });
+  const [pendientes] = await pool.query(
+    "SELECT id FROM pedidos_compra WHERE id IN (?) AND estado <> 'RECIBIDO'",
+    [ids]
+  );
+  if (pendientes.length > 0) {
+    return res.status(409).json({
+      message: 'No se pueden eliminar pedidos pendientes. Primero marque los pedidos como recibidos.',
+      blockedIds: pendientes.map((row) => row.id)
+    });
+  }
   const [result] = await pool.query('DELETE FROM pedidos_compra WHERE id IN (?)', [ids]);
   res.json({ deleted: Number(result.affectedRows || 0), ids });
 };

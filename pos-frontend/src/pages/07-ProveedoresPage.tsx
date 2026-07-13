@@ -111,6 +111,8 @@ const formatDateTime = (raw: any) => {
   return date.toLocaleString('es-PE');
 };
 
+const isPedidoRecibido = (pedido: PedidoCompra) => pedido.estado === 'RECIBIDO';
+
 // LOGICA: download Blob concentra una operacion de este archivo.
 const downloadBlob = (blob: Blob, filename: string) => {
   const url = URL.createObjectURL(blob);
@@ -268,6 +270,10 @@ const ProveedoresPage: React.FC = () => {
   };
 
   const handleDeletePedido = async (pedido: PedidoCompra) => {
+    if (!isPedidoRecibido(pedido)) {
+      showSnackbar(t('Primero debe recibir o revisar el pedido de compra antes de eliminarlo.', 'Receive or review the purchase order before deleting it.'), 'error');
+      return;
+    }
     const ok = window.confirm(`${t('¿Eliminar pedido de compra?', 'Delete purchase order?')}\n#${pedido.id} - ${pedido.proveedor?.razonSocial || ''}`);
     if (!ok) return;
     try {
@@ -275,14 +281,19 @@ const ProveedoresPage: React.FC = () => {
       setPedidos((prev) => prev.filter((item) => item.id !== pedido.id));
       setSelectedPedidoIds((prev) => prev.filter((id) => id !== pedido.id));
       showSnackbar(t('Pedido de compra eliminado', 'Purchase order deleted'), 'success');
-    } catch {
-      showSnackbar(t('No se pudo eliminar el pedido de compra', 'Could not delete purchase order'), 'error');
+    } catch (error: any) {
+      showSnackbar(error?.response?.data?.message || t('No se pudo eliminar el pedido de compra', 'Could not delete purchase order'), 'error');
     }
   };
 
 // LOGICA: handle Delete Selected Pedidos concentra una operacion de este archivo.
   const handleDeleteSelectedPedidos = async () => {
     if (selectedPedidoIds.length === 0) return;
+    const pedidosNoRecibidos = pedidos.filter((pedido) => selectedPedidoIds.includes(pedido.id) && !isPedidoRecibido(pedido));
+    if (pedidosNoRecibidos.length > 0) {
+      showSnackbar(t('Solo se pueden eliminar pedidos ya recibidos.', 'Only received purchase orders can be deleted.'), 'error');
+      return;
+    }
     const ok = window.confirm(t(`¿Eliminar ${selectedPedidoIds.length} pedido(s) de compra seleccionados?`, `Delete ${selectedPedidoIds.length} selected purchase order(s)?`));
     if (!ok) return;
     try {
@@ -290,13 +301,14 @@ const ProveedoresPage: React.FC = () => {
       setPedidos((prev) => prev.filter((item) => !selectedPedidoIds.includes(item.id)));
       setSelectedPedidoIds([]);
       showSnackbar(t('Pedidos de compra eliminados', 'Purchase orders deleted'), 'success');
-    } catch {
-      showSnackbar(t('No se pudieron eliminar los pedidos seleccionados', 'Could not delete selected orders'), 'error');
+    } catch (error: any) {
+      showSnackbar(error?.response?.data?.message || t('No se pudieron eliminar los pedidos seleccionados', 'Could not delete selected orders'), 'error');
     }
   };
 
-  const allPedidosSelected = pedidos.length > 0 && selectedPedidoIds.length === pedidos.length;
-  const somePedidosSelected = selectedPedidoIds.length > 0 && selectedPedidoIds.length < pedidos.length;
+  const pedidosEliminables = pedidos.filter(isPedidoRecibido);
+  const allPedidosSelected = pedidosEliminables.length > 0 && selectedPedidoIds.length === pedidosEliminables.length;
+  const somePedidosSelected = selectedPedidoIds.length > 0 && selectedPedidoIds.length < pedidosEliminables.length;
   // LOGICA: filtro de la busqueda; revisa RUC, razon social, contacto, telefono, email,
   // direccion y datos SUNAT para decidir que filas se muestran en la tabla.
   const filteredProveedores = useMemo(() => {
@@ -507,7 +519,7 @@ const ProveedoresPage: React.FC = () => {
                       <Checkbox
                         checked={allPedidosSelected}
                         indeterminate={somePedidosSelected}
-                        onChange={(event) => setSelectedPedidoIds(event.target.checked ? pedidos.map((p) => p.id) : [])}
+                        onChange={(event) => setSelectedPedidoIds(event.target.checked ? pedidosEliminables.map((p) => p.id) : [])}
                         inputProps={{ 'aria-label': 'Seleccionar pedidos' }}
                       />
                     </TableCell>
@@ -526,6 +538,7 @@ const ProveedoresPage: React.FC = () => {
                       <TableCell padding="checkbox">
                         <Checkbox
                           checked={selectedPedidoIds.includes(pedido.id)}
+                          disabled={!isPedidoRecibido(pedido)}
                           onChange={() => setSelectedPedidoIds((prev) => prev.includes(pedido.id) ? prev.filter((id) => id !== pedido.id) : [...prev, pedido.id])}
                           inputProps={{ 'aria-label': `Seleccionar pedido ${pedido.id}` }}
                         />
@@ -552,9 +565,13 @@ const ProveedoresPage: React.FC = () => {
                             <CheckCircle />
                           </IconButton>
                         )}
-                        <IconButton size="small" color="error" onClick={() => handleDeletePedido(pedido)} aria-label="delete">
-                          <Delete />
-                        </IconButton>
+                        <Tooltip title={isPedidoRecibido(pedido) ? t('Eliminar pedido recibido', 'Delete received order') : t('Primero reciba el pedido', 'Receive the order first')}>
+                          <span>
+                            <IconButton size="small" color="error" onClick={() => handleDeletePedido(pedido)} aria-label="delete" disabled={!isPedidoRecibido(pedido)}>
+                              <Delete />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
                       </TableCell>
                     </TableRow>
                   ))}
