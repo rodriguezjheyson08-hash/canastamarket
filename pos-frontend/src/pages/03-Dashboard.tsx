@@ -111,7 +111,7 @@ const Dashboard: React.FC = () => {
       permission: 'productos'
     },
     {
-      title: 'Inventario',
+      title: 'Operaciones',
       description: 'Movimientos, perdidas y auditoria',
       icon: <Assignment sx={{ fontSize: 40 }} />,
       path: '/dashboard/inventario',
