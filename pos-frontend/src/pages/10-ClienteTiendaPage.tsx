@@ -67,10 +67,17 @@ import {
   registerCliente,
   updateClientePerfil
 } from '../services/api';
-import { Producto, Categoria } from '../types';
+import { Producto, Categoria, Venta } from '../types';
 import { useAppConfig } from '../hooks/useAppConfig';
 import { loadBoletaConfig } from '../utils/boletaConfig';
-import { montoEnLetras } from '../features/ventas/utils';
+import {
+  formatFechaBoleta,
+  formatMetodoPagoBoleta,
+  getBoletaHash,
+  getBoletaResumenTributario,
+  montoEnLetras
+} from '../features/ventas/utils';
+import { ClienteBoleta } from '../features/ventas/types';
 import PasswordResetDialog from '../components/common/PasswordResetDialog';
 import GoogleSignInButton from '../components/common/GoogleSignInButton';
 
@@ -356,17 +363,44 @@ const buildBoletaHtml = (pedido: ClientePedido, cliente: ClientePerfil, appName:
   const totalItems = pedido.productos.reduce((sum, item) => sum + Math.max(1, item.cantidad || 1), 0);
   const clienteNombre = cliente.nombre || 'PUBLICO GENERAL';
   const clienteDocumento = cliente.dni || '00000000';
-  const metodoPago = pedido.metodoPago === 'MERCADO_PAGO' ? 'Mercado Pago' : 'Al recoger';
+  const metodoPago = pedido.metodoPago === 'MERCADO_PAGO' ? 'mercadopago' : 'Al recoger';
+  const ventaBoleta: Venta = {
+    id: Number(correlativo),
+    fecha: pedido.fecha,
+    total: pedido.total,
+    metodoPago,
+    productosVendidos: pedido.productos.map((producto) => ({
+      producto: {
+        id: producto.id,
+        nombre: producto.nombre,
+        descripcion: '',
+        precioVenta: producto.precioVenta,
+        stockActual: 0,
+        categoriaId: 0
+      },
+      cantidad: producto.cantidad
+    }))
+  };
+  const clienteBoleta: ClienteBoleta = {
+    dni: clienteDocumento,
+    numeroDocumento: clienteDocumento,
+    tipoDocumento: '1' as const,
+    nombres: clienteNombre,
+    apellidos: '',
+    nombreCompleto: clienteNombre
+  };
+  const resumen = getBoletaResumenTributario(ventaBoleta, 'boleta');
+  const hash = getBoletaHash(ventaBoleta, boletaEmpresa, 'boleta', clienteBoleta);
   const ticketSeparator = '------------------------------------------------';
   const rows = pedido.productos.map((item) => `
     <tr>
-      <td style="font-size:10.5px;padding:4px 2px 4px 0;vertical-align:top">
+      <td style="font-size:9.5px;padding:3px 2px 3px 0;vertical-align:top">
         <div style="font-weight:700;text-transform:uppercase">${escapeHtml(item.nombre)}</div>
-        <div style="font-size:9px;color:#333">Online - recojo tienda</div>
+        <div style="font-size:8.5px;color:#333">Cod: PROD-${String(item.id).padStart(3, '0')}</div>
       </td>
-      <td style="font-size:10.5px;padding:4px 0;text-align:center;vertical-align:top">${escapeHtml(item.cantidad)}</td>
-      <td style="font-size:10.5px;padding:4px 0;text-align:right;vertical-align:top">${formatMoneyNumber(item.precioVenta)}</td>
-      <td style="font-size:10.5px;padding:4px 0;text-align:right;vertical-align:top;font-weight:700">${formatMoneyNumber(item.subtotal)}</td>
+      <td style="font-size:9.5px;padding:3px 0;text-align:center;vertical-align:top">${escapeHtml(item.cantidad)}</td>
+      <td style="font-size:9.5px;padding:3px 0;text-align:right;vertical-align:top">${formatMoneyNumber(item.precioVenta)}</td>
+      <td style="font-size:9.5px;padding:3px 0;text-align:right;vertical-align:top;font-weight:700">${formatMoneyNumber(item.subtotal)}</td>
     </tr>
   `).join('');
   const logoSrc = (boletaEmpresa.logo || '').replace(/%20/g, ' ');
@@ -456,12 +490,10 @@ const buildBoletaHtml = (pedido: ClientePedido, cliente: ClientePerfil, appName:
           <div class="ticket-separator">${ticketSeparator}</div>
 
           <section class="ticket-info">
-            <div><strong>Fecha:</strong> ${new Date(pedido.fecha).toLocaleDateString('es-PE')}</div>
+            <div><strong>Fecha:</strong> ${formatFechaBoleta(pedido.fecha)}</div>
             <div><strong>Cliente:</strong> ${escapeHtml(clienteNombre)}</div>
             <div><strong>Doc.:</strong> ${escapeHtml(clienteDocumento)}</div>
-            <div><strong>Pago:</strong> ${escapeHtml(metodoPago)}</div>
-            <div><strong>Entrega:</strong> Recojo en tienda</div>
-            <div><strong>Pedido:</strong> ${escapeHtml(pedido.id)}</div>
+            <div><strong>Pago:</strong> ${escapeHtml(formatMetodoPagoBoleta(metodoPago))}</div>
             <div><strong>Moneda:</strong> SOL</div>
           </section>
 
@@ -485,8 +517,17 @@ const buildBoletaHtml = (pedido: ClientePedido, cliente: ClientePerfil, appName:
             <div style="display:flex;justify-content:space-between">
               <span>Items:</span><strong>${totalItems}</strong>
             </div>
+            <div style="display:flex;justify-content:space-between">
+              <span>Op. Gravada:</span><span>${formatMoneyNumber(resumen.opGravada)}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between">
+              <span>IGV (18%):</span><span>${formatMoneyNumber(resumen.igv)}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between">
+              <span>Op. Inafecta:</span><span>${formatMoneyNumber(resumen.opInafecta)}</span>
+            </div>
             <div style="display:flex;justify-content:space-between;margin-top:5px;font-size:14px;font-weight:900">
-              <span>TOTAL:</span><span>${formatCurrency(pedido.total)}</span>
+              <span>TOTAL:</span><span>${formatCurrency(resumen.total)}</span>
             </div>
           </section>
 
@@ -497,8 +538,10 @@ const buildBoletaHtml = (pedido: ClientePedido, cliente: ClientePerfil, appName:
           <div class="ticket-separator">${ticketSeparator}</div>
 
           <section class="ticket-footer">
-            <div>Representacion impresa de boleta electronica</div>
-            <div>Gracias por su compra</div>
+            <div>Representacion impresa de la Boleta de Venta Electronica</div>
+            <div>Hash: ${escapeHtml(hash)}</div>
+            <div>Consulte su documento en SUNAT</div>
+            <div>e-consulta.sunat.gob.pe</div>
           </section>
         </main>
       </body>
