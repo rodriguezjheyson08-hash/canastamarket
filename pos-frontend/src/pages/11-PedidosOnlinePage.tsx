@@ -114,9 +114,9 @@ const getPagoInfo = (pedido: PedidoOnline) => {
   }
   if (pedido.metodoPago === 'MERCADO_PAGO' && !hasPagoReferencia) {
     return {
-      label: 'Revisar pago MP',
-      detail: 'No hay referencia real de Mercado Pago registrada. Verificar antes de considerarlo cobrado.',
-      color: 'warning' as const
+      label: 'Pago no confirmado',
+      detail: 'Mercado Pago no confirmo automaticamente este cobro. No debe considerarse dinero recibido.',
+      color: 'error' as const
     };
   }
   return {
