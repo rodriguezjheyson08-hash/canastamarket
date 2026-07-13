@@ -74,11 +74,9 @@ import { loadBoletaConfig } from '../utils/boletaConfig';
 import {
   formatFechaBoleta,
   formatMetodoPagoBoleta,
-  getBoletaHash,
   getBoletaResumenTributario,
   montoEnLetras
 } from '../features/ventas/utils';
-import { ClienteBoleta } from '../features/ventas/types';
 import PasswordResetDialog from '../components/common/PasswordResetDialog';
 import GoogleSignInButton from '../components/common/GoogleSignInButton';
 
@@ -356,12 +354,12 @@ const getPedidoOnlineErrorMessage = (error: any) => {
 };
 
 // LOGICA CLIENTE - BOLETA:
-// Construye una boleta imprimible con el mismo formato de comprobante simple usado en Ventas.
+// Construye una boleta imprimible en formato amplio tipo SUNAT para pedidos online.
 const buildBoletaHtml = (pedido: ClientePedido, cliente: ClientePerfil, appName: string) => {
   const boletaEmpresa = loadBoletaConfig();
   const empresaNombre = boletaEmpresa.nombre || appName.toUpperCase();
   const correlativo = pedido.id.replace(/\D/g, '').slice(-6).padStart(6, '0');
-  const serieNumero = `${boletaEmpresa.serie || '001'}-${correlativo}`;
+  const serieNumero = `B${String(boletaEmpresa.serie || '001').replace(/\D/g, '').padStart(3, '0')}-${correlativo}`;
   const totalItems = pedido.productos.reduce((sum, item) => sum + Math.max(1, item.cantidad || 1), 0);
   const clienteNombre = cliente.nombre || 'PUBLICO GENERAL';
   const clienteDocumento = cliente.dni || '00000000';
@@ -383,31 +381,23 @@ const buildBoletaHtml = (pedido: ClientePedido, cliente: ClientePerfil, appName:
       cantidad: producto.cantidad
     }))
   };
-  const clienteBoleta: ClienteBoleta = {
-    dni: clienteDocumento,
-    numeroDocumento: clienteDocumento,
-    tipoDocumento: '1' as const,
-    nombres: clienteNombre,
-    apellidos: '',
-    nombreCompleto: clienteNombre
-  };
   const resumen = getBoletaResumenTributario(ventaBoleta, 'boleta');
-  const hash = getBoletaHash(ventaBoleta, boletaEmpresa, 'boleta', clienteBoleta);
-  const ticketSeparator = '------------------------------------------------';
   const rows = pedido.productos.map((item) => `
     <tr>
-      <td style="font-size:9.5px;padding:3px 2px 3px 0;vertical-align:top">
-        <div style="font-weight:700;text-transform:uppercase">${escapeHtml(item.nombre)}</div>
-        <div style="font-size:8.5px;color:#333">Cod: PROD-${String(item.id).padStart(3, '0')}</div>
+      <td>${escapeHtml(item.cantidad)}</td>
+      <td>NIU</td>
+      <td>PROD-${String(item.id).padStart(3, '0')}</td>
+      <td>
+        <strong>${escapeHtml(item.nombre)}</strong>
+        <div class="item-note">Online - recojo tienda</div>
       </td>
-      <td style="font-size:9.5px;padding:3px 0;text-align:center;vertical-align:top">${escapeHtml(item.cantidad)}</td>
-      <td style="font-size:9.5px;padding:3px 0;text-align:right;vertical-align:top">${formatMoneyNumber(item.precioVenta)}</td>
-      <td style="font-size:9.5px;padding:3px 0;text-align:right;vertical-align:top;font-weight:700">${formatMoneyNumber(item.subtotal)}</td>
+      <td class="num">${formatMoneyNumber(item.precioVenta)}</td>
+      <td class="num">${formatMoneyNumber(item.subtotal)}</td>
     </tr>
   `).join('');
   const logoSrc = (boletaEmpresa.logo || '').replace(/%20/g, ' ');
   const logoHtml = logoSrc
-    ? `<img class="ticket-logo" src="${escapeHtml(logoSrc)}" alt="${escapeHtml(empresaNombre)}" onerror="this.style.display='none'" />`
+    ? `<img class="logo" src="${escapeHtml(logoSrc)}" alt="${escapeHtml(empresaNombre)}" onerror="this.style.display='none'" />`
     : '';
 
   return `
@@ -417,133 +407,203 @@ const buildBoletaHtml = (pedido: ClientePedido, cliente: ClientePerfil, appName:
         <meta charset="utf-8" />
         <title>Boleta de venta electronica ${escapeHtml(serieNumero)}</title>
         <style>
-          @page { size: 80mm auto; margin: 3mm; }
+          @page { size: A4; margin: 14mm; }
           * { box-sizing: border-box; }
           body {
             margin: 0;
-            padding: 10px 0;
-            font-family: Consolas, "Courier New", monospace;
-            color: #111;
+            padding: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            color: #000;
             background: #fff;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
-          .ticket-boleta {
-            width: 78mm;
-            max-width: 78mm;
+          .boleta {
+            width: 148mm;
+            min-height: 210mm;
             margin: 0 auto;
-            padding: 0;
+            padding: 18mm 14mm;
             background: #fff;
-            color: #111;
-            font-family: Consolas, "Courier New", monospace;
           }
-          .ticket-header { text-align: center; }
-          .ticket-logo {
-            display: block;
-            max-width: 26mm;
-            max-height: 18mm;
+          .top {
+            display: grid;
+            grid-template-columns: 1fr 44mm;
+            gap: 12mm;
+            align-items: start;
+          }
+          .logo {
+            max-width: 36mm;
+            max-height: 22mm;
             object-fit: contain;
-            margin: 0 auto 2mm;
+            margin-bottom: 8mm;
           }
-          .ticket-header h1 {
-            margin: 0;
-            font-size: 17px;
+          h1 {
+            margin: 0 0 6mm;
+            font-size: 25px;
+            line-height: 1.08;
             font-weight: 900;
-            line-height: 1.12;
+            letter-spacing: .2px;
+          }
+          .company {
+            font-size: 12px;
+            line-height: 1.22;
+          }
+          .docbox {
+            border: 1.4px solid #333;
+            text-align: center;
+            padding: 7mm 3mm;
+            font-size: 12px;
+            line-height: 1.2;
+          }
+          .docbox strong {
+            display: block;
+            font-size: 12px;
             text-transform: uppercase;
           }
-          .ticket-small { font-size: 11px; line-height: 1.25; }
-          .ticket-separator {
-            margin: 7px 0;
-            font-size: 10.5px;
-            line-height: 1;
-            white-space: pre;
-            overflow: hidden;
+          .serie {
+            display: block;
+            margin-top: 2mm;
+            font-size: 13px;
+            font-weight: 800;
           }
-          .ticket-doc { text-align: center; }
-          .ticket-info { font-size: 10.7px; line-height: 1.35; }
-          table { width: 100%; border-collapse: collapse; }
-          .ticket-totals { font-size: 10.7px; line-height: 1.45; }
-          .ticket-amount-words { font-size: 9.5px; font-weight: 700; line-height: 1.25; }
-          .ticket-footer { text-align: center; font-size: 9px; line-height: 1.35; }
+          .meta {
+            margin-top: 9mm;
+            border-top: 1px solid #000;
+            border-bottom: 1px solid #000;
+            padding: 3mm 0;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            row-gap: 1.5mm;
+            column-gap: 8mm;
+            font-size: 11px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 7mm;
+            font-size: 9px;
+          }
+          thead th {
+            background: #000;
+            color: #fff;
+            padding: 3px 4px;
+            font-size: 8px;
+            text-align: left;
+          }
+          tbody td {
+            border-bottom: 1px solid #ddd;
+            padding: 4px;
+            vertical-align: top;
+          }
+          .num { text-align: right; }
+          .item-note {
+            margin-top: 2px;
+            font-size: 8px;
+            color: #444;
+          }
+          .summary {
+            margin-top: 5mm;
+            display: grid;
+            grid-template-columns: 1fr 45mm;
+            gap: 6mm;
+            align-items: start;
+            font-size: 12px;
+          }
+          .items-line {
+            display: flex;
+            justify-content: flex-end;
+            gap: 18mm;
+            margin-bottom: 3mm;
+            font-size: 13px;
+          }
+          .total-box {
+            display: flex;
+            justify-content: space-between;
+            background: #000;
+            color: #fff;
+            padding: 3mm;
+            font-weight: 900;
+          }
+          .words {
+            margin-top: 6mm;
+            border: 1px solid #333;
+            padding: 3mm;
+            font-size: 10px;
+            font-weight: 800;
+          }
+          .tax {
+            margin-top: 2mm;
+            font-size: 12px;
+          }
+          .footer {
+            margin-top: 11mm;
+            text-align: center;
+            font-size: 9px;
+            line-height: 1.25;
+          }
           @media print {
-            body { padding: 0; }
+            .boleta { padding: 0; width: 100%; min-height: auto; }
           }
         </style>
       </head>
       <body>
-        <main id="boleta-print" class="ticket-boleta">
-          <section class="ticket-header">
-            ${logoHtml}
-            <h1>${escapeHtml(empresaNombre)}</h1>
-            <div class="ticket-small">RUC: ${escapeHtml(boletaEmpresa.ruc || '-')}</div>
-            <div class="ticket-small" style="text-transform:uppercase">${escapeHtml(boletaEmpresa.direccion || '-')}</div>
-            <div class="ticket-small">Tel: ${escapeHtml(boletaEmpresa.telefono || '-')}</div>
+        <main id="boleta-print" class="boleta">
+          <section class="top">
+            <div>
+              ${logoHtml}
+              <h1>${escapeHtml(empresaNombre)}</h1>
+              <div class="company">
+                <div>RUC: ${escapeHtml(boletaEmpresa.ruc || '-')}</div>
+                <div>${escapeHtml(boletaEmpresa.direccion || '-')}</div>
+                <div>Tel: ${escapeHtml(boletaEmpresa.telefono || '-')}</div>
+              </div>
+            </div>
+            <div class="docbox">
+              <div>RUC: ${escapeHtml(boletaEmpresa.ruc || '-')}</div>
+              <strong>Boleta de venta electronica</strong>
+              <span class="serie">${escapeHtml(serieNumero)}</span>
+            </div>
           </section>
 
-          <div class="ticket-separator">${ticketSeparator}</div>
-
-          <section class="ticket-doc">
-            <div style="font-size:13.5px;font-weight:900;line-height:1.2">BOLETA DE VENTA ELECTRONICA</div>
-            <div style="margin-top:4px;font-size:13px;font-weight:900;line-height:1.2">${escapeHtml(serieNumero)}</div>
-            <div style="margin-top:4px;font-size:9px">Control interno</div>
-          </section>
-
-          <div class="ticket-separator">${ticketSeparator}</div>
-
-          <section class="ticket-info">
+          <section class="meta">
             <div><strong>Fecha:</strong> ${formatFechaBoleta(pedido.fecha)}</div>
-            <div><strong>Cliente:</strong> ${escapeHtml(clienteNombre)}</div>
-            <div><strong>Doc.:</strong> ${escapeHtml(clienteDocumento)}</div>
             <div><strong>Pago:</strong> ${escapeHtml(formatMetodoPagoBoleta(metodoPago))}</div>
+            <div><strong>Cliente:</strong> ${escapeHtml(clienteNombre)}</div>
+            <div><strong>DNI:</strong> ${escapeHtml(clienteDocumento)}</div>
+            <div><strong>Pedido:</strong> ${escapeHtml(pedido.id)}</div>
             <div><strong>Moneda:</strong> SOL</div>
           </section>
-
-          <div class="ticket-separator">${ticketSeparator}</div>
 
           <table>
             <thead>
               <tr>
-                <th style="text-align:left;font-size:10px;padding:2px 0">Producto</th>
-                <th style="text-align:center;font-size:10px;padding:2px 0;width:30px">Cant</th>
-                <th style="text-align:right;font-size:10px;padding:2px 0;width:48px">P.U.</th>
-                <th style="text-align:right;font-size:10px;padding:2px 0;width:52px">Total</th>
+                <th style="width:9%">Cant.</th>
+                <th style="width:10%">Unid.</th>
+                <th style="width:18%">Codigo</th>
+                <th>Descripcion</th>
+                <th style="width:14%;text-align:right">P.Unit.</th>
+                <th style="width:14%;text-align:right">Total</th>
               </tr>
             </thead>
             <tbody>${rows}</tbody>
           </table>
 
-          <div class="ticket-separator">${ticketSeparator}</div>
-
-          <section class="ticket-totals">
-            <div style="display:flex;justify-content:space-between">
-              <span>Items:</span><strong>${totalItems}</strong>
-            </div>
-            <div style="display:flex;justify-content:space-between">
-              <span>Op. Gravada:</span><span>${formatMoneyNumber(resumen.opGravada)}</span>
-            </div>
-            <div style="display:flex;justify-content:space-between">
-              <span>IGV (18%):</span><span>${formatMoneyNumber(resumen.igv)}</span>
-            </div>
-            <div style="display:flex;justify-content:space-between">
-              <span>Op. Inafecta:</span><span>${formatMoneyNumber(resumen.opInafecta)}</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;margin-top:5px;font-size:14px;font-weight:900">
-              <span>TOTAL:</span><span>${formatCurrency(resumen.total)}</span>
+          <section class="summary">
+            <div></div>
+            <div>
+              <div class="items-line"><span>Items:</span><strong>${totalItems}</strong></div>
+              <div class="total-box"><span>IMPORTE TOTAL:</span><span>${formatCurrency(resumen.total)}</span></div>
             </div>
           </section>
 
-          <div class="ticket-separator">${ticketSeparator}</div>
+          <section class="words">SON: ${montoEnLetras(pedido.total).toUpperCase()}</section>
+          <section class="tax">
+            Op. Gravada: ${formatCurrency(resumen.opGravada)} | IGV (18%): ${formatCurrency(resumen.igv)}
+          </section>
 
-          <section class="ticket-amount-words">${montoEnLetras(pedido.total)}</section>
-
-          <div class="ticket-separator">${ticketSeparator}</div>
-
-          <section class="ticket-footer">
-            <div>Representacion impresa de la Boleta de Venta Electronica</div>
-            <div>Hash: ${escapeHtml(hash)}</div>
-            <div>Consulte su documento en SUNAT</div>
-            <div>e-consulta.sunat.gob.pe</div>
+          <section class="footer">
+            <div>Representacion impresa de boleta electronica</div>
+            <div>Gracias por su compra</div>
           </section>
         </main>
       </body>
@@ -903,7 +963,7 @@ const ClienteTiendaPage: React.FC = () => {
   // LOGICA CLIENTE - BOLETA:
   // Abre la boleta generada para revisar/imprimir desde el historial o despues del pedido.
   const openBoleta = (pedido: ClientePedido) => {
-    if (!pedido.boletaHtml) {
+    if (!pedido.productos.length) {
       showSnackbar('Este pedido aun no tiene boleta generada.', 'error');
       return;
     }
@@ -915,7 +975,7 @@ const ClienteTiendaPage: React.FC = () => {
     }
 
     boletaWindow.document.open();
-    boletaWindow.document.write(pedido.boletaHtml);
+    boletaWindow.document.write(buildBoletaHtml(pedido, perfil, config.appName));
     boletaWindow.document.close();
   };
 
