@@ -56,8 +56,8 @@ const buildReniecUrl = (baseUrl, dni) => {
 // Valida que el DNI tenga 8 digitos, llama RENIEC y devuelve la respuesta cruda al controller.
 const consultarDni = async (dni) => {
   const cleanedDni = String(dni || '').trim();
-  if (!/^\d{8}$/.test(cleanedDni)) {
-    const error = new Error('El DNI debe tener 8 dígitos.');
+  if (!/^\d{8}$/.test(cleanedDni) || /^(\d)\1{7}$/.test(cleanedDni)) {
+    const error = new Error('Ingresa un DNI valido de 8 digitos.');
     error.status = 400;
     throw error;
   }

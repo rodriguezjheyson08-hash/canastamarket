@@ -303,11 +303,13 @@ const VentasPage: React.FC = () => {
     return payload;
   };
 
+  const isDniClienteValido = (dni: string) => /^\d{8}$/.test(dni.trim()) && !/^(\d)\1{7}$/.test(dni.trim());
+
   const documentoClienteValido = () => {
     if (tipoBoleta === 'factura') {
       return /^\d{11}$/.test(rucCliente.trim()) && razonSocialCliente.trim().length > 0;
     }
-    return /^\d{8}$/.test(dniCliente.trim()) && [nombresCliente, apellidosCliente].filter(Boolean).join(' ').trim().length > 0;
+    return isDniClienteValido(dniCliente) && [nombresCliente, apellidosCliente].filter(Boolean).join(' ').trim().length > 0;
   };
 
   const buildClienteVentaPayload = useCallback((cliente: ClienteBoleta | null, comprobante: TipoBoleta = tipoBoleta) => {
@@ -338,8 +340,10 @@ const VentasPage: React.FC = () => {
 // LOGICA: handle Buscar Cliente Dni concentra una operacion de este archivo.
   const handleBuscarClienteDni = async () => {
     const dni = dniCliente.trim();
-    if (!/^\d{8}$/.test(dni)) {
-      showSnackbar('Ingresa un DNI válido de 8 dígitos', 'error');
+    if (!isDniClienteValido(dni)) {
+      setNombresCliente('');
+      setApellidosCliente('');
+      showSnackbar('Ingresa un DNI valido de 8 digitos.', 'error');
       return;
     }
 
@@ -347,15 +351,23 @@ const VentasPage: React.FC = () => {
       setBuscandoCliente(true);
       const cliente = await buscarClientePorDni(dni);
       const normalized = normalizeCliente(cliente);
+      if (!normalized.nombreCompleto && !normalized.nombres && !normalized.apellidos) {
+        setNombresCliente('');
+        setApellidosCliente('');
+        showSnackbar('Ese DNI no fue encontrado en RENIEC.', 'error');
+        return;
+      }
       setDniCliente(normalized.dni);
       setNombresCliente(normalized.nombres);
       setApellidosCliente(normalized.apellidos);
       showSnackbar('Cliente encontrado', 'success');
     } catch (error: any) {
+      setNombresCliente('');
+      setApellidosCliente('');
       const message =
         error?.response?.data?.message ||
         error?.message ||
-        'No se pudo consultar el DNI';
+        'Ese DNI no fue encontrado en RENIEC.';
       showSnackbar(message, 'error');
     } finally {
       setBuscandoCliente(false);
@@ -1977,16 +1989,22 @@ const VentasPage: React.FC = () => {
                   <TextField
                     label="DNI"
                     value={dniCliente}
-                    onChange={e => setDniCliente(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                    onChange={e => {
+                      setDniCliente(e.target.value.replace(/\D/g, '').slice(0, 8));
+                      setNombresCliente('');
+                      setApellidosCliente('');
+                    }}
                     inputProps={{ maxLength: 8, inputMode: 'numeric' }}
                     size="small"
                     fullWidth
                     required
+                    error={dniCliente.trim().length > 0 && !isDniClienteValido(dniCliente)}
+                    helperText={dniCliente.trim().length > 0 && !isDniClienteValido(dniCliente) ? 'Ingresa un DNI valido de 8 digitos.' : ' '}
                   />
                   <Button
                     variant="outlined"
                     onClick={handleBuscarClienteDni}
-                    disabled={buscandoCliente || dniCliente.trim().length !== 8}
+                    disabled={buscandoCliente}
                   >
                     {buscandoCliente ? 'Buscando...' : 'Buscar'}
                   </Button>

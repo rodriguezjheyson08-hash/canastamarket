@@ -17,6 +17,12 @@ const normalizeDniData = (inputDni, data) => {
   const nombreCompleto = String(data?.full_name || [nombres, apellidos].filter(Boolean).join(' ')).trim();
   const dni = String(data?.document_number || data?.dni || inputDni || '').trim();
 
+  if (!nombres && !apellidos && !nombreCompleto) {
+    const error = new Error('Ese DNI no fue encontrado en RENIEC.');
+    error.status = 404;
+    throw error;
+  }
+
   return {
     dni,
     nombres,

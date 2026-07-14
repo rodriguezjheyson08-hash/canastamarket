@@ -92,8 +92,8 @@ const InventarioPage: React.FC = () => {
     <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
       <Box display="flex" alignItems="center" justifyContent="space-between" gap={2} mb={3}>
         <Box>
-          <Typography variant="h4" fontWeight={800}>Inventario</Typography>
-          <Typography color="text.secondary">Movimientos, perdidas y auditoria operativa.</Typography>
+          <Typography variant="h4" fontWeight={800}>Operaciones</Typography>
+          <Typography color="text.secondary">Perdidas, movimientos de stock, lotes y auditoria del sistema.</Typography>
         </Box>
         <Button variant="outlined" startIcon={<Refresh />} onClick={() => fetchData()}>
           Actualizar
@@ -105,9 +105,9 @@ const InventarioPage: React.FC = () => {
 
       <Tabs value={tab} onChange={(_, value) => setTab(value)} sx={{ mb: 2 }}>
         <Tab label="Registrar perdida" />
-        <Tab label="Movimientos" />
+        <Tab label="Movimientos de stock" />
         <Tab label="Lotes" />
-        <Tab label="Auditoria" />
+        <Tab label="Auditoria general" />
       </Tabs>
 
       {tab === 0 && (
@@ -154,34 +154,40 @@ const InventarioPage: React.FC = () => {
       )}
 
       {tab === 1 && (
-        <TableContainer component={Paper}>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Fecha</TableCell>
-                <TableCell>Producto</TableCell>
-                <TableCell>Tipo</TableCell>
-                <TableCell align="right">Cantidad</TableCell>
-                <TableCell align="right">Stock</TableCell>
-                <TableCell>Referencia</TableCell>
-                <TableCell>Usuario</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {movimientos.map((mov) => (
-                <TableRow key={mov.id}>
-                  <TableCell>{formatDateTime(mov.fecha)}</TableCell>
-                  <TableCell>{mov.productoNombre}</TableCell>
-                  <TableCell><Chip size="small" label={mov.tipo} /></TableCell>
-                  <TableCell align="right">{mov.cantidad}</TableCell>
-                  <TableCell align="right">{mov.stockAnterior} {'->'} {mov.stockNuevo}</TableCell>
-                  <TableCell>{mov.referenciaTipo || '-'} {mov.referenciaId || ''}</TableCell>
-                  <TableCell>{mov.usuarioNombre || '-'}</TableCell>
+        <Stack spacing={1.5}>
+          <Alert severity="info">
+            Esta tabla registra solo entradas y salidas de stock: ventas, pedidos online, compras recibidas, anulaciones y perdidas.
+            Los cambios de productos, usuarios, caja o configuracion aparecen en Auditoria general.
+          </Alert>
+          <TableContainer component={Paper}>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Fecha</TableCell>
+                  <TableCell>Producto</TableCell>
+                  <TableCell>Tipo</TableCell>
+                  <TableCell align="right">Cantidad</TableCell>
+                  <TableCell align="right">Stock</TableCell>
+                  <TableCell>Referencia</TableCell>
+                  <TableCell>Usuario</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+              </TableHead>
+              <TableBody>
+                {movimientos.map((mov) => (
+                  <TableRow key={mov.id}>
+                    <TableCell>{formatDateTime(mov.fecha)}</TableCell>
+                    <TableCell>{mov.productoNombre}</TableCell>
+                    <TableCell><Chip size="small" label={mov.tipo} /></TableCell>
+                    <TableCell align="right">{mov.cantidad}</TableCell>
+                    <TableCell align="right">{mov.stockAnterior} {'->'} {mov.stockNuevo}</TableCell>
+                    <TableCell>{mov.referenciaTipo || '-'} {mov.referenciaId || ''}</TableCell>
+                    <TableCell>{mov.usuarioNombre || '-'}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Stack>
       )}
 
       {tab === 2 && (
@@ -217,6 +223,10 @@ const InventarioPage: React.FC = () => {
 
       {tab === 3 && (
         <Stack spacing={1}>
+          <Alert severity="info">
+            Auditoria general registra acciones del sistema: ventas, pedidos online, caja, productos, proveedores,
+            usuarios, configuracion, compras recibidas y perdidas.
+          </Alert>
           {auditoria.map((log) => (
             <Paper key={log.id} sx={{ p: 1.5 }}>
               <Typography fontWeight={700}>{log.accion} - {log.entidad} #{log.entidadId || '-'}</Typography>
