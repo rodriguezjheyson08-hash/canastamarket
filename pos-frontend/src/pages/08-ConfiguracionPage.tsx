@@ -34,16 +34,18 @@ import {
 // IMPORTACIONES FRONTEND: librerias, helpers y tipos que usa este archivo.
 import { Add, Block, Delete, Edit, LockOpen, People, Refresh, Save, Search, Settings, Visibility, VisibilityOff } from '@mui/icons-material';
 import {
+  asignarFondoCaja,
   createUsuario,
   deleteUsuario,
   getConfiguracionSistema,
+  getFondosCaja,
   getPersonaPorDni,
   getUsuarios,
   saveConfiguracionSistema,
   unlockUsuario,
   updateUsuario
 } from '../services/api';
-import { PermissionKey, UsuarioItem, UserPermissions } from '../types';
+import { CajaFondoAsignado, PermissionKey, UsuarioItem, UserPermissions } from '../types';
 import {
   DEFAULT_CAJERO_PERMISSIONS,
   PERMISSION_KEYS,
@@ -84,7 +86,9 @@ const isUsuarioActive = (usuario: UsuarioItem) => usuario.is_active !== 0 && usu
 const PASSWORD_MESSAGE = 'La contraseña debe tener 8 caracteres, mayúscula, minúscula y número.';
 const isStrongPassword = (value: string) => /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,72}$/.test(value);
 
-type ConfigPanel = 'personalizacion' | 'boleta' | 'vueltos';
+type ConfigPanel = 'personalizacion' | 'boleta' | 'caja';
+const formatCurrency = (value: number | undefined | null) =>
+  `S/ ${Number(value || 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const ConfiguracionPage: React.FC = () => {
   const { t } = useI18n();
@@ -99,6 +103,11 @@ const ConfiguracionPage: React.FC = () => {
   const [appConfigForm, setAppConfigForm] = useState<AppConfig>(() => loadAppConfig());
   const [boletaConfigForm, setBoletaConfigForm] = useState<BoletaConfig>(() => loadBoletaConfig());
   const [vueltoConfigForm, setVueltoConfigForm] = useState<VueltoConfig>(() => loadVueltoConfig());
+  const [fondosCaja, setFondosCaja] = useState<CajaFondoAsignado[]>([]);
+  const [fondoUsuarioId, setFondoUsuarioId] = useState('');
+  const [fondoMonto, setFondoMonto] = useState('');
+  const [fondoNota, setFondoNota] = useState('');
+  const [fondoSaving, setFondoSaving] = useState(false);
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
@@ -115,6 +124,10 @@ const ConfiguracionPage: React.FC = () => {
     [usuarios]
   );
   const puedeSeleccionarAdministrador = !adminExistente || adminExistente.id === editingUserId;
+  const cajeros = useMemo(
+    () => usuarios.filter((usuario) => String(usuario.rol || '').toUpperCase() === 'CAJERO' && isUsuarioActive(usuario)),
+    [usuarios]
+  );
 
   const showSnackbar = useCallback((message: string, severity: 'success' | 'error') => {
     setSnackbar({ open: true, message, severity });
@@ -184,6 +197,32 @@ const ConfiguracionPage: React.FC = () => {
     }
   };
 
+  const handleAsignarFondoCaja = async () => {
+    const usuarioId = Number(fondoUsuarioId);
+    const monto = Number(fondoMonto);
+    if (!Number.isInteger(usuarioId) || usuarioId <= 0) {
+      showSnackbar('Selecciona un cajero.', 'error');
+      return;
+    }
+    if (!Number.isFinite(monto) || monto <= 0) {
+      showSnackbar('Ingresa un fondo mayor a cero.', 'error');
+      return;
+    }
+    try {
+      setFondoSaving(true);
+      const fondo = await asignarFondoCaja({ usuarioId, monto, nota: fondoNota.trim() || null });
+      setFondosCaja((prev) => [fondo, ...prev]);
+      setFondoUsuarioId('');
+      setFondoMonto('');
+      setFondoNota('');
+      showSnackbar('Fondo asignado correctamente al cajero.', 'success');
+    } catch (error: any) {
+      showSnackbar(error?.response?.data?.message || 'No se pudo asignar el fondo de caja.', 'error');
+    } finally {
+      setFondoSaving(false);
+    }
+  };
+
   const loadUsuarios = useCallback(async () => {
     setUsuariosLoading(true);
     try {
@@ -196,9 +235,21 @@ const ConfiguracionPage: React.FC = () => {
     }
   }, [showSnackbar, t]);
 
+  const loadFondosCaja = useCallback(async () => {
+    try {
+      const data = await getFondosCaja();
+      setFondosCaja(Array.isArray(data) ? data : []);
+    } catch (error: any) {
+      showSnackbar(error?.response?.data?.message || 'No se pudieron cargar los fondos de caja.', 'error');
+    }
+  }, [showSnackbar]);
+
   useEffect(() => {
-    if (isAdmin) void loadUsuarios();
-  }, [isAdmin, loadUsuarios]);
+    if (isAdmin) {
+      void loadUsuarios();
+      void loadFondosCaja();
+    }
+  }, [isAdmin, loadUsuarios, loadFondosCaja]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -450,7 +501,15 @@ const ConfiguracionPage: React.FC = () => {
             {t('Configuración', 'Settings')}
           </Typography>
         </Box>
-        <Button variant="outlined" startIcon={<Refresh />} onClick={loadUsuarios} disabled={usuariosLoading}>
+        <Button
+          variant="outlined"
+          startIcon={<Refresh />}
+          onClick={() => {
+            void loadUsuarios();
+            void loadFondosCaja();
+          }}
+          disabled={usuariosLoading}
+        >
           {t('Actualizar', 'Refresh')}
         </Button>
       </Box>
@@ -684,10 +743,10 @@ const ConfiguracionPage: React.FC = () => {
               <Button
                 size="small"
                 fullWidth
-                variant={activeConfigPanel === 'vueltos' ? 'contained' : 'outlined'}
-                onClick={() => setActiveConfigPanel('vueltos')}
+                variant={activeConfigPanel === 'caja' ? 'contained' : 'outlined'}
+                onClick={() => setActiveConfigPanel('caja')}
               >
-                {activeConfigPanel === 'vueltos' ? 'Cerrar vueltos' : 'Abrir vueltos'}
+                {activeConfigPanel === 'caja' ? 'Cerrar caja' : 'Abrir caja'}
               </Button>
             </Stack>
 
@@ -880,10 +939,10 @@ const ConfiguracionPage: React.FC = () => {
             ) : (
               <Box>
                 <Typography variant="subtitle1" fontWeight={700} gutterBottom>
-                  Vueltos
+                  Caja y fondos
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  Define el fondo de efectivo disponible para dar cambio en caja.
+                  Configura el vuelto referencial y asigna el efectivo inicial que el administrador entrega a cada cajero.
                 </Typography>
                 <Grid container spacing={2}>
                   <Grid item xs={12}>
@@ -896,7 +955,7 @@ const ConfiguracionPage: React.FC = () => {
                       InputProps={{
                         startAdornment: <InputAdornment position="start">{appConfigForm.moneda || 'S/'}</InputAdornment>
                       }}
-                      helperText="Ejemplo: efectivo separado en caja para entregar cambio."
+                      helperText="Referencia para advertir si una venta requiere demasiado cambio."
                       fullWidth
                     />
                   </Grid>
@@ -907,6 +966,73 @@ const ConfiguracionPage: React.FC = () => {
                     <Button variant="contained" onClick={handleSaveVueltoConfig}>
                       Guardar vueltos
                     </Button>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Divider sx={{ my: 1 }} />
+                    <Alert severity="info">
+                      El fondo asignado no es venta ni ganancia. Es dinero del administrador que el cajero recibe para iniciar caja y debe devolver al cierre junto con el efectivo cobrado.
+                    </Alert>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      label="Cajero"
+                      select
+                      value={fondoUsuarioId}
+                      onChange={(event) => setFondoUsuarioId(String(event.target.value))}
+                      fullWidth
+                    >
+                      {cajeros.map((cajero) => (
+                        <MenuItem key={cajero.id} value={String(cajero.id)}>
+                          {cajero.nombre_completo || cajero.nombre_usuario}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      label="Fondo entregado"
+                      value={fondoMonto}
+                      onChange={(event) => setFondoMonto(event.target.value.replace(/[^0-9.]/g, ''))}
+                      InputProps={{ startAdornment: <InputAdornment position="start">S/</InputAdornment> }}
+                      fullWidth
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      label="Nota"
+                      value={fondoNota}
+                      onChange={(event) => setFondoNota(event.target.value)}
+                      fullWidth
+                    />
+                  </Grid>
+                  <Grid item xs={12} display="flex" justifyContent="flex-end">
+                    <Button variant="contained" onClick={handleAsignarFondoCaja} disabled={fondoSaving || cajeros.length === 0}>
+                      Asignar fondo
+                    </Button>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 260 }}>
+                      <Table size="small" stickyHeader>
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Cajero</TableCell>
+                            <TableCell align="right">Monto</TableCell>
+                            <TableCell>Estado</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {fondosCaja.length === 0 ? (
+                            <TableRow><TableCell colSpan={3}>Todavia no hay fondos asignados.</TableCell></TableRow>
+                          ) : fondosCaja.slice(0, 8).map((fondo) => (
+                            <TableRow key={fondo.id}>
+                              <TableCell>{fondo.usuarioNombre}</TableCell>
+                              <TableCell align="right">{formatCurrency(fondo.monto)}</TableCell>
+                              <TableCell>{fondo.estado}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
                   </Grid>
                 </Grid>
               </Box>

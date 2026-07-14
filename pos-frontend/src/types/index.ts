@@ -208,6 +208,8 @@ export interface CajaSesion {
   montoInicial: number;
   fondoAsignadoId?: number | null;
   efectivoVentas?: number;
+  entradasEfectivo?: number;
+  salidasEfectivo?: number;
   efectivoAEntregar?: number;
   montoEsperado: number;
   montoFinalDeclarado?: number | null;
@@ -217,6 +219,18 @@ export interface CajaSesion {
   cerradaAt?: string | null;
   totalVentas: number;
   pagos: Array<{ metodo: string; cantidadVentas: number; total: number }>;
+  movimientosEfectivo?: CajaMovimientoEfectivo[];
+}
+
+export interface CajaMovimientoEfectivo {
+  id: number;
+  cajaSesionId: number;
+  usuarioId: number;
+  usuarioNombre: string;
+  tipo: 'ENTRADA' | 'SALIDA' | string;
+  monto: number;
+  motivo: string;
+  creadoAt: string;
 }
 
 export interface CajaFondoAsignado {

@@ -34,9 +34,10 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Stack,
 } from '@mui/material';
 // IMPORTACIONES FRONTEND: librerias, helpers y tipos que usa este archivo.
-import { ShoppingCart, Add, Remove, Delete, Print, QrCodeScanner, Search, PointOfSale } from '@mui/icons-material';
+import { ShoppingCart, Add, Remove, Delete, Print, QrCodeScanner, Search, PointOfSale, CallMade, CallReceived } from '@mui/icons-material';
 import QRCode from 'qrcode';
 import { Producto, Venta, Categoria, VentaCreatePayload, CajaSesion, CajaFondoAsignado } from '../types';
 import LoadingSpinner from '../components/common/LoadingSpinner';
@@ -49,7 +50,8 @@ import {
   getCategorias,
   getConfiguracionSistema,
   getMercadoPagoPayment,
-  getProductos
+  getProductos,
+  registrarMovimientoCaja
 } from '../services/api';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ClienteDniData, buscarClientePorDni } from '../apidni/dniService';
@@ -119,7 +121,10 @@ const VentasPage: React.FC = () => {
   const [fondoCajaPendiente, setFondoCajaPendiente] = useState<CajaFondoAsignado | null>(null);
   const [cajaLoading, setCajaLoading] = useState(true);
   const [modalCaja, setModalCaja] = useState<'abrir' | 'cerrar' | null>(null);
+  const [modalMovimientoCaja, setModalMovimientoCaja] = useState<'ENTRADA' | 'SALIDA' | null>(null);
   const [montoCaja, setMontoCaja] = useState('');
+  const [montoMovimientoCaja, setMontoMovimientoCaja] = useState('');
+  const [motivoMovimientoCaja, setMotivoMovimientoCaja] = useState('');
   const [tipoBoleta, setTipoBoleta] = useState<TipoBoleta>('boleta');
   const [tipoBoletaReciente, setTipoBoletaReciente] = useState<TipoBoleta>('boleta');
   const [boletaQrDataUrl, setBoletaQrDataUrl] = useState('');
@@ -535,6 +540,41 @@ const VentasPage: React.FC = () => {
       );
     } catch (error: any) {
       showSnackbar(error?.response?.data?.message || 'No se pudo cerrar la caja', 'error');
+    } finally {
+      setCajaLoading(false);
+    }
+  };
+
+  const guardarMovimientoCaja = async () => {
+    if (!modalMovimientoCaja) return;
+    const monto = Number.parseFloat(montoMovimientoCaja);
+    if (!Number.isFinite(monto) || monto <= 0) {
+      showSnackbar('Ingresa un monto mayor a cero', 'error');
+      return;
+    }
+    if (!motivoMovimientoCaja.trim()) {
+      showSnackbar('Ingresa el motivo del movimiento de efectivo', 'error');
+      return;
+    }
+    try {
+      setCajaLoading(true);
+      await registrarMovimientoCaja({
+        tipo: modalMovimientoCaja,
+        monto,
+        motivo: motivoMovimientoCaja.trim()
+      });
+      const actual = await getCajaActual();
+      setCajaActual(actual.caja);
+      setFondoCajaPendiente(actual.fondoPendiente);
+      setModalMovimientoCaja(null);
+      setMontoMovimientoCaja('');
+      setMotivoMovimientoCaja('');
+      showSnackbar(
+        modalMovimientoCaja === 'ENTRADA' ? 'Entrada de efectivo registrada' : 'Salida de efectivo registrada',
+        'success'
+      );
+    } catch (error: any) {
+      showSnackbar(error?.response?.data?.message || 'No se pudo registrar el movimiento de caja', 'error');
     } finally {
       setCajaLoading(false);
     }
@@ -1485,7 +1525,7 @@ const VentasPage: React.FC = () => {
               </Typography>
               {cajaActual && (
                 <Typography variant="body2" color="text.secondary">
-                  Fondo admin: {formatCurrency(cajaActual.montoInicial)} / Efectivo ventas: {formatCurrency(cajaActual.efectivoVentas ?? 0)} / A entregar: {formatCurrency(cajaActual.efectivoAEntregar ?? cajaActual.montoEsperado)}
+                  Fondo admin: {formatCurrency(cajaActual.montoInicial)} / Efectivo ventas: {formatCurrency(cajaActual.efectivoVentas ?? 0)} / Entradas: {formatCurrency(cajaActual.entradasEfectivo ?? 0)} / Salidas: {formatCurrency(cajaActual.salidasEfectivo ?? 0)} / A entregar: {formatCurrency(cajaActual.efectivoAEntregar ?? cajaActual.montoEsperado)}
                 </Typography>
               )}
               {!cajaActual && fondoCajaPendiente && (
@@ -1495,17 +1535,41 @@ const VentasPage: React.FC = () => {
               )}
             </Box>
           </Box>
-          <Button
-            variant="contained"
-            color={cajaActual ? 'warning' : 'success'}
-            disabled={cajaLoading || (!cajaActual && esCajero && !fondoCajaPendiente)}
-            onClick={() => {
-              setMontoCaja(cajaActual ? String(cajaActual.montoEsperado.toFixed(2)) : (fondoCajaPendiente ? String(fondoCajaPendiente.monto.toFixed(2)) : ''));
-              setModalCaja(cajaActual ? 'cerrar' : 'abrir');
-            }}
-          >
-            {cajaActual ? 'Cerrar caja' : 'Abrir caja'}
-          </Button>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+            {cajaActual && (
+              <>
+                <Button
+                  variant="outlined"
+                  color="success"
+                  startIcon={<CallReceived />}
+                  disabled={cajaLoading}
+                  onClick={() => setModalMovimientoCaja('ENTRADA')}
+                >
+                  Entrada
+                </Button>
+                <Button
+                  variant="outlined"
+                  color="error"
+                  startIcon={<CallMade />}
+                  disabled={cajaLoading}
+                  onClick={() => setModalMovimientoCaja('SALIDA')}
+                >
+                  Salida
+                </Button>
+              </>
+            )}
+            <Button
+              variant="contained"
+              color={cajaActual ? 'warning' : 'success'}
+              disabled={cajaLoading || (!cajaActual && esCajero && !fondoCajaPendiente)}
+              onClick={() => {
+                setMontoCaja(cajaActual ? String(cajaActual.montoEsperado.toFixed(2)) : (fondoCajaPendiente ? String(fondoCajaPendiente.monto.toFixed(2)) : ''));
+                setModalCaja(cajaActual ? 'cerrar' : 'abrir');
+              }}
+            >
+              {cajaActual ? 'Cerrar caja' : 'Abrir caja'}
+            </Button>
+          </Stack>
         </Box>
         {!cajaLoading && !cajaActual && (
           <Alert severity="warning" sx={{ mt: 1.5 }}>
@@ -1732,6 +1796,10 @@ const VentasPage: React.FC = () => {
                 Cuenta únicamente el efectivo físico disponible en la caja.
               </Alert>
               <Typography variant="body2">Monto inicial: <b>{formatCurrency(cajaActual.montoInicial)}</b></Typography>
+              <Typography variant="body2">Ventas en efectivo: <b>{formatCurrency(cajaActual.efectivoVentas ?? 0)}</b></Typography>
+              <Typography variant="body2">Entradas de efectivo: <b>{formatCurrency(cajaActual.entradasEfectivo ?? 0)}</b></Typography>
+              <Typography variant="body2">Salidas de efectivo: <b>{formatCurrency(cajaActual.salidasEfectivo ?? 0)}</b></Typography>
+              <Divider sx={{ my: 1 }} />
               {cajaActual.pagos.map((pago) => (
                 <Typography variant="body2" key={pago.metodo}>
                   {formatMetodoPagoBoleta(pago.metodo)}: <b>{formatCurrency(pago.total)}</b>
@@ -1773,6 +1841,44 @@ const VentasPage: React.FC = () => {
             disabled={cajaLoading || montoCaja === ''}
           >
             {modalCaja === 'abrir' ? 'Abrir caja' : 'Cerrar caja'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={modalMovimientoCaja !== null} onClose={() => setModalMovimientoCaja(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          {modalMovimientoCaja === 'ENTRADA' ? 'Entrada de efectivo' : 'Salida de efectivo'}
+        </DialogTitle>
+        <DialogContent>
+          <Alert severity={modalMovimientoCaja === 'ENTRADA' ? 'info' : 'warning'} sx={{ mb: 2 }}>
+            {modalMovimientoCaja === 'ENTRADA'
+              ? 'Registra dinero externo que ingresa a la gaveta. No cuenta como venta.'
+              : 'Registra dinero retirado de la gaveta, por ejemplo pago a proveedor o gasto autorizado.'}
+          </Alert>
+          <TextField
+            autoFocus
+            fullWidth
+            label="Monto"
+            value={montoMovimientoCaja}
+            onChange={(event) => setMontoMovimientoCaja(normalizeDecimalInput(event.target.value))}
+            inputProps={{ inputMode: 'decimal', min: 0 }}
+            InputProps={{ startAdornment: <InputAdornment position="start">S/</InputAdornment> }}
+            sx={{ mb: 2 }}
+          />
+          <TextField
+            fullWidth
+            label="Motivo"
+            value={motivoMovimientoCaja}
+            onChange={(event) => setMotivoMovimientoCaja(event.target.value)}
+            multiline
+            minRows={2}
+            placeholder="Ejemplo: pago a proveedor, reposicion de sencillo, retiro autorizado"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setModalMovimientoCaja(null)}>Cancelar</Button>
+          <Button variant="contained" onClick={guardarMovimientoCaja} disabled={cajaLoading}>
+            Registrar
           </Button>
         </DialogActions>
       </Dialog>

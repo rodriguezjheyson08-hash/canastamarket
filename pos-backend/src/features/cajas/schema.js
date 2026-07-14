@@ -63,6 +63,22 @@ const ensureCajasSchema = async (runner = pool) => {
     )
   `);
 
+  await runner.query(`
+    CREATE TABLE IF NOT EXISTS caja_movimientos_efectivo (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      caja_sesion_id INT NOT NULL,
+      usuario_id INT NOT NULL,
+      usuario_nombre VARCHAR(120) NULL,
+      tipo VARCHAR(20) NOT NULL,
+      monto DECIMAL(12,2) NOT NULL,
+      motivo VARCHAR(255) NOT NULL,
+      creado_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_caja_movimientos_sesion (caja_sesion_id),
+      INDEX idx_caja_movimientos_tipo (tipo),
+      INDEX idx_caja_movimientos_creado_at (creado_at)
+    )
+  `);
+
   const [ventaColumns] = await runner.query(
     `SELECT COLUMN_NAME
        FROM INFORMATION_SCHEMA.COLUMNS

@@ -24,6 +24,7 @@ import {
   CajaSesion,
   CajaActualResponse,
   CajaFondoAsignado,
+  CajaMovimientoEfectivo,
   PedidoOnline,
   PedidoOnlineCreatePayload,
   InventarioMovimiento,
@@ -324,6 +325,15 @@ export const cerrarCaja = async (montoFinalDeclarado: number, token?: string | n
     { montoFinalDeclarado },
     { headers: buildAuthHeaders(authToken) }
   );
+  return res.data;
+};
+
+export const registrarMovimientoCaja = async (
+  payload: { tipo: 'ENTRADA' | 'SALIDA'; monto: number; motivo: string },
+  token?: string | null
+): Promise<CajaMovimientoEfectivo> => {
+  const authToken = token ?? getToken();
+  const res = await axios.post(`${API_URL}/cajas/movimientos`, payload, { headers: buildAuthHeaders(authToken) });
   return res.data;
 };
 

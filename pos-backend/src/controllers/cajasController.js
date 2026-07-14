@@ -29,6 +29,17 @@ const mapFondoCaja = (row) => ({
   usadoAt: row.usado_at
 });
 
+const mapMovimientoEfectivo = (row) => ({
+  id: Number(row.id),
+  cajaSesionId: Number(row.caja_sesion_id),
+  usuarioId: Number(row.usuario_id),
+  usuarioNombre: row.usuario_nombre,
+  tipo: row.tipo,
+  monto: toMoney(row.monto),
+  motivo: row.motivo,
+  creadoAt: row.creado_at
+});
+
 const getFondoPendiente = async (usuarioId, runner = pool, lock = false) => {
   const [rows] = await runner.query(
     `SELECT *
@@ -93,7 +104,21 @@ const getResumenCaja = async (caja, runner = pool) => {
     .filter((pago) => pago.metodo === 'efectivo')
     .reduce((sum, pago) => sum + pago.total, 0);
   const totalVentas = pagos.reduce((sum, pago) => sum + pago.total, 0);
-  const montoEsperado = toMoney(Number(caja.monto_inicial) + efectivoVentas);
+  const [movimientoRows] = await runner.query(
+    `SELECT *
+       FROM caja_movimientos_efectivo
+      WHERE caja_sesion_id = ?
+      ORDER BY creado_at ASC, id ASC`,
+    [caja.id]
+  );
+  const movimientosEfectivo = movimientoRows.map(mapMovimientoEfectivo);
+  const entradasEfectivo = movimientosEfectivo
+    .filter((movimiento) => movimiento.tipo === 'ENTRADA')
+    .reduce((sum, movimiento) => sum + movimiento.monto, 0);
+  const salidasEfectivo = movimientosEfectivo
+    .filter((movimiento) => movimiento.tipo === 'SALIDA')
+    .reduce((sum, movimiento) => sum + movimiento.monto, 0);
+  const montoEsperado = toMoney(Number(caja.monto_inicial) + efectivoVentas + entradasEfectivo - salidasEfectivo);
   return {
     id: caja.id,
     usuarioId: Number(caja.usuario_id),
@@ -103,6 +128,8 @@ const getResumenCaja = async (caja, runner = pool) => {
       ? null
       : Number(caja.fondo_asignado_id),
     efectivoVentas: toMoney(efectivoVentas),
+    entradasEfectivo: toMoney(entradasEfectivo),
+    salidasEfectivo: toMoney(salidasEfectivo),
     efectivoAEntregar: montoEsperado,
     montoEsperado,
     montoFinalDeclarado: caja.monto_final_declarado === null ? null : toMoney(caja.monto_final_declarado),
@@ -111,7 +138,8 @@ const getResumenCaja = async (caja, runner = pool) => {
     abiertaAt: caja.abierta_at,
     cerradaAt: caja.cerrada_at,
     totalVentas: toMoney(totalVentas),
-    pagos
+    pagos,
+    movimientosEfectivo
   };
 };
 
@@ -228,6 +256,8 @@ const cerrarCaja = async (req, res) => {
       fondoAsignadoId: resumen.fondoAsignadoId,
       montoInicial: resumen.montoInicial,
       efectivoVentas: resumen.efectivoVentas,
+      entradasEfectivo: resumen.entradasEfectivo,
+      salidasEfectivo: resumen.salidasEfectivo,
       montoEsperado: resumen.montoEsperado,
       montoFinalDeclarado: toMoney(montoFinal),
       diferencia
@@ -249,6 +279,56 @@ const listCajas = async (req, res) => {
   const resultados = [];
   for (const row of rows) resultados.push(await getResumenCaja(row));
   return res.json(resultados);
+};
+
+const registrarMovimientoEfectivo = async (req, res) => {
+  await ensureCajasSchema();
+  const usuarioId = Number(req.auth.sub);
+  const tipo = String(req.body?.tipo || '').trim().toUpperCase();
+  const monto = Number(req.body?.monto);
+  const motivo = String(req.body?.motivo || '').trim();
+
+  if (!['ENTRADA', 'SALIDA'].includes(tipo)) {
+    return res.status(400).json({ message: 'Selecciona si el movimiento es entrada o salida.' });
+  }
+  if (!Number.isFinite(monto) || monto <= 0) {
+    return res.status(400).json({ message: 'Ingresa un monto mayor a cero.' });
+  }
+  if (!motivo) {
+    return res.status(400).json({ message: 'El motivo es obligatorio para auditar el dinero.' });
+  }
+
+  const caja = await findCajaAbierta(usuarioId);
+  if (!caja) return res.status(409).json({ message: 'Debes abrir caja antes de registrar movimientos de efectivo.' });
+
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const usuarioNombre = await getUsuarioNombre(usuarioId, connection);
+    const [result] = await connection.execute(
+      `INSERT INTO caja_movimientos_efectivo
+        (caja_sesion_id, usuario_id, usuario_nombre, tipo, monto, motivo)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [caja.id, usuarioId, usuarioNombre, tipo, toMoney(monto), motivo]
+    );
+
+    await registrarAuditoria(connection, {
+      req,
+      accion: tipo === 'ENTRADA' ? 'CAJA_ENTRADA_EFECTIVO' : 'CAJA_SALIDA_EFECTIVO',
+      entidad: 'caja_movimiento_efectivo',
+      entidadId: result.insertId,
+      detalle: { cajaSesionId: caja.id, tipo, monto: toMoney(monto), motivo }
+    });
+    await connection.commit();
+
+    const [rows] = await pool.query('SELECT * FROM caja_movimientos_efectivo WHERE id = ?', [result.insertId]);
+    return res.status(201).json(mapMovimientoEfectivo(rows[0]));
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 };
 
 const asignarFondoCaja = async (req, res) => {
@@ -316,6 +396,7 @@ module.exports = {
   abrirCaja,
   cerrarCaja,
   listCajas,
+  registrarMovimientoEfectivo,
   asignarFondoCaja,
   listFondosCaja,
   findCajaAbierta

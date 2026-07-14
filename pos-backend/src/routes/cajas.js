@@ -6,6 +6,7 @@ const {
   abrirCaja,
   cerrarCaja,
   listCajas,
+  registrarMovimientoEfectivo,
   asignarFondoCaja,
   listFondosCaja
 } = require('../controllers/cajasController');
@@ -16,6 +17,7 @@ router.get('/actual', asyncHandler(getCajaActual));
 router.get('/', asyncHandler(listCajas));
 router.get('/fondos', asyncHandler(listFondosCaja));
 router.post('/fondos', asyncHandler(asignarFondoCaja));
+router.post('/movimientos', asyncHandler(registrarMovimientoEfectivo));
 router.post('/abrir', asyncHandler(abrirCaja));
 router.post('/cerrar', asyncHandler(cerrarCaja));
 

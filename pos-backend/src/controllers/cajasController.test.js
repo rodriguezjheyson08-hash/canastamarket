@@ -17,7 +17,7 @@ jest.mock('../features/auditoria/service', () => ({
 }));
 
 const pool = require('../db/pool');
-const { abrirCaja, asignarFondoCaja } = require('./cajasController');
+const { abrirCaja, asignarFondoCaja, registrarMovimientoEfectivo } = require('./cajasController');
 
 const mockRes = () => {
   const res = {};
@@ -66,5 +66,42 @@ describe('cajasController flujo de dinero', () => {
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json.mock.calls[0][0].message).toMatch(/no superar/i);
     expect(pool.execute).not.toHaveBeenCalled();
+  });
+
+  test('registra salida de efectivo solo con caja abierta y motivo', async () => {
+    const connection = {
+      beginTransaction: jest.fn(),
+      commit: jest.fn(),
+      rollback: jest.fn(),
+      release: jest.fn(),
+      query: jest.fn().mockResolvedValueOnce([[{ nombre_completo: 'Juan Cajero', nombre_usuario: 'juan_caj' }]]),
+      execute: jest.fn().mockResolvedValueOnce([{ insertId: 33 }])
+    };
+    pool.query
+      .mockResolvedValueOnce([[{ id: 10, usuario_id: 7, estado: 'ABIERTA' }]])
+      .mockResolvedValueOnce([[{
+        id: 33,
+        caja_sesion_id: 10,
+        usuario_id: 7,
+        usuario_nombre: 'Juan Cajero',
+        tipo: 'SALIDA',
+        monto: 25,
+        motivo: 'Pago proveedor',
+        creado_at: '2026-07-14 10:00:00'
+      }]]);
+    pool.getConnection.mockResolvedValueOnce(connection);
+
+    const req = { auth: { sub: 7, role: 'CAJERO' }, body: { tipo: 'SALIDA', monto: 25, motivo: 'Pago proveedor' } };
+    const res = mockRes();
+
+    await registrarMovimientoEfectivo(req, res);
+
+    expect(connection.execute).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO caja_movimientos_efectivo'),
+      [10, 7, 'Juan Cajero', 'SALIDA', 25, 'Pago proveedor']
+    );
+    expect(connection.commit).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json.mock.calls[0][0]).toMatchObject({ tipo: 'SALIDA', monto: 25, motivo: 'Pago proveedor' });
   });
 });
