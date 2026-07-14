@@ -160,18 +160,20 @@ const VentasPage: React.FC = () => {
     const refreshVueltoConfig = () => setVueltoConfig(loadVueltoConfig());
     window.addEventListener('storage', refreshVueltoConfig);
     window.addEventListener(VUELTO_CONFIG_UPDATE_EVENT, refreshVueltoConfig);
-    getConfiguracionSistema()
-      .then((data) => {
-        if (data.vueltos) setVueltoConfig(saveVueltoConfig(data.vueltos));
-      })
-      .catch(() => {
-        // Si no se puede leer la configuracion remota, se conserva el dato local.
-      });
+    if (!esCajero) {
+      getConfiguracionSistema()
+        .then((data) => {
+          if (data.vueltos) setVueltoConfig(saveVueltoConfig(data.vueltos));
+        })
+        .catch(() => {
+          // Si no se puede leer la configuracion remota, se conserva el dato local.
+        });
+    }
     return () => {
       window.removeEventListener('storage', refreshVueltoConfig);
       window.removeEventListener(VUELTO_CONFIG_UPDATE_EVENT, refreshVueltoConfig);
     };
-  }, []);
+  }, [esCajero]);
 
   const showSnackbar = useCallback((message: string, severity: 'success' | 'error') => {
     setSnackbar({ open: true, message, severity });

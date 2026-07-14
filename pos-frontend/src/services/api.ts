@@ -46,7 +46,7 @@ axios.interceptors.response.use(
   (response) => response,
   (error) => {
     const status = error?.response?.status;
-    if ([401, 403].includes(status)) {
+    if (status === 401) {
       expireStaffSession();
     }
     return Promise.reject(error);

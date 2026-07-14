@@ -38,4 +38,19 @@ describe('api auth interceptor', () => {
     expect(localStorage.getItem('user')).toBeNull();
     expect(window.location.pathname).toBe('/login');
   });
+
+  test('no cierra sesion cuando el backend responde 403 por permisos', async () => {
+    localStorage.setItem('token', 'header.payload.signature');
+    localStorage.setItem('user', JSON.stringify({ nombreUsuario: 'juan_caj', rol: 'CAJERO' }));
+
+    await import('./api');
+
+    await expect(mockResponseErrorHandler?.({ response: { status: 403 } })).rejects.toMatchObject({
+      response: { status: 403 }
+    });
+
+    expect(localStorage.getItem('token')).toBe('header.payload.signature');
+    expect(localStorage.getItem('user')).toContain('juan_caj');
+    expect(window.location.pathname).toBe('/dashboard/ventas');
+  });
 });
