@@ -11,8 +11,20 @@ const { mapVenta } = require('../features/ventas/mappers');
 const { ensureVentaOptionalColumns } = require('../features/ventas/schema');
 const { ensureCajasSchema } = require('../features/cajas/schema');
 const { prepararPagosVenta } = require('../features/ventas/pagos');
-const { getActor, registrarAuditoria } = require('../features/auditoria/service');
+const { resolveActor, registrarAuditoria } = require('../features/auditoria/service');
 const { registrarMovimientoInventario } = require('../features/inventario/service');
+
+const isAdmin = (req) => String(req.auth?.role || '').toUpperCase() === 'ADMINISTRADOR';
+
+const getPeruDateKey = (value = new Date()) => {
+  const date = value instanceof Date ? value : new Date(value);
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Lima',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(date);
+};
 
 // CONTROLADOR BACKEND: fetch Venta By Id procesa request/respuesta de este flujo.
 const fetchVentaById = async (ventaId) => {
@@ -334,6 +346,9 @@ const anularVenta = async (req, res) => {
   const ventaId = Number(req.params.id);
   const motivo = String(req.body?.motivo || '').trim().slice(0, 255);
 
+  if (!isAdmin(req)) {
+    return res.status(403).json({ message: 'Solo el administrador puede anular ventas.' });
+  }
   if (!Number.isInteger(ventaId) || ventaId <= 0) {
     return res.status(400).json({ message: 'Venta invalida.' });
   }
@@ -347,7 +362,11 @@ const anularVenta = async (req, res) => {
     await ensureVentaOptionalColumns(connection);
 
     const [ventas] = await connection.query(
-      'SELECT id, estado FROM ventas WHERE id = ? FOR UPDATE',
+      `SELECT v.id, v.estado, v.fecha, v.caja_sesion_id, c.estado AS caja_estado
+         FROM ventas v
+         LEFT JOIN caja_sesiones c ON c.id = v.caja_sesion_id
+        WHERE v.id = ?
+        FOR UPDATE`,
       [ventaId]
     );
     if (ventas.length === 0) {
@@ -357,6 +376,18 @@ const anularVenta = async (req, res) => {
     if (ventas[0].estado === 'ANULADA') {
       await connection.rollback();
       return res.status(400).json({ message: 'La venta ya esta anulada.' });
+    }
+    if (ventas[0].caja_estado === 'CERRADA') {
+      await connection.rollback();
+      return res.status(409).json({
+        message: 'No se puede anular directamente una venta de una caja cerrada. Debe registrarse con nota de credito o ajuste administrativo.'
+      });
+    }
+    if (getPeruDateKey(ventas[0].fecha) !== getPeruDateKey()) {
+      await connection.rollback();
+      return res.status(409).json({
+        message: `Solo se permite anulacion directa el mismo dia de la venta. Fuera de ese plazo corresponde nota de credito.`
+      });
     }
 
     const [detalles] = await connection.query(
@@ -377,7 +408,7 @@ const anularVenta = async (req, res) => {
       });
     }
 
-    const actor = getActor(req);
+    const actor = await resolveActor(connection, req);
     await connection.execute(
       `UPDATE ventas
           SET estado = 'ANULADA',
