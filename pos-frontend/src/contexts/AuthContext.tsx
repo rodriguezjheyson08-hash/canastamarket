@@ -3,7 +3,7 @@
  * UBICACION: pos-frontend/src/contexts/AuthContext.tsx
  * QUE HACE: Estado global compartido con React Context.
  */
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { User, LoginData } from '../types';
 import { getCurrentUser, login as apiLogin, loginWithGoogle as apiLoginWithGoogle } from '../services/api';
 import {
@@ -40,14 +40,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const tokenSnapshotRef = useRef<string | null>(null);
 
-  const clearAuthenticatedUser = (notifyOtherTabs = false) => {
+  const clearAuthenticatedUser = useCallback((notifyOtherTabs = false) => {
     clearStaffSession();
     tokenSnapshotRef.current = null;
     setIsAuthenticated(false);
     setUser(null);
     forceStaffLoginRedirect();
     if (notifyOtherTabs) notifyStaffLogout();
-  };
+  }, []);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -64,7 +64,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(false);
   }, []);
 
-  const persistAuthenticatedUser = (authenticatedUser: User) => {
+  const persistAuthenticatedUser = useCallback((authenticatedUser: User) => {
     const token = localStorage.getItem('token');
     if (!token) {
       clearAuthenticatedUser(false);
@@ -74,9 +74,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('user', JSON.stringify(authenticatedUser));
     setIsAuthenticated(true);
     setUser(authenticatedUser);
-  };
+  }, [clearAuthenticatedUser]);
 
-  const syncSessionFromStorage = () => {
+  const syncSessionFromStorage = useCallback(() => {
     const token = localStorage.getItem('token');
     const userData = localStorage.getItem('user');
 
@@ -94,7 +94,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {
       clearAuthenticatedUser(true);
     }
-  };
+  }, [clearAuthenticatedUser, isAuthenticated, user]);
 
   useEffect(() => {
     const handleAuthStorageChange = (event: StorageEvent) => {
@@ -109,12 +109,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       window.removeEventListener('storage', handleAuthStorageChange);
       window.removeEventListener(AUTH_SESSION_CHANGED_EVENT, handleAuthSessionChanged);
     };
-  }, [isAuthenticated, user]);
+  }, [syncSessionFromStorage]);
 
   useEffect(() => {
     const intervalId = window.setInterval(syncSessionFromStorage, 1000);
     return () => window.clearInterval(intervalId);
-  }, [isAuthenticated, user]);
+  }, [syncSessionFromStorage]);
 
   useEffect(() => {
     if (!('BroadcastChannel' in window)) return undefined;
@@ -125,7 +125,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
     return () => channel.close();
-  }, []);
+  }, [clearAuthenticatedUser]);
 
   useEffect(() => {
     if (!isAuthenticated) return undefined;
@@ -158,7 +158,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       window.removeEventListener('focus', refreshAuthenticatedUser);
       document.removeEventListener('visibilitychange', refreshAuthenticatedUser);
     };
-  }, [isAuthenticated]);
+  }, [clearAuthenticatedUser, isAuthenticated, persistAuthenticatedUser]);
 
   const login = async (credentials: LoginData) => {
     try {
