@@ -364,10 +364,13 @@ const VentasPage: React.FC = () => {
     } catch (error: any) {
       setNombresCliente('');
       setApellidosCliente('');
-      const message =
+      const rawMessage =
         error?.response?.data?.message ||
         error?.message ||
         'Ese DNI no fue encontrado en RENIEC.';
+      const message = String(rawMessage).trim().toLowerCase() === 'not found'
+        ? 'Ese DNI no fue encontrado en RENIEC.'
+        : rawMessage;
       showSnackbar(message, 'error');
     } finally {
       setBuscandoCliente(false);

@@ -9,6 +9,16 @@
 const axios = require('axios');
 const { consultarDni } = require('../apidni/dniService');
 
+const DNI_NOT_FOUND_MESSAGE = 'Ese DNI no fue encontrado en RENIEC.';
+
+const normalizeDniErrorMessage = (status, rawMessage) => {
+  const message = String(rawMessage || '').trim();
+  if (status === 404 || /^not\s*found$/i.test(message) || /no encontrado/i.test(message)) {
+    return DNI_NOT_FOUND_MESSAGE;
+  }
+  return message || 'No se pudo consultar DNI en RENIEC.';
+};
+
 const normalizeDniData = (inputDni, data) => {
   const nombres = String(data?.first_name || data?.nombres || '').trim();
   const apellidoPaterno = String(data?.first_last_name || data?.apellido_paterno || '').trim();
@@ -18,7 +28,7 @@ const normalizeDniData = (inputDni, data) => {
   const dni = String(data?.document_number || data?.dni || inputDni || '').trim();
 
   if (!nombres && !apellidos && !nombreCompleto) {
-    const error = new Error('Ese DNI no fue encontrado en RENIEC.');
+    const error = new Error(DNI_NOT_FOUND_MESSAGE);
     error.status = 404;
     throw error;
   }
@@ -44,7 +54,7 @@ const getPersonaPorDni = async (req, res) => {
   } catch (error) {
     if (axios.isAxiosError(error)) {
       const status = error.response?.status || 500;
-      const message = error.response?.data?.message || 'No se pudo consultar DNI en Decolecta.';
+      const message = normalizeDniErrorMessage(status, error.response?.data?.message);
       return res.status(status).json({
         message,
         details: error.response?.data
@@ -53,7 +63,7 @@ const getPersonaPorDni = async (req, res) => {
 
     const status = error.status || 500;
     return res.status(status).json({
-      message: error.message || 'No se pudo consultar DNI.'
+      message: normalizeDniErrorMessage(status, error.message)
     });
   }
 };
