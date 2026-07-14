@@ -22,6 +22,8 @@ import {
   UsuarioItem,
   UsuarioPayload,
   CajaSesion,
+  CajaActualResponse,
+  CajaFondoAsignado,
   PedidoOnline,
   PedidoOnlineCreatePayload,
   InventarioMovimiento,
@@ -296,17 +298,20 @@ export const completePasswordReset = async (resetToken: string, newPassword: str
 };
 
 // Caja por cajero
-export const getCajaActual = async (token?: string | null): Promise<CajaSesion | null> => {
+export const getCajaActual = async (token?: string | null): Promise<CajaActualResponse> => {
   const authToken = token ?? getToken();
   const res = await axios.get(`${API_URL}/cajas/actual`, { headers: buildAuthHeaders(authToken) });
-  return res.data;
+  if (res.data && Object.prototype.hasOwnProperty.call(res.data, 'caja')) {
+    return res.data;
+  }
+  return { caja: res.data || null, fondoPendiente: null };
 };
 
-export const abrirCaja = async (montoInicial: number, token?: string | null): Promise<CajaSesion> => {
+export const abrirCaja = async (montoInicial?: number, token?: string | null): Promise<CajaSesion> => {
   const authToken = token ?? getToken();
   const res = await axios.post(
     `${API_URL}/cajas/abrir`,
-    { montoInicial },
+    montoInicial === undefined ? {} : { montoInicial },
     { headers: buildAuthHeaders(authToken) }
   );
   return res.data;
@@ -325,6 +330,21 @@ export const cerrarCaja = async (montoFinalDeclarado: number, token?: string | n
 export const getCajas = async (token?: string | null): Promise<CajaSesion[]> => {
   const authToken = token ?? getToken();
   const res = await axios.get(`${API_URL}/cajas`, { headers: buildAuthHeaders(authToken) });
+  return res.data;
+};
+
+export const getFondosCaja = async (token?: string | null): Promise<CajaFondoAsignado[]> => {
+  const authToken = token ?? getToken();
+  const res = await axios.get(`${API_URL}/cajas/fondos`, { headers: buildAuthHeaders(authToken) });
+  return res.data;
+};
+
+export const asignarFondoCaja = async (
+  payload: { usuarioId: number; monto: number; nota?: string | null },
+  token?: string | null
+): Promise<CajaFondoAsignado> => {
+  const authToken = token ?? getToken();
+  const res = await axios.post(`${API_URL}/cajas/fondos`, payload, { headers: buildAuthHeaders(authToken) });
   return res.data;
 };
 

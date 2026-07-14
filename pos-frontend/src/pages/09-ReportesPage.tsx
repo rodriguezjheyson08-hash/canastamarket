@@ -17,7 +17,12 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  FormControl,
   Grid,
+  InputAdornment,
+  InputLabel,
+  MenuItem,
+  Select,
   Table,
   TableBody,
   TableCell,
@@ -28,8 +33,17 @@ import {
   Typography
 } from '@mui/material';
 import { Assessment, AttachMoney, Inventory, PointOfSale, Warning } from '@mui/icons-material';
-import { anularVenta, getCajas, getDashboardStats, getPedidosOnline, getVentas } from '../services/api';
-import { CajaSesion, DashboardStats, PedidoOnline, Venta, VentaProducto } from '../types';
+import {
+  anularVenta,
+  asignarFondoCaja,
+  getCajas,
+  getDashboardStats,
+  getFondosCaja,
+  getPedidosOnline,
+  getUsuarios,
+  getVentas
+} from '../services/api';
+import { CajaFondoAsignado, CajaSesion, DashboardStats, PedidoOnline, UsuarioItem, Venta, VentaProducto } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useI18n } from '../hooks/useI18n';
 import { formatBusinessDateTime, getBusinessDateValue } from '../utils/businessTime';
@@ -105,6 +119,12 @@ const ReportesPage: React.FC = () => {
   const [ventas, setVentas] = useState<Venta[]>([]);
   const [pedidosOnline, setPedidosOnline] = useState<PedidoOnline[]>([]);
   const [cajas, setCajas] = useState<CajaSesion[]>([]);
+  const [fondosCaja, setFondosCaja] = useState<CajaFondoAsignado[]>([]);
+  const [usuarios, setUsuarios] = useState<UsuarioItem[]>([]);
+  const [fondoUsuarioId, setFondoUsuarioId] = useState('');
+  const [fondoMonto, setFondoMonto] = useState('');
+  const [fondoNota, setFondoNota] = useState('');
+  const [fondoSaving, setFondoSaving] = useState(false);
   const [fechaVentas, setFechaVentas] = useState('');
   const [selectedVenta, setSelectedVenta] = useState<Venta | null>(null);
   const [loading, setLoading] = useState(true);
@@ -132,13 +152,15 @@ const ReportesPage: React.FC = () => {
       try {
         setLoading(true);
         setError('');
-        const [statsData, ventasData, pedidosOnlineData, cajasData] = await Promise.all([
-          getDashboardStats(), getVentas(), getPedidosOnline(), getCajas()
+        const [statsData, ventasData, pedidosOnlineData, cajasData, fondosData, usuariosData] = await Promise.all([
+          getDashboardStats(), getVentas(), getPedidosOnline(), getCajas(), getFondosCaja(), getUsuarios()
         ]);
         setStats(statsData);
         setVentas(Array.isArray(ventasData) ? ventasData : []);
         setPedidosOnline(Array.isArray(pedidosOnlineData) ? pedidosOnlineData : []);
         setCajas(Array.isArray(cajasData) ? cajasData : []);
+        setFondosCaja(Array.isArray(fondosData) ? fondosData : []);
+        setUsuarios(Array.isArray(usuariosData) ? usuariosData : []);
       } catch (err: any) {
         setError(err?.response?.data?.message || t('No se pudieron cargar los reportes.', 'Could not load reports.'));
       } finally {
@@ -152,6 +174,36 @@ const ReportesPage: React.FC = () => {
       setLoading(false);
     }
   }, [isAdmin, t]);
+
+  const cajeros = useMemo(() => (
+    usuarios.filter((usuario) => String(usuario.rol || '').toUpperCase() === 'CAJERO' && usuario.is_active !== 0)
+  ), [usuarios]);
+
+  const handleAsignarFondo = async () => {
+    const usuarioId = Number(fondoUsuarioId);
+    const monto = Number(fondoMonto);
+    if (!Number.isInteger(usuarioId) || usuarioId <= 0) {
+      setError('Selecciona un cajero.');
+      return;
+    }
+    if (!Number.isFinite(monto) || monto <= 0) {
+      setError('Ingresa un fondo valido.');
+      return;
+    }
+    try {
+      setFondoSaving(true);
+      setError('');
+      const fondo = await asignarFondoCaja({ usuarioId, monto, nota: fondoNota || null });
+      setFondosCaja((prev) => [fondo, ...prev]);
+      setFondoUsuarioId('');
+      setFondoMonto('');
+      setFondoNota('');
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'No se pudo asignar el fondo de caja.');
+    } finally {
+      setFondoSaving(false);
+    }
+  };
 
   // LOGICA REPORTES - VENTAS ONLINE:
   // Convierte pedidos online completados a la misma forma de venta para que aparezcan en Reportes.
@@ -422,24 +474,101 @@ const ReportesPage: React.FC = () => {
       {/* DISEÑO REPORTES - MODAL DETALLE DE VENTA:
           Ventana emergente que se abre al presionar "Ver detalles". */}
       <Typography variant="h5" component="h2" sx={{ mt: 4, mb: 2 }} fontWeight={700}>
+        Fondos de caja asignados por administrador
+      </Typography>
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            El fondo inicial es dinero que el administrador entrega al cajero para dar vuelto. No es venta ni ganancia; al cierre debe volver junto con el efectivo cobrado.
+          </Alert>
+          <Grid container spacing={2} alignItems="center">
+            <Grid item xs={12} md={4}>
+              <FormControl fullWidth size="small">
+                <InputLabel id="fondo-cajero-label">Cajero</InputLabel>
+                <Select
+                  labelId="fondo-cajero-label"
+                  label="Cajero"
+                  value={fondoUsuarioId}
+                  onChange={(event) => setFondoUsuarioId(String(event.target.value))}
+                >
+                  {cajeros.map((cajero) => (
+                    <MenuItem key={cajero.id} value={String(cajero.id)}>
+                      {cajero.nombre_completo || cajero.nombre_usuario}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Fondo entregado"
+                value={fondoMonto}
+                onChange={(event) => setFondoMonto(event.target.value.replace(/[^0-9.]/g, ''))}
+                InputProps={{ startAdornment: <InputAdornment position="start">S/</InputAdornment> }}
+              />
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Nota"
+                value={fondoNota}
+                onChange={(event) => setFondoNota(event.target.value)}
+              />
+            </Grid>
+            <Grid item xs={12} md={2}>
+              <Button variant="contained" fullWidth onClick={handleAsignarFondo} disabled={fondoSaving}>
+                Asignar
+              </Button>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
+      <TableContainer component={Card} sx={{ mb: 3 }}>
+        <Table size="small">
+          <TableHead><TableRow>
+            <TableCell>Fecha</TableCell><TableCell>Cajero</TableCell><TableCell>Asignado por</TableCell>
+            <TableCell align="right">Monto</TableCell><TableCell>Estado</TableCell><TableCell>Nota</TableCell>
+          </TableRow></TableHead>
+          <TableBody>
+            {fondosCaja.length === 0 ? (
+              <TableRow><TableCell colSpan={6}>Todavia no hay fondos asignados.</TableCell></TableRow>
+            ) : fondosCaja.map((fondo) => (
+              <TableRow key={fondo.id}>
+                <TableCell>{formatDateTime(fondo.creadoAt)}</TableCell>
+                <TableCell>{fondo.usuarioNombre}</TableCell>
+                <TableCell>{fondo.asignadoPorNombre}</TableCell>
+                <TableCell align="right">{formatCurrency(fondo.monto)}</TableCell>
+                <TableCell>{fondo.estado}</TableCell>
+                <TableCell>{fondo.nota || '-'}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      <Typography variant="h5" component="h2" sx={{ mt: 4, mb: 2 }} fontWeight={700}>
         Aperturas y cierres de caja
       </Typography>
       <TableContainer component={Card} sx={{ mb: 3 }}>
         <Table size="small">
           <TableHead><TableRow>
             <TableCell>Cajero</TableCell><TableCell>Apertura</TableCell>
-            <TableCell align="right">Inicial</TableCell><TableCell align="right">Ventas</TableCell>
-            <TableCell align="right">Efectivo esperado</TableCell><TableCell align="right">Contado</TableCell>
+            <TableCell align="right">Fondo admin</TableCell><TableCell align="right">Ventas total</TableCell>
+            <TableCell align="right">Efectivo ventas</TableCell><TableCell align="right">A entregar</TableCell><TableCell align="right">Contado</TableCell>
             <TableCell align="right">Diferencia</TableCell><TableCell>Estado</TableCell>
           </TableRow></TableHead>
           <TableBody>
             {cajas.length === 0 ? (
-              <TableRow><TableCell colSpan={8}>Todavía no hay movimientos de caja.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={9}>Todavía no hay movimientos de caja.</TableCell></TableRow>
             ) : cajas.map((caja) => (
               <TableRow key={caja.id}>
                 <TableCell>{caja.usuarioNombre}</TableCell><TableCell>{formatDateTime(caja.abiertaAt)}</TableCell>
                 <TableCell align="right">{formatCurrency(caja.montoInicial)}</TableCell>
                 <TableCell align="right">{formatCurrency(caja.totalVentas)}</TableCell>
+                <TableCell align="right">{formatCurrency(caja.efectivoVentas ?? 0)}</TableCell>
                 <TableCell align="right">{formatCurrency(caja.montoEsperado)}</TableCell>
                 <TableCell align="right">{caja.montoFinalDeclarado == null ? '-' : formatCurrency(caja.montoFinalDeclarado)}</TableCell>
                 <TableCell align="right" sx={{ color: caja.diferencia ? 'error.main' : 'success.main' }}>

@@ -206,6 +206,9 @@ export interface CajaSesion {
   usuarioId: number;
   usuarioNombre: string;
   montoInicial: number;
+  fondoAsignadoId?: number | null;
+  efectivoVentas?: number;
+  efectivoAEntregar?: number;
   montoEsperado: number;
   montoFinalDeclarado?: number | null;
   diferencia?: number | null;
@@ -214,6 +217,25 @@ export interface CajaSesion {
   cerradaAt?: string | null;
   totalVentas: number;
   pagos: Array<{ metodo: string; cantidadVentas: number; total: number }>;
+}
+
+export interface CajaFondoAsignado {
+  id: number;
+  usuarioId: number;
+  usuarioNombre: string;
+  asignadoPorId: number;
+  asignadoPorNombre: string;
+  monto: number;
+  estado: 'PENDIENTE' | 'USADO' | 'ANULADO' | string;
+  cajaSesionId?: number | null;
+  nota?: string | null;
+  creadoAt: string;
+  usadoAt?: string | null;
+}
+
+export interface CajaActualResponse {
+  caja: CajaSesion | null;
+  fondoPendiente: CajaFondoAsignado | null;
 }
 
 // TIPOS FRONTEND: alias VentaCreatePayload que limita valores o forma de datos.

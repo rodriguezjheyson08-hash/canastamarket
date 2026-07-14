@@ -38,7 +38,7 @@ import {
 // IMPORTACIONES FRONTEND: librerias, helpers y tipos que usa este archivo.
 import { ShoppingCart, Add, Remove, Delete, Print, QrCodeScanner, Search, PointOfSale } from '@mui/icons-material';
 import QRCode from 'qrcode';
-import { Producto, Venta, Categoria, VentaCreatePayload, CajaSesion } from '../types';
+import { Producto, Venta, Categoria, VentaCreatePayload, CajaSesion, CajaFondoAsignado } from '../types';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import {
   createMercadoPagoPreference,
@@ -116,6 +116,7 @@ const VentasPage: React.FC = () => {
   const [montoYapeMixto, setMontoYapeMixto] = useState('');
   const [recibidoMixto, setRecibidoMixto] = useState('');
   const [cajaActual, setCajaActual] = useState<CajaSesion | null>(null);
+  const [fondoCajaPendiente, setFondoCajaPendiente] = useState<CajaFondoAsignado | null>(null);
   const [cajaLoading, setCajaLoading] = useState(true);
   const [modalCaja, setModalCaja] = useState<'abrir' | 'cerrar' | null>(null);
   const [montoCaja, setMontoCaja] = useState('');
@@ -141,6 +142,7 @@ const VentasPage: React.FC = () => {
   const navigate = useNavigate();
   const mpPaymentLink = process.env.REACT_APP_MP_PAYMENT_LINK;
   const { user } = useAuth();
+  const esCajero = String(user?.rol || '').toUpperCase() === 'CAJERO';
   const processedMpPaymentIdRef = useRef<string | null>(null);
 
   const vendedorPayload = useMemo(() => ({
@@ -172,9 +174,12 @@ const VentasPage: React.FC = () => {
 
   const fetchCajaActual = useCallback(async () => {
     try {
-      setCajaActual(await getCajaActual());
+      const data = await getCajaActual();
+      setCajaActual(data.caja);
+      setFondoCajaPendiente(data.fondoPendiente);
     } catch (error) {
       setCajaActual(null);
+      setFondoCajaPendiente(null);
       showSnackbar('No se pudo consultar el estado de caja', 'error');
     } finally {
       setCajaLoading(false);
@@ -488,8 +493,12 @@ const VentasPage: React.FC = () => {
   };
 
   const guardarAperturaCaja = async () => {
-    const monto = Number.parseFloat(montoCaja);
-    if (!Number.isFinite(monto) || monto < 0) {
+    if (esCajero && !fondoCajaPendiente) {
+      showSnackbar('No tienes fondo de caja asignado por el administrador', 'error');
+      return;
+    }
+    const monto = esCajero ? undefined : Number.parseFloat(montoCaja);
+    if (!esCajero && (!Number.isFinite(Number(monto)) || Number(monto) < 0)) {
       showSnackbar('Ingresa un monto inicial válido', 'error');
       return;
     }
@@ -497,6 +506,7 @@ const VentasPage: React.FC = () => {
       setCajaLoading(true);
       const caja = await abrirCaja(monto);
       setCajaActual(caja);
+      setFondoCajaPendiente(null);
       setModalCaja(null);
       setMontoCaja('');
       showSnackbar('Caja abierta correctamente', 'success');
@@ -1475,7 +1485,12 @@ const VentasPage: React.FC = () => {
               </Typography>
               {cajaActual && (
                 <Typography variant="body2" color="text.secondary">
-                  Inicial: {formatCurrency(cajaActual.montoInicial)} · Efectivo esperado: {formatCurrency(cajaActual.montoEsperado)} · Ventas: {formatCurrency(cajaActual.totalVentas)}
+                  Fondo admin: {formatCurrency(cajaActual.montoInicial)} / Efectivo ventas: {formatCurrency(cajaActual.efectivoVentas ?? 0)} / A entregar: {formatCurrency(cajaActual.efectivoAEntregar ?? cajaActual.montoEsperado)}
+                </Typography>
+              )}
+              {!cajaActual && fondoCajaPendiente && (
+                <Typography variant="body2" color="success.main">
+                  Fondo asignado por admin: {formatCurrency(fondoCajaPendiente.monto)}
                 </Typography>
               )}
             </Box>
@@ -1483,9 +1498,9 @@ const VentasPage: React.FC = () => {
           <Button
             variant="contained"
             color={cajaActual ? 'warning' : 'success'}
-            disabled={cajaLoading}
+            disabled={cajaLoading || (!cajaActual && esCajero && !fondoCajaPendiente)}
             onClick={() => {
-              setMontoCaja(cajaActual ? String(cajaActual.montoEsperado.toFixed(2)) : '');
+              setMontoCaja(cajaActual ? String(cajaActual.montoEsperado.toFixed(2)) : (fondoCajaPendiente ? String(fondoCajaPendiente.monto.toFixed(2)) : ''));
               setModalCaja(cajaActual ? 'cerrar' : 'abrir');
             }}
           >
@@ -1494,7 +1509,9 @@ const VentasPage: React.FC = () => {
         </Box>
         {!cajaLoading && !cajaActual && (
           <Alert severity="warning" sx={{ mt: 1.5 }}>
-            Debes abrir tu caja para poder registrar ventas.
+            {esCajero && !fondoCajaPendiente
+              ? 'El administrador debe asignarte un fondo inicial antes de abrir caja.'
+              : 'Debes abrir tu caja para poder registrar ventas.'}
           </Alert>
         )}
       </Card>
@@ -1725,12 +1742,18 @@ const VentasPage: React.FC = () => {
               </Typography>
             </Box>
           )}
+          {modalCaja === 'abrir' && esCajero && fondoCajaPendiente && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              El administrador te entrego {formatCurrency(fondoCajaPendiente.monto)} como fondo inicial. Al cerrar caja debes entregar ese fondo mas las ventas en efectivo.
+            </Alert>
+          )}
           <TextField
             autoFocus
             fullWidth
-            label={modalCaja === 'abrir' ? 'Monto inicial para vueltos' : 'Efectivo contado al cierre'}
+            label={modalCaja === 'abrir' ? (esCajero ? 'Fondo asignado por administrador' : 'Monto inicial para vueltos') : 'Efectivo contado al cierre'}
             value={montoCaja}
             onChange={(e) => setMontoCaja(normalizeDecimalInput(e.target.value))}
+            disabled={modalCaja === 'abrir' && esCajero}
             inputProps={{ inputMode: 'decimal', min: 0 }}
             InputProps={{ startAdornment: <InputAdornment position="start">S/</InputAdornment> }}
             sx={{ mt: 1 }}

@@ -2,6 +2,20 @@ const pool = require('../../db/pool');
 
 let cajasSchemaChecked = false;
 
+const ensureColumn = async (runner, tableName, columnName, ddl) => {
+  const [rows] = await runner.query(
+    `SELECT COLUMN_NAME
+       FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = ?
+        AND COLUMN_NAME = ?
+      LIMIT 1`,
+    [tableName, columnName]
+  );
+  if (rows.length > 0) return;
+  await runner.query(ddl);
+};
+
 const ensureCajasSchema = async (runner = pool) => {
   if (cajasSchemaChecked) return;
 
@@ -14,11 +28,38 @@ const ensureCajasSchema = async (runner = pool) => {
       monto_esperado DECIMAL(12,2) NULL,
       monto_final_declarado DECIMAL(12,2) NULL,
       diferencia DECIMAL(12,2) NULL,
+      fondo_asignado_id INT NULL,
       estado VARCHAR(20) NOT NULL DEFAULT 'ABIERTA',
       abierta_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       cerrada_at TIMESTAMP NULL,
       INDEX idx_caja_usuario_estado (usuario_id, estado),
       INDEX idx_caja_abierta_at (abierta_at)
+    )
+  `);
+
+  await ensureColumn(
+    runner,
+    'caja_sesiones',
+    'fondo_asignado_id',
+    'ALTER TABLE caja_sesiones ADD COLUMN fondo_asignado_id INT NULL AFTER diferencia'
+  );
+
+  await runner.query(`
+    CREATE TABLE IF NOT EXISTS caja_fondos_asignados (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      usuario_id INT NOT NULL,
+      usuario_nombre VARCHAR(120) NULL,
+      asignado_por_id INT NOT NULL,
+      asignado_por_nombre VARCHAR(120) NULL,
+      monto DECIMAL(12,2) NOT NULL,
+      estado VARCHAR(20) NOT NULL DEFAULT 'PENDIENTE',
+      caja_sesion_id INT NULL,
+      nota VARCHAR(255) NULL,
+      creado_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      usado_at TIMESTAMP NULL,
+      INDEX idx_caja_fondos_usuario_estado (usuario_id, estado),
+      INDEX idx_caja_fondos_estado (estado),
+      INDEX idx_caja_fondos_creado_at (creado_at)
     )
   `);
 
