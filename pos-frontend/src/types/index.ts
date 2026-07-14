@@ -211,6 +211,7 @@ export interface CajaSesion {
   entradasEfectivo?: number;
   salidasEfectivo?: number;
   efectivoAEntregar?: number;
+  efectivoEnCajaEsperado?: number;
   montoEsperado: number;
   montoFinalDeclarado?: number | null;
   diferencia?: number | null;

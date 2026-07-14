@@ -500,10 +500,6 @@ const VentasPage: React.FC = () => {
   };
 
   const guardarAperturaCaja = async () => {
-    if (esCajero && !fondoCajaPendiente) {
-      showSnackbar('No tienes fondo de caja asignado por el administrador', 'error');
-      return;
-    }
     const monto = esCajero ? undefined : Number.parseFloat(montoCaja);
     if (!esCajero && (!Number.isFinite(Number(monto)) || Number(monto) < 0)) {
       showSnackbar('Ingresa un monto inicial válido', 'error');
@@ -1527,7 +1523,7 @@ const VentasPage: React.FC = () => {
               </Typography>
               {cajaActual && (
                 <Typography variant="body2" color="text.secondary">
-                  Fondo admin: {formatCurrency(cajaActual.montoInicial)} / Efectivo ventas: {formatCurrency(cajaActual.efectivoVentas ?? 0)} / Entradas: {formatCurrency(cajaActual.entradasEfectivo ?? 0)} / Salidas: {formatCurrency(cajaActual.salidasEfectivo ?? 0)} / A entregar: {formatCurrency(cajaActual.efectivoAEntregar ?? cajaActual.montoEsperado)}
+                  Fondo base: {formatCurrency(cajaActual.montoInicial)} / Efectivo ventas: {formatCurrency(cajaActual.efectivoVentas ?? 0)} / Entradas: {formatCurrency(cajaActual.entradasEfectivo ?? 0)} / Salidas: {formatCurrency(cajaActual.salidasEfectivo ?? 0)} / Entregar admin: {formatCurrency(cajaActual.efectivoAEntregar ?? 0)}
                 </Typography>
               )}
               {!cajaActual && fondoCajaPendiente && (
@@ -1563,9 +1559,9 @@ const VentasPage: React.FC = () => {
             <Button
               variant="contained"
               color={cajaActual ? 'warning' : 'success'}
-              disabled={cajaLoading || (!cajaActual && esCajero && !fondoCajaPendiente)}
+              disabled={cajaLoading}
               onClick={() => {
-                setMontoCaja(cajaActual ? String(cajaActual.montoEsperado.toFixed(2)) : (fondoCajaPendiente ? String(fondoCajaPendiente.monto.toFixed(2)) : ''));
+                setMontoCaja(cajaActual ? String(cajaActual.montoEsperado.toFixed(2)) : (fondoCajaPendiente ? String(fondoCajaPendiente.monto.toFixed(2)) : (esCajero ? 'automatico' : '')));
                 setModalCaja(cajaActual ? 'cerrar' : 'abrir');
               }}
             >
@@ -1576,7 +1572,7 @@ const VentasPage: React.FC = () => {
         {!cajaLoading && !cajaActual && (
           <Alert severity="warning" sx={{ mt: 1.5 }}>
             {esCajero && !fondoCajaPendiente
-              ? 'El administrador debe asignarte un fondo inicial antes de abrir caja.'
+              ? 'Se reutilizara el ultimo fondo base de tu caja. Si es tu primera apertura, el administrador debe asignarlo una sola vez.'
               : 'Debes abrir tu caja para poder registrar ventas.'}
           </Alert>
         )}
@@ -1795,9 +1791,9 @@ const VentasPage: React.FC = () => {
           {modalCaja === 'cerrar' && cajaActual && (
             <Box sx={{ mb: 2 }}>
               <Alert severity="info" sx={{ mb: 2 }}>
-                Cuenta únicamente el efectivo físico disponible en la caja.
+                Cuenta todo el efectivo físico disponible en la caja. El sistema separa el fondo base que se queda y el efectivo neto a entregar.
               </Alert>
-              <Typography variant="body2">Monto inicial: <b>{formatCurrency(cajaActual.montoInicial)}</b></Typography>
+              <Typography variant="body2">Fondo base que se queda: <b>{formatCurrency(cajaActual.montoInicial)}</b></Typography>
               <Typography variant="body2">Ventas en efectivo: <b>{formatCurrency(cajaActual.efectivoVentas ?? 0)}</b></Typography>
               <Typography variant="body2">Entradas de efectivo: <b>{formatCurrency(cajaActual.entradasEfectivo ?? 0)}</b></Typography>
               <Typography variant="body2">Salidas de efectivo: <b>{formatCurrency(cajaActual.salidasEfectivo ?? 0)}</b></Typography>
@@ -1808,19 +1804,27 @@ const VentasPage: React.FC = () => {
                 </Typography>
               ))}
               <Typography variant="body2" sx={{ mt: 1 }}>
-                Efectivo esperado: <b>{formatCurrency(cajaActual.montoEsperado)}</b>
+                Efectivo esperado en caja: <b>{formatCurrency(cajaActual.montoEsperado)}</b>
+              </Typography>
+              <Typography variant="body2">
+                Efectivo a entregar al administrador: <b>{formatCurrency(cajaActual.efectivoAEntregar ?? 0)}</b>
               </Typography>
             </Box>
           )}
           {modalCaja === 'abrir' && esCajero && fondoCajaPendiente && (
             <Alert severity="info" sx={{ mb: 2 }}>
-              El administrador te entrego {formatCurrency(fondoCajaPendiente.monto)} como fondo inicial. Al cerrar caja debes entregar ese fondo mas las ventas en efectivo.
+              El administrador actualizo tu fondo base a {formatCurrency(fondoCajaPendiente.monto)}.
+            </Alert>
+          )}
+          {modalCaja === 'abrir' && esCajero && !fondoCajaPendiente && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Se usara el ultimo fondo base registrado. Si es la primera vez, el sistema pedira que el administrador lo asigne.
             </Alert>
           )}
           <TextField
             autoFocus
             fullWidth
-            label={modalCaja === 'abrir' ? (esCajero ? 'Fondo asignado por administrador' : 'Monto inicial para vueltos') : 'Efectivo contado al cierre'}
+            label={modalCaja === 'abrir' ? (esCajero ? 'Fondo base de caja' : 'Monto inicial para vueltos') : 'Efectivo contado al cierre'}
             value={montoCaja}
             onChange={(e) => setMontoCaja(normalizeDecimalInput(e.target.value))}
             disabled={modalCaja === 'abrir' && esCajero}
@@ -1840,7 +1844,7 @@ const VentasPage: React.FC = () => {
             variant="contained"
             color={modalCaja === 'abrir' ? 'success' : 'warning'}
             onClick={modalCaja === 'abrir' ? guardarAperturaCaja : guardarCierreCaja}
-            disabled={cajaLoading || montoCaja === ''}
+            disabled={cajaLoading || (modalCaja === 'cerrar' && montoCaja === '') || (modalCaja === 'abrir' && !esCajero && montoCaja === '')}
           >
             {modalCaja === 'abrir' ? 'Abrir caja' : 'Cerrar caja'}
           </Button>

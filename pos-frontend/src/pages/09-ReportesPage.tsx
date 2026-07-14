@@ -435,7 +435,7 @@ const ReportesPage: React.FC = () => {
           <TableHead><TableRow>
             <TableCell>Cajero</TableCell><TableCell>Apertura</TableCell>
             <TableCell align="right">Fondo admin</TableCell><TableCell align="right">Ventas total</TableCell>
-            <TableCell align="right">Efectivo ventas</TableCell><TableCell align="right">Entradas</TableCell><TableCell align="right">Salidas</TableCell><TableCell align="right">A entregar</TableCell><TableCell align="right">Contado</TableCell>
+            <TableCell align="right">Efectivo ventas</TableCell><TableCell align="right">Entradas</TableCell><TableCell align="right">Salidas</TableCell><TableCell align="right">Entregar admin</TableCell><TableCell align="right">Contado</TableCell>
             <TableCell align="right">Diferencia</TableCell><TableCell>Estado</TableCell>
           </TableRow></TableHead>
           <TableBody>
@@ -449,7 +449,7 @@ const ReportesPage: React.FC = () => {
                 <TableCell align="right">{formatCurrency(caja.efectivoVentas ?? 0)}</TableCell>
                 <TableCell align="right">{formatCurrency(caja.entradasEfectivo ?? 0)}</TableCell>
                 <TableCell align="right">{formatCurrency(caja.salidasEfectivo ?? 0)}</TableCell>
-                <TableCell align="right">{formatCurrency(caja.montoEsperado)}</TableCell>
+                <TableCell align="right">{formatCurrency(caja.efectivoAEntregar ?? 0)}</TableCell>
                 <TableCell align="right">{caja.montoFinalDeclarado == null ? '-' : formatCurrency(caja.montoFinalDeclarado)}</TableCell>
                 <TableCell align="right" sx={{ color: caja.diferencia ? 'error.main' : 'success.main' }}>
                   {caja.diferencia == null ? '-' : formatCurrency(caja.diferencia)}

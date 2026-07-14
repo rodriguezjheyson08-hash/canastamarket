@@ -53,6 +53,19 @@ const getFondoPendiente = async (usuarioId, runner = pool, lock = false) => {
   return rows[0] || null;
 };
 
+const getUltimoFondoBase = async (usuarioId, runner = pool) => {
+  const [rows] = await runner.query(
+    `SELECT monto_inicial
+       FROM caja_sesiones
+      WHERE usuario_id = ?
+        AND monto_inicial > 0
+      ORDER BY abierta_at DESC, id DESC
+      LIMIT 1`,
+    [usuarioId]
+  );
+  return rows[0] ? toMoney(rows[0].monto_inicial) : null;
+};
+
 const getResumenCaja = async (caja, runner = pool) => {
   await ensurePedidosOnlineSchema(runner);
   const [rows] = await runner.query(
@@ -119,6 +132,7 @@ const getResumenCaja = async (caja, runner = pool) => {
     .filter((movimiento) => movimiento.tipo === 'SALIDA')
     .reduce((sum, movimiento) => sum + movimiento.monto, 0);
   const montoEsperado = toMoney(Number(caja.monto_inicial) + efectivoVentas + entradasEfectivo - salidasEfectivo);
+  const efectivoAEntregar = toMoney(montoEsperado - Number(caja.monto_inicial));
   return {
     id: caja.id,
     usuarioId: Number(caja.usuario_id),
@@ -130,7 +144,8 @@ const getResumenCaja = async (caja, runner = pool) => {
     efectivoVentas: toMoney(efectivoVentas),
     entradasEfectivo: toMoney(entradasEfectivo),
     salidasEfectivo: toMoney(salidasEfectivo),
-    efectivoAEntregar: montoEsperado,
+    efectivoAEntregar,
+    efectivoEnCajaEsperado: montoEsperado,
     montoEsperado,
     montoFinalDeclarado: caja.monto_final_declarado === null ? null : toMoney(caja.monto_final_declarado),
     diferencia: caja.diferencia === null ? null : toMoney(caja.diferencia),
@@ -187,12 +202,17 @@ const abrirCaja = async (req, res) => {
     if (!rolAdmin) {
       fondo = await getFondoPendiente(usuarioId, connection, true);
       if (!fondo) {
-        await connection.rollback();
-        return res.status(409).json({
-          message: 'No tienes fondo asignado por el administrador. Pide al administrador que registre el efectivo inicial de tu caja.'
-        });
+        const ultimoFondoBase = await getUltimoFondoBase(usuarioId, connection);
+        if (!ultimoFondoBase) {
+          await connection.rollback();
+          return res.status(409).json({
+            message: 'Primera apertura sin fondo base. El administrador debe asignar el fondo inicial una sola vez.'
+          });
+        }
+        montoInicial = ultimoFondoBase;
+      } else {
+        montoInicial = toMoney(fondo.monto);
       }
-      montoInicial = toMoney(fondo.monto);
     }
 
     const [result] = await connection.execute(
@@ -215,7 +235,7 @@ const abrirCaja = async (req, res) => {
       accion: 'CAJA_ABIERTA',
       entidad: 'caja_sesion',
       entidadId: result.insertId,
-      detalle: { montoInicial, usuarioId, fondoAsignadoId: fondo ? fondo.id : null }
+      detalle: { montoInicial, usuarioId, fondoAsignadoId: fondo ? fondo.id : null, fondoReutilizado: !rolAdmin && !fondo }
     });
     await connection.commit();
 

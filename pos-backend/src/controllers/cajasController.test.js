@@ -31,7 +31,7 @@ describe('cajasController flujo de dinero', () => {
     jest.clearAllMocks();
   });
 
-  test('cajero no puede abrir caja si admin no le asigno fondo', async () => {
+  test('primera apertura del cajero exige fondo inicial del administrador', async () => {
     const connection = {
       beginTransaction: jest.fn(),
       commit: jest.fn(),
@@ -39,6 +39,7 @@ describe('cajasController flujo de dinero', () => {
       release: jest.fn(),
       query: jest.fn()
         .mockResolvedValueOnce([[{ nombre_completo: 'Juan Cajero', nombre_usuario: 'juan_caj' }]])
+        .mockResolvedValueOnce([[]])
         .mockResolvedValueOnce([[]]),
       execute: jest.fn()
     };
@@ -51,10 +52,59 @@ describe('cajasController flujo de dinero', () => {
     await abrirCaja(req, res);
 
     expect(res.status).toHaveBeenCalledWith(409);
-    expect(res.json.mock.calls[0][0].message).toMatch(/fondo asignado/i);
+    expect(res.json.mock.calls[0][0].message).toMatch(/primera apertura/i);
     expect(pool.execute).not.toHaveBeenCalled();
     expect(connection.rollback).toHaveBeenCalled();
     expect(connection.release).toHaveBeenCalled();
+  });
+
+  test('cajero reutiliza ultimo fondo base sin asignarlo cada dia', async () => {
+    const connection = {
+      beginTransaction: jest.fn(),
+      commit: jest.fn(),
+      rollback: jest.fn(),
+      release: jest.fn(),
+      query: jest.fn()
+        .mockResolvedValueOnce([[{ nombre_completo: 'Juan Cajero', nombre_usuario: 'juan_caj' }]])
+        .mockResolvedValueOnce([[]])
+        .mockResolvedValueOnce([[{ monto_inicial: 100 }]]),
+      execute: jest.fn().mockResolvedValueOnce([{ insertId: 44 }])
+    };
+    pool.query
+      .mockResolvedValueOnce([[]])
+      .mockResolvedValueOnce([[{
+        id: 44,
+        usuario_id: 7,
+        usuario_nombre: 'Juan Cajero',
+        monto_inicial: 100,
+        fondo_asignado_id: null,
+        monto_final_declarado: null,
+        diferencia: null,
+        estado: 'ABIERTA',
+        abierta_at: '2026-07-14 10:00:00',
+        cerrada_at: null
+      }]])
+      .mockResolvedValueOnce([[]])
+      .mockResolvedValueOnce([[]])
+      .mockResolvedValueOnce([[]]);
+    pool.getConnection.mockResolvedValueOnce(connection);
+
+    const req = { auth: { sub: 7, role: 'CAJERO' }, body: {} };
+    const res = mockRes();
+
+    await abrirCaja(req, res);
+
+    expect(connection.execute).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO caja_sesiones'),
+      [7, 'Juan Cajero', 100, null]
+    );
+    expect(connection.commit).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json.mock.calls[0][0]).toMatchObject({
+      montoInicial: 100,
+      efectivoAEntregar: 0,
+      montoEsperado: 100
+    });
   });
 
   test('admin no puede asignar fondo mayor al limite operativo', async () => {
