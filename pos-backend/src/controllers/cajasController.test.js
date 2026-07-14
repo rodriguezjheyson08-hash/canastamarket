@@ -118,7 +118,20 @@ describe('cajasController flujo de dinero', () => {
     expect(pool.execute).not.toHaveBeenCalled();
   });
 
-  test('registra salida de efectivo solo con caja abierta y motivo', async () => {
+  test('rechaza movimientos de efectivo registrados por cajero', async () => {
+    const req = { auth: { sub: 7, role: 'CAJERO' }, body: { tipo: 'SALIDA', monto: 25, motivo: 'Pago proveedor' } };
+    const res = mockRes();
+
+    await registrarMovimientoEfectivo(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({
+      message: 'Solo el administrador puede registrar entradas o salidas de efectivo.'
+    });
+    expect(pool.getConnection).not.toHaveBeenCalled();
+  });
+
+  test('registra salida de efectivo del administrador solo con caja abierta y motivo', async () => {
     const connection = {
       beginTransaction: jest.fn(),
       commit: jest.fn(),
@@ -141,7 +154,7 @@ describe('cajasController flujo de dinero', () => {
       }]]);
     pool.getConnection.mockResolvedValueOnce(connection);
 
-    const req = { auth: { sub: 7, role: 'CAJERO' }, body: { tipo: 'SALIDA', monto: 25, motivo: 'Pago proveedor' } };
+    const req = { auth: { sub: 7, role: 'ADMINISTRADOR' }, body: { tipo: 'SALIDA', monto: 25, motivo: 'Pago proveedor' } };
     const res = mockRes();
 
     await registrarMovimientoEfectivo(req, res);

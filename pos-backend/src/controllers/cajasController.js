@@ -303,6 +303,10 @@ const listCajas = async (req, res) => {
 
 const registrarMovimientoEfectivo = async (req, res) => {
   await ensureCajasSchema();
+  if (!isAdmin(req)) {
+    return res.status(403).json({ message: 'Solo el administrador puede registrar entradas o salidas de efectivo.' });
+  }
+
   const usuarioId = Number(req.auth.sub);
   const tipo = String(req.body?.tipo || '').trim().toUpperCase();
   const monto = Number(req.body?.monto);

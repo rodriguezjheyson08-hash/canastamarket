@@ -148,6 +148,7 @@ const VentasPage: React.FC = () => {
   const mpPaymentLink = process.env.REACT_APP_MP_PAYMENT_LINK;
   const { user } = useAuth();
   const esCajero = String(user?.rol || '').toUpperCase() === 'CAJERO';
+  const esAdmin = String(user?.rol || '').toUpperCase() === 'ADMINISTRADOR';
   const processedMpPaymentIdRef = useRef<string | null>(null);
 
   const vendedorPayload = useMemo(() => ({
@@ -1534,7 +1535,7 @@ const VentasPage: React.FC = () => {
             </Box>
           </Box>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-            {cajaActual && (
+            {cajaActual && esAdmin && (
               <>
                 <Button
                   variant="outlined"
