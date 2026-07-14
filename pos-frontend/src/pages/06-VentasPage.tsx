@@ -49,8 +49,10 @@ import {
   getCajaActual,
   getCategorias,
   getConfiguracionSistema,
+  getVentas,
   getMercadoPagoPayment,
   getProductos,
+  anularVenta,
   registrarMovimientoCaja
 } from '../services/api';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -129,6 +131,7 @@ const VentasPage: React.FC = () => {
   const [tipoBoletaReciente, setTipoBoletaReciente] = useState<TipoBoleta>('boleta');
   const [boletaQrDataUrl, setBoletaQrDataUrl] = useState('');
   const [ventaReciente, setVentaReciente] = useState<Venta | null>(null);
+  const [ventasRecientes, setVentasRecientes] = useState<Venta[]>([]);
   const [clienteBoleta, setClienteBoleta] = useState<ClienteBoleta | null>(null);
   const [dniCliente, setDniCliente] = useState('');
   const [nombresCliente, setNombresCliente] = useState('');
@@ -150,6 +153,13 @@ const VentasPage: React.FC = () => {
   const esCajero = String(user?.rol || '').toUpperCase() === 'CAJERO';
   const esAdmin = String(user?.rol || '').toUpperCase() === 'ADMINISTRADOR';
   const processedMpPaymentIdRef = useRef<string | null>(null);
+
+  const puedeAnularVentaRapida = useCallback((venta: Venta) => {
+    if (venta.estado === 'ANULADA' || !venta.fecha) return false;
+    if (venta.vendedorId && user?.id && Number(venta.vendedorId) !== Number(user.id)) return false;
+    const minutos = (Date.now() - new Date(venta.fecha).getTime()) / 60000;
+    return minutos >= 0 && minutos <= 10 && cajaActual?.estado === 'ABIERTA';
+  }, [cajaActual?.estado, user?.id]);
 
   const vendedorPayload = useMemo(() => ({
     vendedorId: user?.id || null,
@@ -198,6 +208,35 @@ const VentasPage: React.FC = () => {
     fetchCajaActual();
   }, [fetchCajaActual]);
 
+  const fetchVentasRecientes = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const data = await getVentas();
+      const propias = data
+        .filter((venta) => venta.estado !== 'ANULADA')
+        .filter((venta) => !venta.vendedorId || Number(venta.vendedorId) === Number(user.id))
+        .filter((venta) => {
+          if (!venta.fecha) return false;
+          const minutos = (Date.now() - new Date(venta.fecha).getTime()) / 60000;
+          return minutos >= 0 && minutos <= 10;
+        })
+        .slice(0, 5);
+      setVentasRecientes(propias);
+    } catch {
+      setVentasRecientes([]);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (cajaActual?.estado === 'ABIERTA') {
+      fetchVentasRecientes();
+      const interval = window.setInterval(fetchVentasRecientes, 30000);
+      return () => window.clearInterval(interval);
+    }
+    setVentasRecientes([]);
+    return undefined;
+  }, [cajaActual?.estado, fetchVentasRecientes]);
+
   const fetchProductos = useCallback(async () => {
     try {
       const data = await getProductos();
@@ -217,6 +256,22 @@ const VentasPage: React.FC = () => {
       showSnackbar('Error al cargar categorías', 'error');
     }
   }, [showSnackbar]);
+
+  const handleAnularVentaRapida = useCallback(async (venta: Venta) => {
+    if (!puedeAnularVentaRapida(venta)) {
+      showSnackbar('Solo puedes anular tus ventas dentro de los primeros 10 minutos y con caja abierta.', 'error');
+      return;
+    }
+    const motivo = window.prompt(`Motivo de anulacion para venta #${venta.id}`);
+    if (!motivo || !motivo.trim()) return;
+    try {
+      await anularVenta(venta.id, motivo.trim());
+      showSnackbar('Venta anulada y stock devuelto', 'success');
+      await Promise.all([fetchProductos(), fetchCajaActual(), fetchVentasRecientes()]);
+    } catch (error: any) {
+      showSnackbar(error?.response?.data?.message || 'No se pudo anular la venta.', 'error');
+    }
+  }, [fetchCajaActual, fetchProductos, fetchVentasRecientes, puedeAnularVentaRapida, showSnackbar]);
 
   useEffect(() => {
 // LOGICA: reload Boleta Config concentra una operacion de este archivo.
@@ -1593,6 +1648,37 @@ const VentasPage: React.FC = () => {
           </Alert>
         )}
       </Card>
+      {esCajero && cajaActual?.estado === 'ABIERTA' && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Tienes 10 minutos para anular una venta mal registrada, siempre que sea tuya y la caja siga abierta.
+          {ventasRecientes.length > 0 && (
+            <List dense sx={{ mt: 1, bgcolor: 'background.paper', borderRadius: 1 }}>
+              {ventasRecientes.map((venta) => (
+                <ListItem
+                  key={venta.id}
+                  divider
+                  secondaryAction={
+                    <Button
+                      size="small"
+                      color="error"
+                      variant="outlined"
+                      disabled={!puedeAnularVentaRapida(venta)}
+                      onClick={() => handleAnularVentaRapida(venta)}
+                    >
+                      Anular
+                    </Button>
+                  }
+                >
+                  <ListItemText
+                    primary={`Venta #${venta.id} - ${formatCurrency(venta.total)}`}
+                    secondary={`Te quedan ${Math.max(0, Math.ceil(10 - ((Date.now() - new Date(venta.fecha).getTime()) / 60000)))} min para anular esta venta`}
+                  />
+                </ListItem>
+              ))}
+            </List>
+          )}
+        </Alert>
+      )}
       <Grid container spacing={4}>
         {/* Columna de productos (80%) */}
         <Grid item xs={12} md={9} lg={9}>

@@ -20,6 +20,6 @@ const router = express.Router();
 // RUTA BACKEND: endpoint GET '/'; conecta la URL con el controlador correspondiente.
 router.get('/', requireAuth({ type: 'admin' }), asyncHandler(listVentas));
 router.post('/', requireAuth({ type: 'admin' }), asyncHandler(createVenta));
-router.patch('/:id/anular', requireAuth({ type: 'admin', roles: ['ADMINISTRADOR'] }), asyncHandler(anularVenta));
+router.patch('/:id/anular', requireAuth({ type: 'admin', roles: ['ADMINISTRADOR', 'CAJERO'] }), asyncHandler(anularVenta));
 
 module.exports = router;

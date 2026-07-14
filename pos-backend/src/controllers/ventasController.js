@@ -15,6 +15,8 @@ const { resolveActor, registrarAuditoria } = require('../features/auditoria/serv
 const { registrarMovimientoInventario } = require('../features/inventario/service');
 
 const isAdmin = (req) => String(req.auth?.role || '').toUpperCase() === 'ADMINISTRADOR';
+const isCajero = (req) => String(req.auth?.role || '').toUpperCase() === 'CAJERO';
+const MINUTOS_ANULACION_CAJERO = 10;
 
 const getPeruDateKey = (value = new Date()) => {
   const date = value instanceof Date ? value : new Date(value);
@@ -59,15 +61,19 @@ const fetchVentaById = async (ventaId) => {
 };
 
 // CONTROLADOR BACKEND: list Ventas procesa request/respuesta de este flujo.
-const listVentas = async (_req, res) => {
+const listVentas = async (req, res) => {
   await ensureCajasSchema();
   await ensureVentaOptionalColumns();
+  const params = [];
+  const where = isCajero(req) ? 'WHERE vendedor_id = ?' : '';
+  if (isCajero(req)) params.push(Number(req.auth?.sub));
   const [ventas] = await pool.query(
     `SELECT id, total, estado, anulada_motivo, anulada_at, metodo_pago, recibido, vuelto, cliente_dni, cliente_nombre,
             tipo_comprobante, cliente_tipo_documento, cliente_numero_documento, cliente_ruc, cliente_direccion,
             vendedor_id, vendedor_usuario, vendedor_nombre, pago_referencia, pago_confirmado_at,
             caja_sesion_id, fecha
-       FROM ventas ORDER BY fecha DESC`
+       FROM ventas ${where} ORDER BY fecha DESC`,
+    params
   );
 
   if (ventas.length === 0) {
@@ -346,8 +352,8 @@ const anularVenta = async (req, res) => {
   const ventaId = Number(req.params.id);
   const motivo = String(req.body?.motivo || '').trim().slice(0, 255);
 
-  if (!isAdmin(req)) {
-    return res.status(403).json({ message: 'Solo el administrador puede anular ventas.' });
+  if (!isAdmin(req) && !isCajero(req)) {
+    return res.status(403).json({ message: 'Solo usuarios autorizados pueden anular ventas.' });
   }
   if (!Number.isInteger(ventaId) || ventaId <= 0) {
     return res.status(400).json({ message: 'Venta invalida.' });
@@ -362,7 +368,7 @@ const anularVenta = async (req, res) => {
     await ensureVentaOptionalColumns(connection);
 
     const [ventas] = await connection.query(
-      `SELECT v.id, v.estado, v.fecha, v.caja_sesion_id, c.estado AS caja_estado
+      `SELECT v.id, v.estado, v.fecha, v.caja_sesion_id, v.vendedor_id, c.estado AS caja_estado
          FROM ventas v
          LEFT JOIN caja_sesiones c ON c.id = v.caja_sesion_id
         WHERE v.id = ?
@@ -388,6 +394,21 @@ const anularVenta = async (req, res) => {
       return res.status(409).json({
         message: `Solo se permite anulacion directa el mismo dia de la venta. Fuera de ese plazo corresponde nota de credito.`
       });
+    }
+    if (isCajero(req)) {
+      const vendedorId = Number(ventas[0].vendedor_id);
+      if (vendedorId !== Number(req.auth?.sub)) {
+        await connection.rollback();
+        return res.status(403).json({ message: 'El cajero solo puede anular ventas registradas por el mismo.' });
+      }
+
+      const minutosTranscurridos = (Date.now() - new Date(ventas[0].fecha).getTime()) / 60000;
+      if (minutosTranscurridos > MINUTOS_ANULACION_CAJERO) {
+        await connection.rollback();
+        return res.status(409).json({
+          message: `El cajero solo puede anular una venta dentro de los primeros ${MINUTOS_ANULACION_CAJERO} minutos. Luego debe solicitarlo al administrador.`
+        });
+      }
     }
 
     const [detalles] = await connection.query(

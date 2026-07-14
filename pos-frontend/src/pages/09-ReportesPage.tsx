@@ -77,6 +77,14 @@ const formatDateTime = formatBusinessDateTime;
 // Convierte la fecha de la venta a yyyy-mm-dd para compararla con el campo "Fecha de ventas".
 const getSaleDateValue = getBusinessDateValue;
 
+const esVentaDelDia = (venta: Venta) => getSaleDateValue(venta.fecha) === getSaleDateValue(new Date().toISOString());
+
+const cajaDeVentaEstaAbierta = (venta: Venta, cajas: CajaSesion[]) => {
+  if (!venta.cajaSesionId) return true;
+  const caja = cajas.find((item) => Number(item.id) === Number(venta.cajaSesionId));
+  return !caja || caja.estado === 'ABIERTA';
+};
+
 // LOGICA REPORTES - CLIENTE:
 // Si la venta no tiene cliente registrado, muestra "Publico en general".
 const getClienteLabel = (venta: Venta) => venta.clienteNombre || 'Publico en general';
@@ -118,8 +126,18 @@ const ReportesPage: React.FC = () => {
 
   const isAdmin = String(user?.rol || '').toUpperCase() === 'ADMINISTRADOR';
 
+  const puedeAnularVentaAdmin = (venta: Venta) =>
+    isAdmin &&
+    venta.id < 1000000 &&
+    venta.estado !== 'ANULADA' &&
+    esVentaDelDia(venta) &&
+    cajaDeVentaEstaAbierta(venta, cajas);
+
   const handleAnularVenta = async (venta: Venta) => {
-    if (venta.id >= 1000000 || venta.estado === 'ANULADA') return;
+    if (!puedeAnularVentaAdmin(venta)) {
+      setError('Solo se puede anular directamente una venta del dia y con caja abierta. Ventas pasadas requieren nota de credito o ajuste administrativo.');
+      return;
+    }
     const motivo = window.prompt(`Motivo de anulacion para venta #${venta.id}`);
     if (!motivo || !motivo.trim()) return;
     try {
@@ -529,7 +547,7 @@ const ReportesPage: React.FC = () => {
               </Typography>
             </DialogContent>
             <DialogActions>
-              {selectedVenta.id < 1000000 && selectedVenta.estado !== 'ANULADA' && (
+              {puedeAnularVentaAdmin(selectedVenta) && (
                 <Button color="error" onClick={() => handleAnularVenta(selectedVenta)}>
                   Anular venta
                 </Button>
