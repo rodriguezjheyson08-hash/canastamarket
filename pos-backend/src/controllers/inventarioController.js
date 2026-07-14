@@ -57,15 +57,31 @@ const listMovimientosInventario = async (req, res) => {
   }
 
   const [rows] = await pool.query(
-    `SELECT im.*, p.nombre AS producto_nombre
+    `SELECT im.*,
+            p.nombre AS producto_nombre,
+            COALESCE(
+              im.usuario_nombre,
+              u.nombre_completo,
+              u.nombre_usuario,
+              u.email,
+              v.vendedor_nombre,
+              v.vendedor_usuario,
+              po.cliente_nombre
+            ) AS usuario_nombre_resuelto
        FROM inventario_movimientos im
        JOIN productos p ON p.id = im.producto_id
+       LEFT JOIN usuarios u ON u.id = im.usuario_id
+       LEFT JOIN ventas v ON im.referencia_tipo = 'VENTA' AND v.id = im.referencia_id
+       LEFT JOIN pedidos_online po ON im.referencia_tipo = 'PEDIDO_ONLINE' AND po.id = im.referencia_id
        ${where}
       ORDER BY im.created_at DESC, im.id DESC
       LIMIT 200`,
     params
   );
-  res.json(rows.map(mapMovimiento));
+  res.json(rows.map((row) => mapMovimiento({
+    ...row,
+    usuario_nombre: row.usuario_nombre_resuelto || row.usuario_nombre
+  })));
 };
 
 const registrarPerdida = async (req, res) => {

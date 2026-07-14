@@ -35,6 +35,16 @@ const tiposPerdida = ['VENCIMIENTO', 'ROBO', 'ROTURA', 'MERMA', 'AJUSTE', 'OTRO'
 const formatDateTime = (value: string) =>
   new Intl.DateTimeFormat('es-PE', { dateStyle: 'short', timeStyle: 'medium' }).format(new Date(value));
 
+type OperacionRow = {
+  id: string;
+  fecha: string;
+  modulo: string;
+  movimiento: string;
+  detalle: string;
+  referencia: string;
+  usuario: string;
+};
+
 const InventarioPage: React.FC = () => {
   const [tab, setTab] = useState(0);
   const [productos, setProductos] = useState<Producto[]>([]);
@@ -53,6 +63,32 @@ const InventarioPage: React.FC = () => {
     () => productos.filter((producto) => producto.activo !== false),
     [productos]
   );
+
+  const operaciones = useMemo<OperacionRow[]>(() => {
+    const stockRows = movimientos.map((mov) => ({
+      id: `stock-${mov.id}`,
+      fecha: mov.fecha,
+      modulo: 'Stock',
+      movimiento: mov.tipo,
+      detalle: `${mov.productoNombre || 'Producto'} x${mov.cantidad} | Stock ${mov.stockAnterior} -> ${mov.stockNuevo}`,
+      referencia: [mov.referenciaTipo, mov.referenciaId].filter(Boolean).join(' ') || '-',
+      usuario: mov.usuarioNombre || 'Sistema'
+    }));
+
+    const auditoriaRows = auditoria.map((log) => ({
+      id: `audit-${log.id}`,
+      fecha: log.fecha,
+      modulo: log.entidad || 'Sistema',
+      movimiento: log.accion,
+      detalle: log.detalle ? JSON.stringify(log.detalle) : 'Sin detalle',
+      referencia: log.entidadId ? `${log.entidad} ${log.entidadId}` : '-',
+      usuario: log.usuarioNombre || 'Sistema'
+    }));
+
+    return [...stockRows, ...auditoriaRows]
+      .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
+      .slice(0, 300);
+  }, [auditoria, movimientos]);
 
   const fetchData = async () => {
     const [productosData, movimientosData, lotesData, auditoriaData] = await Promise.all([
@@ -105,7 +141,7 @@ const InventarioPage: React.FC = () => {
 
       <Tabs value={tab} onChange={(_, value) => setTab(value)} sx={{ mb: 2 }}>
         <Tab label="Registrar perdida" />
-        <Tab label="Movimientos de stock" />
+        <Tab label="Movimientos generales" />
         <Tab label="Lotes" />
         <Tab label="Auditoria general" />
       </Tabs>
@@ -156,32 +192,30 @@ const InventarioPage: React.FC = () => {
       {tab === 1 && (
         <Stack spacing={1.5}>
           <Alert severity="info">
-            Esta tabla registra solo entradas y salidas de stock: ventas, pedidos online, compras recibidas, anulaciones y perdidas.
-            Los cambios de productos, usuarios, caja o configuracion aparecen en Auditoria general.
+            Aqui se ve el historial operativo del sistema: ventas, stock, pedidos online, compras, perdidas, caja, usuarios,
+            productos y configuracion. La perdida de producto baja stock, pero no descuenta dinero de caja.
           </Alert>
           <TableContainer component={Paper}>
             <Table size="small">
               <TableHead>
                 <TableRow>
                   <TableCell>Fecha</TableCell>
-                  <TableCell>Producto</TableCell>
-                  <TableCell>Tipo</TableCell>
-                  <TableCell align="right">Cantidad</TableCell>
-                  <TableCell align="right">Stock</TableCell>
+                  <TableCell>Modulo</TableCell>
+                  <TableCell>Movimiento</TableCell>
+                  <TableCell>Detalle</TableCell>
                   <TableCell>Referencia</TableCell>
                   <TableCell>Usuario</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {movimientos.map((mov) => (
-                  <TableRow key={mov.id}>
-                    <TableCell>{formatDateTime(mov.fecha)}</TableCell>
-                    <TableCell>{mov.productoNombre}</TableCell>
-                    <TableCell><Chip size="small" label={mov.tipo} /></TableCell>
-                    <TableCell align="right">{mov.cantidad}</TableCell>
-                    <TableCell align="right">{mov.stockAnterior} {'->'} {mov.stockNuevo}</TableCell>
-                    <TableCell>{mov.referenciaTipo || '-'} {mov.referenciaId || ''}</TableCell>
-                    <TableCell>{mov.usuarioNombre || '-'}</TableCell>
+                {operaciones.map((op) => (
+                  <TableRow key={op.id}>
+                    <TableCell>{formatDateTime(op.fecha)}</TableCell>
+                    <TableCell><Chip size="small" label={op.modulo} /></TableCell>
+                    <TableCell>{op.movimiento}</TableCell>
+                    <TableCell>{op.detalle}</TableCell>
+                    <TableCell>{op.referencia}</TableCell>
+                    <TableCell>{op.usuario}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
