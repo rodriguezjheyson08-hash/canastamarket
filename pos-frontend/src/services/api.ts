@@ -10,6 +10,7 @@ import { API_URL } from '../utils/apiBase';
 import { AppConfig } from '../utils/appConfig';
 import { BoletaConfig } from '../utils/boletaConfig';
 import { VueltoConfig } from '../utils/vueltoConfig';
+import { clearStaffSession, forceStaffLoginRedirect, notifyStaffLogout } from '../utils/staffSessionSync';
 // IMPORTACIONES FRONTEND: librerias, helpers y tipos que usa este archivo.
 import {
   Venta,
@@ -31,6 +32,23 @@ import {
 // SERVICIO: build Auth Headers comunica este modulo con una API o backend.
 const buildAuthHeaders = (token?: string | null) =>
   token ? { Authorization: `Bearer ${token}` } : {};
+
+const expireStaffSession = () => {
+  clearStaffSession();
+  notifyStaffLogout();
+  forceStaffLoginRedirect();
+};
+
+axios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error?.response?.status;
+    if ([401, 403].includes(status)) {
+      expireStaffSession();
+    }
+    return Promise.reject(error);
+  }
+);
 
 // Productos
 // SERVICIO FRONTEND: get Productos llama al backend y devuelve la respuesta a React.
