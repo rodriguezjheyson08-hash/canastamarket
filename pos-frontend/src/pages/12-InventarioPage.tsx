@@ -35,6 +35,11 @@ const tiposPerdida = ['VENCIMIENTO', 'ROBO', 'ROTURA', 'MERMA', 'AJUSTE', 'OTRO'
 const formatDateTime = (value: string) =>
   new Intl.DateTimeFormat('es-PE', { dateStyle: 'short', timeStyle: 'medium' }).format(new Date(value));
 
+const formatMoney = (value: unknown) => {
+  const amount = Number(value);
+  return Number.isFinite(amount) ? `S/ ${amount.toFixed(2)}` : 'S/ 0.00';
+};
+
 type OperacionRow = {
   id: string;
   fecha: string;
@@ -43,6 +48,32 @@ type OperacionRow = {
   detalle: string;
   referencia: string;
   usuario: string;
+};
+
+const detalleAuditoria = (log: AuditoriaLog) => {
+  const detalle = log.detalle || {};
+  switch (log.accion) {
+    case 'CAJA_ABIERTA':
+      return `Caja abierta con fondo base ${formatMoney(detalle.montoInicial)}.`;
+    case 'CAJA_CERRADA':
+      return `Caja cerrada. Esperado ${formatMoney(detalle.montoEsperado)}, contado ${formatMoney(detalle.montoFinalDeclarado)}, diferencia ${formatMoney(detalle.diferencia)}.`;
+    case 'FONDO_CAJA_ASIGNADO':
+      return `Fondo asignado ${formatMoney(detalle.monto)} a ${detalle.usuarioNombre || 'cajero'}.`;
+    case 'CAJA_ENTRADA_EFECTIVO':
+      return `Entrada de efectivo ${formatMoney(detalle.monto)}. Motivo: ${detalle.motivo || '-'}.`;
+    case 'CAJA_SALIDA_EFECTIVO':
+      return `Salida de efectivo ${formatMoney(detalle.monto)}. Motivo: ${detalle.motivo || '-'}.`;
+    case 'VENTA_CREADA':
+      return `Venta registrada por ${formatMoney(detalle.total)} con ${detalle.productos || 0} producto(s).`;
+    case 'PERDIDA_REGISTRADA':
+      return `Perdida ${detalle.tipo || ''} por ${detalle.cantidad || 0} unidad(es). Motivo: ${detalle.motivo || '-'}.`;
+    default:
+      if (!log.detalle) return 'Sin detalle';
+      return Object.entries(detalle)
+        .slice(0, 5)
+        .map(([key, value]) => `${key}: ${typeof value === 'object' ? JSON.stringify(value) : value}`)
+        .join(' | ');
+  }
 };
 
 const InventarioPage: React.FC = () => {
@@ -56,6 +87,9 @@ const InventarioPage: React.FC = () => {
   const [tipoPersonalizado, setTipoPersonalizado] = useState('');
   const [cantidad, setCantidad] = useState('1');
   const [motivo, setMotivo] = useState('');
+  const [fechaDesde, setFechaDesde] = useState('');
+  const [fechaHasta, setFechaHasta] = useState('');
+  const [busquedaMovimiento, setBusquedaMovimiento] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
@@ -80,7 +114,7 @@ const InventarioPage: React.FC = () => {
       fecha: log.fecha,
       modulo: log.entidad || 'Sistema',
       movimiento: log.accion,
-      detalle: log.detalle ? JSON.stringify(log.detalle) : 'Sin detalle',
+      detalle: detalleAuditoria(log),
       referencia: log.entidadId ? `${log.entidad} ${log.entidadId}` : '-',
       usuario: log.usuarioNombre || 'Sistema'
     }));
@@ -89,6 +123,23 @@ const InventarioPage: React.FC = () => {
       .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
       .slice(0, 300);
   }, [auditoria, movimientos]);
+
+  const operacionesFiltradas = useMemo(() => {
+    const desde = fechaDesde ? new Date(`${fechaDesde}T00:00:00`).getTime() : null;
+    const hasta = fechaHasta ? new Date(`${fechaHasta}T23:59:59`).getTime() : null;
+    const q = busquedaMovimiento.trim().toLowerCase();
+
+    return operaciones.filter((op) => {
+      const time = new Date(op.fecha).getTime();
+      if (desde !== null && time < desde) return false;
+      if (hasta !== null && time > hasta) return false;
+      if (!q) return true;
+      return [op.modulo, op.movimiento, op.detalle, op.referencia, op.usuario]
+        .join(' ')
+        .toLowerCase()
+        .includes(q);
+    });
+  }, [busquedaMovimiento, fechaDesde, fechaHasta, operaciones]);
 
   const fetchData = async () => {
     const [productosData, movimientosData, lotesData, auditoriaData] = await Promise.all([
@@ -195,29 +246,77 @@ const InventarioPage: React.FC = () => {
             Aqui se ve el historial operativo del sistema: ventas, stock, pedidos online, compras, perdidas, caja, usuarios,
             productos y configuracion. La perdida de producto baja stock, pero no descuenta dinero de caja.
           </Alert>
-          <TableContainer component={Paper}>
-            <Table size="small">
+          <Paper sx={{ p: 1.5 }}>
+            <Grid container spacing={1.5} alignItems="center">
+              <Grid item xs={12} sm={3} md={2}>
+                <TextField
+                  label="Desde"
+                  type="date"
+                  size="small"
+                  fullWidth
+                  value={fechaDesde}
+                  onChange={(event) => setFechaDesde(event.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={3} md={2}>
+                <TextField
+                  label="Hasta"
+                  type="date"
+                  size="small"
+                  fullWidth
+                  value={fechaHasta}
+                  onChange={(event) => setFechaHasta(event.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={5}>
+                <TextField
+                  label="Buscar movimiento, usuario o referencia"
+                  size="small"
+                  fullWidth
+                  value={busquedaMovimiento}
+                  onChange={(event) => setBusquedaMovimiento(event.target.value)}
+                />
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <Stack direction="row" justifyContent={{ xs: 'flex-start', md: 'flex-end' }} alignItems="center" spacing={1}>
+                  <Chip color="primary" variant="outlined" label={`${operacionesFiltradas.length} movimientos`} />
+                  <Button size="small" onClick={() => { setFechaDesde(''); setFechaHasta(''); setBusquedaMovimiento(''); }}>
+                    Limpiar
+                  </Button>
+                </Stack>
+              </Grid>
+            </Grid>
+          </Paper>
+          <TableContainer component={Paper} sx={{ maxHeight: 620 }}>
+            <Table size="small" stickyHeader>
               <TableHead>
                 <TableRow>
                   <TableCell>Fecha</TableCell>
-                  <TableCell>Modulo</TableCell>
-                  <TableCell>Movimiento</TableCell>
-                  <TableCell>Detalle</TableCell>
+                  <TableCell>Tipo</TableCell>
+                  <TableCell>Operacion</TableCell>
+                  <TableCell>Descripcion</TableCell>
                   <TableCell>Referencia</TableCell>
                   <TableCell>Usuario</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {operaciones.map((op) => (
-                  <TableRow key={op.id}>
-                    <TableCell>{formatDateTime(op.fecha)}</TableCell>
-                    <TableCell><Chip size="small" label={op.modulo} /></TableCell>
-                    <TableCell>{op.movimiento}</TableCell>
-                    <TableCell>{op.detalle}</TableCell>
-                    <TableCell>{op.referencia}</TableCell>
-                    <TableCell>{op.usuario}</TableCell>
+                {operacionesFiltradas.map((op) => (
+                  <TableRow key={op.id} hover>
+                    <TableCell sx={{ minWidth: 135 }}>{formatDateTime(op.fecha)}</TableCell>
+                    <TableCell><Chip size="small" label={op.modulo} sx={{ fontWeight: 700 }} /></TableCell>
+                    <TableCell sx={{ fontWeight: 700, minWidth: 165 }}>{op.movimiento}</TableCell>
+                    <TableCell sx={{ minWidth: 360 }}>{op.detalle}</TableCell>
+                    <TableCell sx={{ minWidth: 150 }}>{op.referencia}</TableCell>
+                    <TableCell sx={{ minWidth: 150 }}>{op.usuario}</TableCell>
                   </TableRow>
                 ))}
+                {operacionesFiltradas.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6}>No hay movimientos para esos filtros.</TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </TableContainer>
