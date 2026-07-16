@@ -37,25 +37,25 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
       if (!AudioContextCtor) return;
       const context = new AudioContextCtor();
       const master = context.createGain();
-      master.gain.value = 0.16;
+      master.gain.value = 0.55;
       master.connect(context.destination);
 
-      [659.25, 880, 1174.66].forEach((frequency, index) => {
-        const start = context.currentTime + index * 0.13;
+      [880, 1174.66, 880, 1318.51].forEach((frequency, index) => {
+        const start = context.currentTime + index * 0.12;
         const oscillator = context.createOscillator();
         const gain = context.createGain();
-        oscillator.type = 'triangle';
+        oscillator.type = 'square';
         oscillator.frequency.value = frequency;
         gain.gain.setValueAtTime(0.0001, start);
-        gain.gain.exponentialRampToValueAtTime(0.32, start + 0.025);
-        gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.22);
+        gain.gain.exponentialRampToValueAtTime(0.65, start + 0.018);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.28);
         oscillator.connect(gain);
         gain.connect(master);
         oscillator.start(start);
-        oscillator.stop(start + 0.24);
+        oscillator.stop(start + 0.3);
       });
 
-      window.setTimeout(() => context.close().catch(() => undefined), 900);
+      window.setTimeout(() => context.close().catch(() => undefined), 1300);
     } catch {
       // Algunos navegadores bloquean sonido hasta que exista interaccion.
     }
@@ -105,12 +105,19 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
       data: { url: '/dashboard/pedidos-online' } as any,
     };
 
-    const registration = await getNotificationRegistration();
-    if (registration?.showNotification) {
-      await registration.showNotification(titulo, options);
+    try {
+      const notification = new Notification(titulo, options);
+      notification.onclick = () => {
+        window.focus();
+        window.location.assign('/dashboard/pedidos-online');
+      };
       return;
+    } catch {
+      const registration = await getNotificationRegistration();
+      if (registration?.showNotification) {
+        await registration.showNotification(titulo, options);
+      }
     }
-    new Notification(titulo, options);
   }, [getNotificationRegistration]);
 
   const notifyPedidoOnline = useCallback((cantidad: number) => {
