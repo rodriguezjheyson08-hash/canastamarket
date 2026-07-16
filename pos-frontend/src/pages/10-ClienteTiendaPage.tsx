@@ -911,6 +911,10 @@ const ClienteTiendaPage: React.FC = () => {
       showSnackbar('El DNI debe tener 8 dígitos.', 'error');
       return false;
     }
+    if (!/^\d{9}$/.test(perfilForm.telefono.trim())) {
+      showSnackbar('El telefono debe tener 9 digitos.', 'error');
+      return false;
+    }
     return true;
   };
 
@@ -921,7 +925,7 @@ const ClienteTiendaPage: React.FC = () => {
       nombre: perfilForm.nombre.trim(),
       dni: perfilForm.dni.trim(),
       email: perfilForm.email.trim(),
-      telefono: perfilForm.telefono.trim(),
+      telefono: perfilForm.telefono.replace(/\D/g, '').slice(0, 9),
       direccion: perfilForm.direccion.trim(),
       password: perfilForm.password,
       fotoUrl: perfilForm.fotoUrl || buildAvatarUrl(perfilForm)
@@ -1309,10 +1313,10 @@ const ClienteTiendaPage: React.FC = () => {
                       Mantén tus datos listos para generar pedidos, boleta y contacto de recojo.
                     </Typography>
                     <Stack spacing={2}>
-                      <TextField label="Correo" value={perfilForm.email} disabled fullWidth InputProps={{ startAdornment: <InputAdornment position="start"><Email fontSize="small" /></InputAdornment> }} />
+                      <TextField label="Correo" type="email" value={perfilForm.email} onChange={(e) => setPerfilForm((prev) => ({ ...prev, email: e.target.value.trim().toLowerCase() }))} fullWidth InputProps={{ startAdornment: <InputAdornment position="start"><Email fontSize="small" /></InputAdornment> }} />
                       <TextField label="Nombre completo" value={perfilForm.nombre} onChange={(e) => setPerfilForm((prev) => ({ ...prev, nombre: e.target.value }))} fullWidth InputProps={{ startAdornment: <InputAdornment position="start"><Person fontSize="small" /></InputAdornment> }} />
                       <TextField label="DNI" value={perfilForm.dni} onChange={(e) => setPerfilForm((prev) => ({ ...prev, dni: e.target.value.replace(/\D/g, '').slice(0, 8) }))} fullWidth inputProps={{ maxLength: 8, inputMode: 'numeric' }} />
-                      <TextField label="Telefono" value={perfilForm.telefono} onChange={(e) => setPerfilForm((prev) => ({ ...prev, telefono: e.target.value }))} fullWidth />
+                      <TextField label="Telefono" value={perfilForm.telefono} onChange={(e) => setPerfilForm((prev) => ({ ...prev, telefono: e.target.value.replace(/\D/g, '').slice(0, 9) }))} fullWidth inputProps={{ maxLength: 9, inputMode: 'numeric' }} helperText="Debe tener 9 digitos" />
                       <TextField label="Direccion referencial" value={perfilForm.direccion} onChange={(e) => setPerfilForm((prev) => ({ ...prev, direccion: e.target.value }))} fullWidth multiline minRows={2} />
                       <Button variant="contained" startIcon={<AccountCircle />} onClick={savePerfil} size="large">
                         Guardar cambios
@@ -1746,7 +1750,7 @@ const ClienteTiendaPage: React.FC = () => {
                 <TextField label="Nombre completo" value={perfilForm.nombre} onChange={(e) => setPerfilForm((prev) => ({ ...prev, nombre: e.target.value }))} fullWidth required />
                 <TextField label="DNI" value={perfilForm.dni} onChange={(e) => setPerfilForm((prev) => ({ ...prev, dni: e.target.value.replace(/\D/g, '').slice(0, 8) }))} fullWidth required inputProps={{ maxLength: 8, inputMode: 'numeric' }} />
                 <TextField label="Correo" type="email" value={perfilForm.email} onChange={(e) => setPerfilForm((prev) => ({ ...prev, email: e.target.value }))} fullWidth required />
-                <TextField label="Telefono" value={perfilForm.telefono} onChange={(e) => setPerfilForm((prev) => ({ ...prev, telefono: e.target.value }))} fullWidth required />
+                <TextField label="Telefono" value={perfilForm.telefono} onChange={(e) => setPerfilForm((prev) => ({ ...prev, telefono: e.target.value.replace(/\D/g, '').slice(0, 9) }))} fullWidth required inputProps={{ maxLength: 9, inputMode: 'numeric' }} helperText="Debe tener 9 digitos" />
                 <TextField label="Contraseña" type="password" value={perfilForm.password || ''} onChange={(e) => setPerfilForm((prev) => ({ ...prev, password: e.target.value }))} helperText="Obligatoria. Mínimo 8 caracteres, mayúscula, minúscula y número." fullWidth required />
                 <TextField label="Direccion referencial" value={perfilForm.direccion} onChange={(e) => setPerfilForm((prev) => ({ ...prev, direccion: e.target.value }))} fullWidth />
               </Stack>

@@ -1,21 +1,20 @@
 /*
  * MAPA DEL ARCHIVO: LAYOUT FRONTEND
  * UBICACION: pos-frontend/src/components/layout/Header.tsx
- * QUE HACE: Contiene piezas visuales compartidas del marco de la app como header o footer.
- * GUIA: usa comentarios DISEÑO/LOGICA/RUTA/SERVICIO para ubicar rapido donde cambiar algo.
+ * QUE HACE: Header compartido del sistema interno y monitor de pedidos online.
  */
-import React from 'react';
-import { AppBar, Toolbar, Typography, Box, Button, Avatar } from '@mui/material';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, AppBar, Avatar, Badge, Box, Button, Snackbar, Toolbar, Typography } from '@mui/material';
 import StorefrontIcon from '@mui/icons-material/Storefront';
-// IMPORTACIONES FRONTEND: librerias, helpers y tipos que usa este archivo.
 import { useAuth } from '../../contexts/AuthContext';
 import BackButton from '../common/BackButton';
 import { useAppConfig } from '../../hooks/useAppConfig';
 import { useI18n } from '../../hooks/useI18n';
+import { getPedidosOnline } from '../../services/api';
+import { canAccess } from '../../utils/permissions';
 
 export const PEDIDOS_ONLINE_UPDATE_EVENT = 'pedidos-online-update';
 
-// TIPOS FRONTEND: props/datos HeaderProps usados por este componente.
 interface HeaderProps {
   showBack?: boolean;
 }
@@ -24,33 +23,137 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
   const { user, logout } = useAuth();
   const config = useAppConfig();
   const { t } = useI18n();
+  const [pedidosPendientes, setPedidosPendientes] = useState(0);
+  const [pedidoAviso, setPedidoAviso] = useState('');
+  const lastPedidoIdsRef = useRef<Set<number> | null>(null);
+
+  const isPedidoPendiente = useCallback((pedido: any) => (
+    ['PENDIENTE_RECOJO', 'PENDIENTE_PAGO', 'PAGADO'].includes(String(pedido.estado || ''))
+  ), []);
+
+  const playNotificationSound = useCallback(() => {
+    try {
+      const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextCtor) return;
+      const context = new AudioContextCtor();
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.type = 'sine';
+      oscillator.frequency.value = 880;
+      gain.gain.setValueAtTime(0.0001, context.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.18, context.currentTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.45);
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start();
+      oscillator.stop(context.currentTime + 0.5);
+      window.setTimeout(() => context.close().catch(() => undefined), 700);
+    } catch {
+      // Algunos navegadores bloquean sonido hasta que exista interaccion.
+    }
+  }, []);
+
+  const notifyPedidoOnline = useCallback((cantidad: number) => {
+    const mensaje = cantidad === 1 ? 'Nuevo pedido online recibido.' : `${cantidad} nuevos pedidos online recibidos.`;
+    setPedidoAviso(mensaje);
+    playNotificationSound();
+    if ('Notification' in window) {
+      if (Notification.permission === 'granted') {
+        new Notification('ECOMARKET - Pedido online', { body: mensaje });
+      } else if (Notification.permission === 'default') {
+        Notification.requestPermission().then((permission) => {
+          if (permission === 'granted') {
+            new Notification('ECOMARKET - Pedido online', { body: mensaje });
+          }
+        }).catch(() => undefined);
+      }
+    }
+  }, [playNotificationSound]);
+
+  useEffect(() => {
+    if (!user || !canAccess(user, 'pedidosOnline')) {
+      setPedidosPendientes(0);
+      lastPedidoIdsRef.current = null;
+      return undefined;
+    }
+
+    let active = true;
+    const fetchPedidos = async () => {
+      try {
+        const pedidos = await getPedidosOnline();
+        if (!active || !Array.isArray(pedidos)) return;
+        const pendientes = pedidos.filter(isPedidoPendiente);
+        setPedidosPendientes(pendientes.length);
+        const currentIds = new Set(pendientes.map((pedido: any) => Number(pedido.id)));
+        const previousIds = lastPedidoIdsRef.current;
+        if (previousIds) {
+          const nuevos = [...currentIds].filter((id) => !previousIds.has(id));
+          if (nuevos.length > 0) {
+            notifyPedidoOnline(nuevos.length);
+            globalThis.dispatchEvent(new Event(PEDIDOS_ONLINE_UPDATE_EVENT));
+          }
+        }
+        lastPedidoIdsRef.current = currentIds;
+      } catch {
+        if (active) setPedidosPendientes(0);
+      }
+    };
+
+    void fetchPedidos();
+    const intervalId = window.setInterval(fetchPedidos, 10000);
+    globalThis.addEventListener(PEDIDOS_ONLINE_UPDATE_EVENT, fetchPedidos);
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+      globalThis.removeEventListener(PEDIDOS_ONLINE_UPDATE_EVENT, fetchPedidos);
+    };
+  }, [isPedidoPendiente, notifyPedidoOnline, user]);
 
   return (
-    <AppBar position="sticky" color="primary" elevation={2} sx={{ zIndex: 1201 }}>
-      <Toolbar>
-        {showBack && <BackButton />}
-        <StorefrontIcon sx={{ mx: 1, fontSize: 32 }} />
-        <Typography variant="h6" sx={{ flexGrow: 1 }}>
-          {config.appName}
-        </Typography>
-        {user && (
-          <Box display="flex" alignItems="center" gap={2}>
-            <Avatar sx={{ width: 32, height: 32, bgcolor: 'secondary.main' }}>
-              {user.nombreCompleto?.charAt(0) || user.nombreUsuario.charAt(0)}
-            </Avatar>
-            <Box textAlign="right">
-              <Typography variant="body2" fontWeight="bold">
-                {user.nombreCompleto || user.nombreUsuario}
-              </Typography>
+    <>
+      <AppBar position="sticky" color="primary" elevation={2} sx={{ zIndex: 1201 }}>
+        <Toolbar>
+          {showBack && <BackButton />}
+          <StorefrontIcon sx={{ mx: 1, fontSize: 32 }} />
+          <Typography variant="h6" sx={{ flexGrow: 1 }}>
+            {config.appName}
+          </Typography>
+          {user && (
+            <Box display="flex" alignItems="center" gap={2}>
+              {canAccess(user, 'pedidosOnline') && (
+                <Badge badgeContent={pedidosPendientes} color="error" invisible={pedidosPendientes === 0}>
+                  <Typography variant="caption" sx={{ fontWeight: 800 }}>
+                    Pedidos
+                  </Typography>
+                </Badge>
+              )}
+              <Avatar sx={{ width: 32, height: 32, bgcolor: 'secondary.main' }}>
+                {user.nombreCompleto?.charAt(0) || user.nombreUsuario.charAt(0)}
+              </Avatar>
+              <Box textAlign="right">
+                <Typography variant="body2" fontWeight="bold">
+                  {user.nombreCompleto || user.nombreUsuario}
+                </Typography>
+              </Box>
+              <Button color="inherit" variant="outlined" size="small" onClick={logout} sx={{ ml: 2 }}>
+                {t('Cerrar sesion', 'Log out')}
+              </Button>
             </Box>
-            <Button color="inherit" variant="outlined" size="small" onClick={logout} sx={{ ml: 2 }}>
-              {t('Cerrar sesión', 'Log out')}
-            </Button>
-          </Box>
-        )}
-      </Toolbar>
-    </AppBar>
+          )}
+        </Toolbar>
+      </AppBar>
+      <Snackbar
+        open={Boolean(pedidoAviso)}
+        autoHideDuration={6500}
+        onClose={() => setPedidoAviso('')}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <Alert severity="info" variant="filled" onClose={() => setPedidoAviso('')}>
+          {pedidoAviso}
+        </Alert>
+      </Snackbar>
+    </>
   );
 };
 
-export default Header; 
+export default Header;

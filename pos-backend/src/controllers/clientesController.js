@@ -17,11 +17,11 @@ const registerCliente = async (req, res) => {
   const email = String(req.body?.email || '').trim().toLowerCase();
   const nombre = String(req.body?.nombre || '').trim();
   const dni = String(req.body?.dni || '').replace(/\D/g, '');
-  const telefono = String(req.body?.telefono || '').trim();
+  const telefono = String(req.body?.telefono || '').replace(/\D/g, '');
   const direccion = String(req.body?.direccion || '').trim();
   const password = String(req.body?.password || '');
-  if (!emailValido(email) || !nombre || !/^\d{8}$/.test(dni) || !telefono) {
-    return res.status(400).json({ message: 'Nombre, DNI, correo y teléfono válidos son obligatorios.' });
+  if (!emailValido(email) || !nombre || !/^\d{8}$/.test(dni) || !/^\d{9}$/.test(telefono)) {
+    return res.status(400).json({ message: 'Nombre, DNI de 8 digitos, correo valido y telefono de 9 digitos son obligatorios.' });
   }
   if (!isStrongPassword(password)) {
     return res.status(400).json({ message: PASSWORD_MESSAGE });
@@ -122,17 +122,23 @@ const getClienteActual = async (req, res) => {
 const updateClienteActual = async (req, res) => {
   await ensureClientesSchema();
   const nombre = String(req.body?.nombre || '').trim();
+  const email = String(req.body?.email || '').trim().toLowerCase();
   const dni = String(req.body?.dni || '').replace(/\D/g, '');
-  const telefono = String(req.body?.telefono || '').trim();
+  const telefono = String(req.body?.telefono || '').replace(/\D/g, '');
   const direccion = String(req.body?.direccion || '').trim();
-  if (!nombre || !/^\d{8}$/.test(dni) || !telefono) {
-    return res.status(400).json({ message: 'Nombre, DNI y teléfono válidos son obligatorios.' });
+  if (!nombre || !emailValido(email) || !/^\d{8}$/.test(dni) || !/^\d{9}$/.test(telefono)) {
+    return res.status(400).json({ message: 'Nombre, correo valido, DNI de 8 digitos y telefono de 9 digitos son obligatorios.' });
   }
-  await pool.execute(
-    'UPDATE clientes SET nombre_completo = ?, dni = ?, telefono = ?, direccion = ? WHERE id = ?',
-    [nombre, dni, telefono, direccion || null, req.auth.sub]
-  );
-  return getClienteActual(req, res);
+  try {
+    await pool.execute(
+      'UPDATE clientes SET email = ?, nombre_completo = ?, dni = ?, telefono = ?, direccion = ? WHERE id = ? AND is_active = 1',
+      [email, nombre, dni, telefono, direccion || null, req.auth.sub]
+    );
+    return getClienteActual(req, res);
+  } catch (error) {
+    if (error?.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: 'Ya existe una cuenta con ese correo.' });
+    throw error;
+  }
 };
 
 module.exports = { registerCliente, loginCliente, googleLoginCliente, getClienteActual, updateClienteActual };

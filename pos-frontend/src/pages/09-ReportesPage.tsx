@@ -27,7 +27,7 @@ import {
   TextField,
   Typography
 } from '@mui/material';
-import { Assessment, AttachMoney, Inventory, PointOfSale, Warning } from '@mui/icons-material';
+import { Assessment, AttachMoney, FileDownload, Inventory, PointOfSale, Warning } from '@mui/icons-material';
 import {
   anularVenta,
   getCajas,
@@ -109,6 +109,12 @@ const getMetodoPagoOnline = (pedido: PedidoOnline) => {
   if (pedido.pagoRecogidaMetodo === 'mixto_efectivo_yape') return 'Mixto: efectivo + Yape al recoger';
   return 'Pago al recoger';
 };
+
+const escapeExcelCell = (value: unknown) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;');
 
 const ReportesPage: React.FC = () => {
   // LOGICA REPORTES - ESTADOS:
@@ -246,6 +252,64 @@ const ReportesPage: React.FC = () => {
     };
   }, [ventasFiltradas]);
 
+  const exportarVentasExcel = () => {
+    const rows = ventasFiltradas.map((venta) => ({
+      id: venta.id,
+      fecha: formatDateTime(venta.fecha),
+      cliente: getClienteLabel(venta),
+      documento: venta.clienteDni || '',
+      metodoPago: venta.metodoPago || 'efectivo',
+      productos: venta.productosVendidos.map(getProductoDetalle).join(' | '),
+      total: Number(venta.total || 0),
+      estado: venta.estado || 'REGISTRADA'
+    }));
+    const htmlRows = rows.map((row) => `
+      <tr>
+        <td>${escapeExcelCell(row.id)}</td>
+        <td>${escapeExcelCell(row.fecha)}</td>
+        <td>${escapeExcelCell(row.cliente)}</td>
+        <td>${escapeExcelCell(row.documento)}</td>
+        <td>${escapeExcelCell(row.metodoPago)}</td>
+        <td>${escapeExcelCell(row.productos)}</td>
+        <td style="mso-number-format:'0.00'">${row.total.toFixed(2)}</td>
+        <td>${escapeExcelCell(row.estado)}</td>
+      </tr>
+    `).join('');
+    const resumenRows = `
+      <tr><td colspan="6"><b>Total de ventas</b></td><td>${resumenPeriodo.totalVentas}</td><td></td></tr>
+      <tr><td colspan="6"><b>Ingresos totales</b></td><td>${resumenPeriodo.ingresosTotales.toFixed(2)}</td><td></td></tr>
+      <tr><td colspan="6"><b>Productos vendidos</b></td><td>${resumenPeriodo.productosVendidos}</td><td></td></tr>
+      <tr><td colspan="6"><b>Ganancia estimada</b></td><td>${resumenPeriodo.gananciaEstimada.toFixed(2)}</td><td></td></tr>
+    `;
+    const html = `
+      <html>
+        <head><meta charset="utf-8" /></head>
+        <body>
+          <h2>Reporte de ventas ${fechaVentas || 'general'}</h2>
+          <table border="1">
+            <thead>
+              <tr>
+                <th>ID Venta</th><th>Fecha</th><th>Cliente</th><th>Documento</th>
+                <th>Metodo de pago</th><th>Productos</th><th>Total</th><th>Estado</th>
+              </tr>
+            </thead>
+            <tbody>${htmlRows || '<tr><td colspan="8">Sin ventas</td></tr>'}</tbody>
+            <tfoot>${resumenRows}</tfoot>
+          </table>
+        </body>
+      </html>
+    `;
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `reporte_ventas_${fechaVentas || 'general'}.xls`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
   // DISEÑO REPORTES - ACCESO DENEGADO:
   // Mensaje mostrado cuando el usuario no es administrador.
   if (!isAdmin) {
@@ -269,16 +333,24 @@ const ReportesPage: React.FC = () => {
 
       {/* DISEÑO REPORTES - FILTRO DE FECHA:
           Campo para mostrar solo ventas de un dia especifico. */}
-      <Box mb={3} maxWidth={220}>
+      <Box mb={3} display="flex" gap={1.5} alignItems="center" flexWrap="wrap">
         <TextField
           label={t('Fecha de ventas', 'Sales date')}
           type="date"
           value={fechaVentas}
           onChange={(event) => setFechaVentas(event.target.value)}
           InputLabelProps={{ shrink: true }}
-          fullWidth
+          sx={{ width: 220 }}
           size="small"
         />
+        <Button
+          variant="contained"
+          startIcon={<FileDownload />}
+          onClick={exportarVentasExcel}
+          disabled={loading}
+        >
+          Exportar Excel
+        </Button>
       </Box>
 
       {/* DISEÑO REPORTES - MENSAJE DE ERROR:
