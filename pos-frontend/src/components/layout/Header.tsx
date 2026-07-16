@@ -3,10 +3,9 @@
  * UBICACION: pos-frontend/src/components/layout/Header.tsx
  * QUE HACE: Header compartido del sistema interno y monitor de pedidos online.
  */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AppBar, Avatar, Box, Button, Paper, Toolbar, Typography } from '@mui/material';
+import React, { useCallback, useEffect, useRef } from 'react';
+import { AppBar, Avatar, Box, Button, Toolbar, Typography } from '@mui/material';
 import StorefrontIcon from '@mui/icons-material/Storefront';
-import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import { useAuth } from '../../contexts/AuthContext';
 import BackButton from '../common/BackButton';
 import { useAppConfig } from '../../hooks/useAppConfig';
@@ -27,7 +26,6 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
   const config = useAppConfig();
   const { t } = useI18n();
   const lastPedidoIdsRef = useRef<Set<number> | null>(null);
-  const [desktopAviso, setDesktopAviso] = useState<{ titulo: string; mensaje: string } | null>(null);
 
   const isPedidoPendiente = useCallback((pedido: any) => (
     ['PENDIENTE_RECOJO', 'PENDIENTE_PAGO', 'PAGADO'].includes(String(pedido.estado || ''))
@@ -63,34 +61,63 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
     }
   }, []);
 
+  const getNotificationRegistration = useCallback(async () => {
+    if (!('serviceWorker' in navigator)) return null;
+    try {
+      await navigator.serviceWorker.register('/pedido-notifications-sw.js');
+      return await navigator.serviceWorker.ready;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const requestNativeNotificationPermission = useCallback(async () => {
+    if (!('Notification' in window) || Notification.permission !== 'default') return;
+    try {
+      await Notification.requestPermission();
+    } catch {
+      // El navegador puede bloquear el prompt si no hubo interaccion real.
+    }
+  }, []);
+
+  const showNativeNotification = useCallback(async (titulo: string, mensaje: string) => {
+    if (!('Notification' in window)) return;
+
+    let permission = Notification.permission;
+    if (permission === 'default' && document.hasFocus()) {
+      try {
+        permission = await Notification.requestPermission();
+      } catch {
+        permission = Notification.permission;
+      }
+    }
+    if (permission !== 'granted') return;
+
+    const options: NotificationOptions = {
+      body: mensaje,
+      icon: '/images/logo192.png',
+      badge: '/images/logo192.png',
+      tag: `pedido-online-${Date.now()}`,
+      renotify: true,
+      requireInteraction: true,
+      silent: false,
+      data: { url: '/dashboard/pedidos-online' } as any,
+    };
+
+    const registration = await getNotificationRegistration();
+    if (registration?.showNotification) {
+      await registration.showNotification(titulo, options);
+      return;
+    }
+    new Notification(titulo, options);
+  }, [getNotificationRegistration]);
+
   const notifyPedidoOnline = useCallback((cantidad: number) => {
     const titulo = cantidad === 1 ? 'Nuevo pedido online' : `${cantidad} nuevos pedidos online`;
     const mensaje = 'Revisa Pedidos Online para atenderlo.';
-    setDesktopAviso({ titulo, mensaje });
-    window.setTimeout(() => setDesktopAviso(null), 9000);
     playNotificationSound();
-    if ('Notification' in window) {
-      if (Notification.permission === 'granted') {
-        new Notification(titulo, {
-          body: mensaje,
-          icon: '/logo192.png',
-          tag: `pedido-online-${Date.now()}`,
-          requireInteraction: true,
-        });
-      } else if (Notification.permission === 'default') {
-        Notification.requestPermission().then((permission) => {
-          if (permission === 'granted') {
-            new Notification(titulo, {
-              body: mensaje,
-              icon: '/logo192.png',
-              tag: `pedido-online-${Date.now()}`,
-              requireInteraction: true,
-            });
-          }
-        }).catch(() => undefined);
-      }
-    }
-  }, [playNotificationSound]);
+    void showNativeNotification(titulo, mensaje);
+  }, [playNotificationSound, showNativeNotification]);
 
   useEffect(() => {
     if (!user || !canAccess(user, 'pedidosOnline')) {
@@ -143,6 +170,14 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
     };
 
     void fetchPedidos();
+    void getNotificationRegistration();
+    const askPermissionOnInteraction = () => {
+      void requestNativeNotificationPermission();
+    };
+    if ('Notification' in window && Notification.permission === 'default') {
+      window.addEventListener('pointerdown', askPermissionOnInteraction, { once: true });
+      window.addEventListener('keydown', askPermissionOnInteraction, { once: true });
+    }
     const intervalId = window.setInterval(fetchPedidos, 10000);
     globalThis.addEventListener(PEDIDOS_ONLINE_UPDATE_EVENT, handlePedidosUpdate);
     window.addEventListener('storage', handleStorage);
@@ -151,9 +186,11 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
       window.clearInterval(intervalId);
       globalThis.removeEventListener(PEDIDOS_ONLINE_UPDATE_EVENT, handlePedidosUpdate);
       window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('pointerdown', askPermissionOnInteraction);
+      window.removeEventListener('keydown', askPermissionOnInteraction);
       channel?.close();
     };
-  }, [isPedidoPendiente, notifyPedidoOnline, playNotificationSound, user]);
+  }, [getNotificationRegistration, isPedidoPendiente, notifyPedidoOnline, requestNativeNotificationPermission, user]);
 
   return (
     <>
@@ -181,32 +218,6 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
           )}
         </Toolbar>
       </AppBar>
-      {desktopAviso && (
-        <Paper
-          elevation={8}
-          sx={{
-            position: 'fixed',
-            right: 24,
-            bottom: 24,
-            zIndex: 2000,
-            width: 360,
-            maxWidth: 'calc(100vw - 32px)',
-            p: 2,
-            borderLeft: '5px solid',
-            borderColor: 'primary.main',
-            bgcolor: 'background.paper',
-          }}
-        >
-          <Box display="flex" gap={1.5} alignItems="flex-start">
-            <NotificationsActiveIcon color="primary" />
-            <Box flex={1}>
-              <Typography fontWeight={800}>{desktopAviso.titulo}</Typography>
-              <Typography variant="body2" color="text.secondary">{desktopAviso.mensaje}</Typography>
-            </Box>
-            <Button size="small" onClick={() => setDesktopAviso(null)}>Cerrar</Button>
-          </Box>
-        </Paper>
-      )}
     </>
   );
 };
