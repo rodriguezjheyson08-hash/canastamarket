@@ -1087,7 +1087,7 @@ const ClienteTiendaPage: React.FC = () => {
     setPedidos((prev) => [{ ...pedidoConBoleta, backendId: pedidoBackend.id }, ...prev]);
     setCartItems({});
     setCheckoutOpen(false);
-    showSnackbar(`Pedido registrado. Boleta generada y enviada a ${clienteActual.email}.`);
+    showSnackbar(`Pedido registrado. Boleta generada para ${clienteActual.email}.`);
   }, [clienteToken, config.appName, perfil, perfilForm, showSnackbar]);
 
   useEffect(() => {

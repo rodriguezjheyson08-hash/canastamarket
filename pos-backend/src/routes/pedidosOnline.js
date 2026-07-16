@@ -14,6 +14,7 @@ const {
   listPedidosOnline,
   getPedidoOnlinePushPublicKey,
   subscribePedidoOnlinePush,
+  enviarPedidoOnlineBoletaEmail,
   updatePedidoOnlineEstado,
   cancelarPedidoOnlineCliente
 } = require('../controllers/pedidosOnlineController');
@@ -30,6 +31,7 @@ router.patch('/mine/:id/cancelar', requireAuth({ type: 'cliente' }), asyncHandle
 router.get('/push/public-key', requireAuth({ type: 'admin' }), requirePermission('pedidosOnline'), asyncHandler(getPedidoOnlinePushPublicKey));
 router.post('/push/subscribe', requireAuth({ type: 'admin' }), requirePermission('pedidosOnline'), asyncHandler(subscribePedidoOnlinePush));
 router.get('/', requireAuth({ type: 'admin' }), requirePermission('pedidosOnline'), asyncHandler(listPedidosOnline));
+router.post('/:id/boleta/email', requireAuth({ type: 'admin' }), requirePermission('pedidosOnline'), asyncHandler(enviarPedidoOnlineBoletaEmail));
 router.patch('/:id/estado', requireAuth({ type: 'admin' }), requirePermission('pedidosOnline'), asyncHandler(updatePedidoOnlineEstado));
 
 module.exports = router;

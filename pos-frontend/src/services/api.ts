@@ -407,6 +407,14 @@ export const subscribePedidosOnlinePush = async (subscription: PushSubscription,
   });
 };
 
+export const enviarPedidoOnlineBoletaEmail = async (id: number, token?: string | null): Promise<{ message: string }> => {
+  const authToken = token ?? getToken();
+  const res = await axios.post(`${API_URL}/pedidos-online/${id}/boleta/email`, {}, {
+    headers: buildAuthHeaders(authToken)
+  });
+  return res.data;
+};
+
 // SERVICIO FRONTEND PUBLICO: consulta pedidos del cliente por correo para ver su estado actualizado.
 // SERVICIO FRONTEND ADMIN: cambia el estado de un pedido web cuando se atiende o se recoge.
 export const updatePedidoOnlineEstado = async (

@@ -30,8 +30,8 @@ import {
   TextField,
   Typography
 } from '@mui/material';
-import { AssignmentTurnedIn, Cancel, Payment, Refresh, ReceiptLong, Search } from '@mui/icons-material';
-import { getPedidosOnline, updatePedidoOnlineEstado } from '../services/api';
+import { AssignmentTurnedIn, Cancel, Email, Payment, Print, Refresh, ReceiptLong, Search } from '@mui/icons-material';
+import { enviarPedidoOnlineBoletaEmail, getPedidosOnline, updatePedidoOnlineEstado } from '../services/api';
 import { PedidoOnline } from '../types';
 import { PEDIDOS_ONLINE_UPDATE_EVENT } from '../components/layout/Header';
 
@@ -142,6 +142,8 @@ const PedidosOnlinePage: React.FC = () => {
   const [cobroMixtoYape, setCobroMixtoYape] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [sendingBoletaId, setSendingBoletaId] = useState<number | null>(null);
 
   // SERVICIO PEDIDOS ONLINE - LISTADO:
   // Carga pedidos desde MySQL; no depende del modulo Ventas.
@@ -149,6 +151,7 @@ const PedidosOnlinePage: React.FC = () => {
     try {
       if (!silent) setLoading(true);
       setError('');
+      setSuccess('');
       const data = await getPedidosOnline();
       setPedidos(Array.isArray(data) ? data : []);
     } catch (err: any) {
@@ -259,6 +262,33 @@ const PedidosOnlinePage: React.FC = () => {
     win.document.close();
   };
 
+  const printBoleta = (pedido: PedidoOnline) => {
+    if (!pedido.boletaHtml) return;
+    const win = window.open('', '_blank');
+    if (!win) return;
+    win.document.open();
+    win.document.write(pedido.boletaHtml);
+    win.document.close();
+    win.focus();
+    window.setTimeout(() => {
+      win.print();
+    }, 350);
+  };
+
+  const enviarBoletaCorreo = async (pedido: PedidoOnline) => {
+    try {
+      setSendingBoletaId(pedido.id);
+      setError('');
+      setSuccess('');
+      const result = await enviarPedidoOnlineBoletaEmail(pedido.id);
+      setSuccess(result.message || `Boleta enviada a ${pedido.cliente.email}.`);
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'No se pudo enviar la boleta por correo. Revisa la configuracion SMTP.');
+    } finally {
+      setSendingBoletaId(null);
+    }
+  };
+
   return (
     <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
       {/* DISEÑO PEDIDOS ONLINE - CABECERA:
@@ -329,6 +359,7 @@ const PedidosOnlinePage: React.FC = () => {
       </Box>
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
 
       {/* DISEÑO PEDIDOS ONLINE - TABLA:
           Lista cliente, contacto, total y acciones del pedido online. */}
@@ -477,9 +508,21 @@ const PedidosOnlinePage: React.FC = () => {
         </DialogContent>
         <DialogActions>
           {selectedPedido?.boletaHtml && (
-            <Button startIcon={<ReceiptLong />} onClick={() => openBoleta(selectedPedido)}>
-              Ver boleta
-            </Button>
+            <>
+              <Button startIcon={<ReceiptLong />} onClick={() => openBoleta(selectedPedido)}>
+                Ver boleta
+              </Button>
+              <Button startIcon={<Print />} onClick={() => printBoleta(selectedPedido)}>
+                Imprimir
+              </Button>
+              <Button
+                startIcon={<Email />}
+                onClick={() => enviarBoletaCorreo(selectedPedido)}
+                disabled={sendingBoletaId === selectedPedido.id}
+              >
+                {sendingBoletaId === selectedPedido.id ? 'Enviando...' : 'Enviar correo'}
+              </Button>
+            </>
           )}
           {selectedPedido && !['RECOGIDO', 'ANULADO'].includes(selectedPedido.estado) && (
             <>

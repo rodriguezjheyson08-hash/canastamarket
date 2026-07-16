@@ -17,6 +17,7 @@ const {
   saveSubscription,
   notifyPedidoOnlineCreated
 } = require('../features/pushNotifications/service');
+const { sendPedidoOnlineBoleta } = require('../services/emailService');
 
 const ESTADOS_VALIDOS = new Set(['PENDIENTE_RECOJO', 'PENDIENTE_PAGO', 'PAGADO', 'RECOGIDO', 'ANULADO']);
 const METODOS_VALIDOS = new Set(['RECOJO', 'MERCADO_PAGO']);
@@ -152,6 +153,24 @@ const subscribePedidoOnlinePush = async (req, res) => {
     userAgent: req.headers['user-agent']
   });
   res.status(204).send();
+};
+
+const sendPedidoOnlineBoletaEmail = async (pedido) => {
+  const email = pedido?.cliente?.email || pedido?.cliente_email;
+  await sendPedidoOnlineBoleta({ to: email, pedido });
+};
+
+const enviarPedidoOnlineBoletaEmail = async (req, res) => {
+  const pedidoId = Number(req.params.id);
+  if (!Number.isInteger(pedidoId) || pedidoId <= 0) {
+    return res.status(400).json({ message: 'Pedido invalido.' });
+  }
+  const pedido = await fetchPedidoById(pedidoId);
+  if (!pedido) {
+    return res.status(404).json({ message: 'Pedido online no encontrado.' });
+  }
+  await sendPedidoOnlineBoletaEmail(pedido);
+  res.json({ message: `Boleta enviada a ${pedido.cliente.email}.` });
 };
 
 // CONTROLADOR PUBLICO - HISTORIAL DEL CLIENTE:
@@ -383,6 +402,7 @@ const createPedidoOnlinePublic = async (req, res) => {
     res.status(201).json(pedido);
     setTimeout(() => {
       void notifyPedidoOnlineCreated({ codigo: cleanCodigo, total: totalCalculado });
+      void sendPedidoOnlineBoletaEmail(pedido).catch(() => undefined);
     }, 0);
   } catch (error) {
     await connection.rollback();
@@ -662,6 +682,7 @@ module.exports = {
   listPedidosOnlineMine,
   getPedidoOnlinePushPublicKey,
   subscribePedidoOnlinePush,
+  enviarPedidoOnlineBoletaEmail,
   updatePedidoOnlineEstado,
   cancelarPedidoOnlineCliente,
   getPedidoOnlineByCodigo
