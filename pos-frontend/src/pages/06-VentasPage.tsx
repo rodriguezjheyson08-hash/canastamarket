@@ -474,6 +474,10 @@ const VentasPage: React.FC = () => {
   };
 
   const agregarAlCarrito = useCallback((producto: Producto) => {
+    if (isProductoVencido(producto)) {
+      showSnackbar(`${producto.nombre} esta vencido y no puede venderse`, 'error');
+      return;
+    }
     if (producto.stockActual <= 0) return;
     setCarrito(prev => {
       const idx = prev.findIndex(item => item.producto.id === producto.id);
@@ -487,7 +491,7 @@ const VentasPage: React.FC = () => {
         return [...prev, { producto, cantidad: 1 }];
       }
     });
-  }, []);
+  }, [showSnackbar]);
 
   const buscarProductoExactoPorCodigo = useCallback((codigo: string) => {
     const normalized = codigo.trim();
@@ -505,6 +509,10 @@ const VentasPage: React.FC = () => {
     }
     if (producto.stockActual <= 0) {
       showSnackbar(`Sin stock para ${producto.nombre}`, 'error');
+      return;
+    }
+    if (isProductoVencido(producto)) {
+      showSnackbar(`${producto.nombre} esta vencido y no puede venderse`, 'error');
       return;
     }
     setCategoriaFiltro(0);
@@ -1007,10 +1015,19 @@ const VentasPage: React.FC = () => {
     return acc;
   }, {}), [categorias]);
 
+  const isProductoVencido = (producto: Producto) => {
+    if (!producto.fechaVencimiento) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const expiration = new Date(`${producto.fechaVencimiento}T00:00:00`);
+    return expiration.getTime() < today.getTime();
+  };
+
   const productosFiltrados = useMemo(() => {
     // Prueba unitaria: src/utils/productFilters.test.ts valida busqueda por texto,
     // filtro por categoria y prioridad del codigo exacto al escanear en Ventas.
-    return filtrarProductosParaVentas(productos, codigoBarrasScan, categoriaFiltro, categoriaNombrePorId);
+    return filtrarProductosParaVentas(productos, codigoBarrasScan, categoriaFiltro, categoriaNombrePorId)
+      .filter((producto) => !isProductoVencido(producto));
   }, [categoriaFiltro, categoriaNombrePorId, codigoBarrasScan, productos]);
 
 // LOGICA: render Boleta Impresion concentra una operacion de este archivo.

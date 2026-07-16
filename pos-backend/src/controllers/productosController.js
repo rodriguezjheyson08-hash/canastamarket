@@ -15,6 +15,7 @@ const {
   validateFechaVencimiento,
   validateProductoNumbers
 } = require('../features/productos/validators');
+const { registrarAuditoria } = require('../features/auditoria/service');
 
 const PRODUCTO_SELECT = [
   'id',
@@ -123,13 +124,14 @@ const fetchProductoForUpdate = async (id) => {
 };
 
 // CONTROLADOR BACKEND: list Productos procesa request/respuesta de este flujo.
-const listProductos = async (_req, res) => {
+const listProductos = async (req, res) => {
   await ensureProductosFechaVencimientoColumn();
+  const includeExpired = ['1', 'true', 'si', 'yes'].includes(String(req.query?.incluirVencidos || '').toLowerCase());
   const [rows] = await pool.query(
     `SELECT ${PRODUCTO_SELECT_ALIAS}
        FROM productos p
        LEFT JOIN categorias c ON c.id = p.categoria_id
-      WHERE ${productAvailabilitySql('p', 'c')}
+      WHERE ${productAvailabilitySql('p', 'c', { includeExpired })}
       ORDER BY p.nombre`
   );
   res.json(rows.map(mapProducto));
@@ -193,7 +195,16 @@ const createProducto = async (req, res) => {
     [result.insertId]
   );
 
-  res.status(201).json(mapProducto(rows[0]));
+  const created = mapProducto(rows[0]);
+  await registrarAuditoria(pool, {
+    req,
+    accion: 'PRODUCTO_CREADO',
+    entidad: 'producto',
+    entidadId: created.id,
+    detalle: { nombre: created.nombre, stockActual: created.stockActual, precioVenta: created.precioVenta }
+  });
+
+  res.status(201).json(created);
 };
 
 // CONTROLADOR BACKEND: update Producto procesa request/respuesta de este flujo.
@@ -276,7 +287,31 @@ const updateProducto = async (req, res) => {
     [id]
   );
 
-  res.json(mapProducto(rows[0]));
+  const updated = mapProducto(rows[0]);
+  await registrarAuditoria(pool, {
+    req,
+    accion: 'PRODUCTO_ACTUALIZADO',
+    entidad: 'producto',
+    entidadId: id,
+    detalle: {
+      antes: {
+        nombre: existingProducto.nombre,
+        codigoBarras: existingProducto.codigo_barras,
+        fechaVencimiento: formatDateOnly(existingProducto.fecha_vencimiento),
+        categoriaId: existingProducto.categoria_id
+      },
+      despues: {
+        nombre: updated.nombre,
+        codigoBarras: updated.codigoBarras,
+        fechaVencimiento: updated.fechaVencimiento,
+        categoriaId: updated.categoriaId,
+        stockActual: updated.stockActual,
+        precioVenta: updated.precioVenta
+      }
+    }
+  });
+
+  res.json(updated);
 };
 
 // CONTROLADOR BACKEND: delete Producto procesa request/respuesta de este flujo.
@@ -302,6 +337,14 @@ const deleteProducto = async (req, res) => {
   if (result.affectedRows === 0) {
     return res.status(404).json({ message: 'Producto no encontrado.' });
   }
+
+  await registrarAuditoria(pool, {
+    req,
+    accion: 'PRODUCTO_ELIMINADO',
+    entidad: 'producto',
+    entidadId: id,
+    detalle: { productoId: id }
+  });
 
   res.status(204).send();
 };

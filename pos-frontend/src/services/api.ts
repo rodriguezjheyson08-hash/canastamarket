@@ -55,9 +55,10 @@ axios.interceptors.response.use(
 
 // Productos
 // SERVICIO FRONTEND: get Productos llama al backend y devuelve la respuesta a React.
-export const getProductos = async (token?: string | null) => {
+export const getProductos = async (token?: string | null, options?: { incluirVencidos?: boolean }) => {
   const authToken = token ?? getToken();
   const res = await axios.get(`${API_URL}/productos`, {
+    params: options?.incluirVencidos ? { incluirVencidos: 1 } : undefined,
     headers: buildAuthHeaders(authToken)
   });
   return res.data;

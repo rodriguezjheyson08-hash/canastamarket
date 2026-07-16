@@ -238,6 +238,21 @@ const ProveedoresPage: React.FC = () => {
     }
   };
 
+  const validarFechaVencimientoRecepcion = (fecha: string, producto: string) => {
+    const clean = fecha.trim();
+    if (!clean) return undefined;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
+      throw new Error(`Fecha invalida para ${producto}. Use YYYY-MM-DD.`);
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const expiration = new Date(`${clean}T00:00:00`);
+    if (expiration.getTime() < today.getTime()) {
+      throw new Error(`La fecha de vencimiento de ${producto} no puede ser anterior a hoy.`);
+    }
+    return clean;
+  };
+
 // LOGICA: handle Delete Pedido concentra una operacion de este archivo.
   const handleRecibirPedido = async (pedido: PedidoCompra) => {
     const ok = window.confirm(`${t('¿Recibir pedido de compra y aumentar stock?', 'Receive purchase order and increase stock?')}\n#${pedido.id}`);
@@ -253,10 +268,11 @@ const ProveedoresPage: React.FC = () => {
           `Costo unitario para ${item.productoNombre || `producto ${item.productoId}`}. Deja vacio para usar el precio compra actual:`,
           item.precioCompra !== undefined && item.precioCompra !== null ? String(item.precioCompra) : ''
         ) || '';
+        const productoNombre = item.productoNombre || `producto ${item.productoId}`;
         return {
           productoId: item.productoId,
           cantidadRecibida: item.cantidad,
-          fechaVencimiento: fechaVencimiento.trim() || undefined,
+          fechaVencimiento: validarFechaVencimientoRecepcion(fechaVencimiento, productoNombre),
           costoUnitario: costoTexto.trim() ? Number(costoTexto) : undefined,
           codigoLote: `OC-${pedido.id}-P${item.productoId}`
         };

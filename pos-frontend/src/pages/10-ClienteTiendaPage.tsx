@@ -813,9 +813,12 @@ const ClienteTiendaPage: React.FC = () => {
   // Busca productos por nombre o descripcion dentro del catalogo publico.
   const productosVisibles = useMemo(() => {
     const query = busqueda.trim().toLowerCase();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     return productos.filter((producto) => {
       const disponible = producto.activo !== false && Number(producto.stockActual || 0) > 0;
       if (!disponible) return false;
+      if (producto.fechaVencimiento && new Date(`${producto.fechaVencimiento}T00:00:00`).getTime() < today.getTime()) return false;
       if (categoriaFiltro !== 0 && producto.categoriaId !== categoriaFiltro) return false;
       if (!query) return true;
       return `${producto.nombre} ${producto.descripcion || ''}`.toLowerCase().includes(query);

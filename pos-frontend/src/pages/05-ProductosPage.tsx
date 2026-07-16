@@ -123,7 +123,7 @@ const ProductosPage: React.FC = () => {
 
   const fetchProductos = useCallback(async () => {
     try {
-      const data = await getProductos();
+      const data = await getProductos(undefined, { incluirVencidos: true });
       setProductos(data);
     } catch (error) {
       setProductos([]);
@@ -232,6 +232,7 @@ const ProductosPage: React.FC = () => {
   const getVencimientoLabel = (fechaVencimiento?: string | null) => {
     const dias = getDiasParaVencer(fechaVencimiento);
     if (dias === null) return 'Sin fecha';
+    if (dias < 0) return 'Vencido';
     if (dias === 0) return 'Vence hoy';
     if (dias === 1) return 'Vence mañana';
     return `Vence en ${dias} días`;
@@ -240,9 +241,15 @@ const ProductosPage: React.FC = () => {
   const getVencimientoColor = (fechaVencimiento?: string | null): 'default' | 'warning' | 'error' | 'success' => {
     const dias = getDiasParaVencer(fechaVencimiento);
     if (dias === null) return 'default';
-    if (dias <= 2) return 'error';
+    if (dias < 0) return 'error';
+    if (dias <= 2) return 'warning';
     if (dias <= 7) return 'warning';
     return 'success';
+  };
+
+  const isProductoVencido = (producto: Producto) => {
+    const dias = getDiasParaVencer(producto.fechaVencimiento);
+    return dias !== null && dias < 0;
   };
 
   const categoriaNombrePorId = useMemo(() => categorias.reduce<Record<number, string>>((acc, cat) => {
@@ -557,7 +564,7 @@ const ProductosPage: React.FC = () => {
                     </TableHead>
                     <TableBody>
                       {productosDeCategoria.map((producto) => (
-                        <TableRow key={producto.id}>
+                        <TableRow key={producto.id} sx={isProductoVencido(producto) ? { bgcolor: '#fff5f5' } : undefined}>
                           <TableCell>
                             <Avatar
                               variant="rounded"
@@ -567,7 +574,7 @@ const ProductosPage: React.FC = () => {
                             />
                           </TableCell>
                           <TableCell>
-                            <Typography variant="subtitle2" fontWeight="bold" sx={{ textDecoration: producto.stockActual === 0 ? 'line-through' : 'none', color: producto.stockActual === 0 ? 'gray' : 'inherit' }}>
+                            <Typography variant="subtitle2" fontWeight="bold" sx={{ textDecoration: producto.stockActual === 0 || isProductoVencido(producto) ? 'line-through' : 'none', color: producto.stockActual === 0 || isProductoVencido(producto) ? 'gray' : 'inherit' }}>
                               {producto.nombre}
                             </Typography>
                           </TableCell>

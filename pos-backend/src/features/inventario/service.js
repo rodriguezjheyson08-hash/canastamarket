@@ -1,5 +1,6 @@
 const { ensureInventarioSchema } = require('./schema');
-const { getActor, registrarAuditoria } = require('../auditoria/service');
+const { resolveActor, registrarAuditoria } = require('../auditoria/service');
+const { validateFechaVencimiento } = require('../productos/validators');
 
 const TIPOS_PERDIDA = new Set(['VENCIMIENTO', 'ROBO', 'ROTURA', 'MERMA', 'AJUSTE']);
 
@@ -14,7 +15,8 @@ const cleanCustomTipoPerdida = (value) => cleanText(value, 40)
 
 const normalizeDate = (value) => {
   const text = cleanText(value, 10);
-  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null;
+  if (!text) return null;
+  return validateFechaVencimiento(text);
 };
 
 const consumirLotesInventario = async (runner, productoId, cantidad) => {
@@ -95,6 +97,7 @@ const registrarMovimientoInventario = async (runner, {
   if (!['ENTRADA', 'SALIDA'].includes(direccion)) {
     throw new Error('Direccion de movimiento invalida.');
   }
+  const fechaVencimientoNormalizada = direccion === 'ENTRADA' ? normalizeDate(fechaVencimiento) : null;
 
   const [productos] = await runner.execute(
     'SELECT id, nombre, stock_actual FROM productos WHERE id = ? FOR UPDATE',
@@ -124,7 +127,7 @@ const registrarMovimientoInventario = async (runner, {
     await registrarLoteEntrada(runner, {
       productoId: parsedProductoId,
       cantidad: parsedCantidad,
-      fechaVencimiento,
+      fechaVencimiento: fechaVencimientoNormalizada,
       costoUnitario,
       proveedorId,
       pedidoCompraId,
@@ -132,7 +135,7 @@ const registrarMovimientoInventario = async (runner, {
     });
   }
 
-  const actor = getActor(req);
+  const actor = await resolveActor(runner, req);
   await runner.execute(
     `INSERT INTO inventario_movimientos
       (producto_id, tipo, cantidad, stock_anterior, stock_nuevo,

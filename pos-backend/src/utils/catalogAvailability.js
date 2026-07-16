@@ -27,11 +27,12 @@ const hasRemovedProductTerm = (...values) => {
 const categoryAvailabilitySql = (categoryAlias = 'c') =>
   `LOWER(TRIM(${categoryAlias}.nombre)) <> 'servicios'`;
 
-const productAvailabilitySql = (productAlias = 'p', categoryAlias = 'c') => `
+const productAvailabilitySql = (productAlias = 'p', categoryAlias = 'c', options = {}) => `
   ${productAlias}.activo = 1
   AND (${categoryAlias}.nombre IS NULL OR ${categoryAvailabilitySql(categoryAlias)})
   AND LOWER(COALESCE(${productAlias}.nombre, '')) NOT LIKE '%billar%'
   AND LOWER(COALESCE(${productAlias}.descripcion, '')) NOT LIKE '%billar%'
+  ${options.includeExpired ? '' : `AND (${productAlias}.fecha_vencimiento IS NULL OR ${productAlias}.fecha_vencimiento >= CURRENT_DATE())`}
 `;
 
 module.exports = {

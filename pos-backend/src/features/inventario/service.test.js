@@ -1,6 +1,7 @@
 jest.mock('./schema', () => ({ ensureInventarioSchema: jest.fn() }));
 jest.mock('../auditoria/service', () => ({
   getActor: jest.fn(() => ({ usuarioId: 7, usuarioNombre: 'Admin Test' })),
+  resolveActor: jest.fn(async () => ({ usuarioId: 7, usuarioNombre: 'Admin Test' })),
   registrarAuditoria: jest.fn()
 }));
 
@@ -54,17 +55,31 @@ describe('inventario service', () => {
 
   test('registra una entrada y aumenta stock', async () => {
     const runner = buildRunner(4);
+    const futureDate = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 
     const result = await registrarMovimientoInventario(runner, {
       productoId: 5,
       tipo: 'COMPRA_RECIBIDA',
       cantidad: 6,
-      direccion: 'ENTRADA'
+      direccion: 'ENTRADA',
+      fechaVencimiento: futureDate
     });
 
     expect(result.stockNuevo).toBe(10);
     expect(runner.execute).toHaveBeenCalledWith('UPDATE productos SET stock_actual = ? WHERE id = ?', [10, 5]);
     expect(runner.execute.mock.calls.some((call) => call[0].includes('INSERT INTO inventario_lotes'))).toBe(true);
+  });
+
+  test('rechaza una entrada con fecha de vencimiento pasada', async () => {
+    const runner = buildRunner(4);
+
+    await expect(registrarMovimientoInventario(runner, {
+      productoId: 5,
+      tipo: 'COMPRA_RECIBIDA',
+      cantidad: 6,
+      direccion: 'ENTRADA',
+      fechaVencimiento: '2000-01-01'
+    })).rejects.toThrow('La fecha de vencimiento no puede ser anterior a hoy.');
   });
 
   test('rechaza salidas que dejarian stock negativo', async () => {
