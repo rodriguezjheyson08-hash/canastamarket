@@ -15,6 +15,8 @@ import { getPedidosOnline } from '../../services/api';
 import { canAccess } from '../../utils/permissions';
 
 export const PEDIDOS_ONLINE_UPDATE_EVENT = 'pedidos-online-update';
+export const PEDIDOS_ONLINE_NOTIFY_STORAGE_KEY = 'ecomarket:pedido-online-notify';
+export const PEDIDOS_ONLINE_NOTIFY_CHANNEL = 'ecomarket-pedidos-online';
 
 interface HeaderProps {
   showBack?: boolean;
@@ -97,7 +99,7 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
     }
 
     let active = true;
-    const fetchPedidos = async () => {
+    const fetchPedidos = async (suppressNotify = false) => {
       try {
         const pedidos = await getPedidosOnline();
         if (!active || !Array.isArray(pedidos)) return;
@@ -106,7 +108,7 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
         const previousIds = lastPedidoIdsRef.current;
         if (previousIds) {
           const nuevos = [...currentIds].filter((id) => !previousIds.has(id));
-          if (nuevos.length > 0) {
+          if (!suppressNotify && nuevos.length > 0) {
             notifyPedidoOnline(nuevos.length);
             globalThis.dispatchEvent(new Event(PEDIDOS_ONLINE_UPDATE_EVENT));
           }
@@ -117,15 +119,41 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
       }
     };
 
+    const notifyFromExternalTab = () => {
+      if (!active) return;
+      notifyPedidoOnline(1);
+      void fetchPedidos(true);
+    };
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === PEDIDOS_ONLINE_NOTIFY_STORAGE_KEY && event.newValue) {
+        notifyFromExternalTab();
+      }
+    };
+
+    const channel = 'BroadcastChannel' in window
+      ? new BroadcastChannel(PEDIDOS_ONLINE_NOTIFY_CHANNEL)
+      : null;
+    if (channel) {
+      channel.onmessage = notifyFromExternalTab;
+    }
+
+    const handlePedidosUpdate = () => {
+      void fetchPedidos(true);
+    };
+
     void fetchPedidos();
     const intervalId = window.setInterval(fetchPedidos, 10000);
-    globalThis.addEventListener(PEDIDOS_ONLINE_UPDATE_EVENT, fetchPedidos);
+    globalThis.addEventListener(PEDIDOS_ONLINE_UPDATE_EVENT, handlePedidosUpdate);
+    window.addEventListener('storage', handleStorage);
     return () => {
       active = false;
       window.clearInterval(intervalId);
-      globalThis.removeEventListener(PEDIDOS_ONLINE_UPDATE_EVENT, fetchPedidos);
+      globalThis.removeEventListener(PEDIDOS_ONLINE_UPDATE_EVENT, handlePedidosUpdate);
+      window.removeEventListener('storage', handleStorage);
+      channel?.close();
     };
-  }, [isPedidoPendiente, notifyPedidoOnline, user]);
+  }, [isPedidoPendiente, notifyPedidoOnline, playNotificationSound, user]);
 
   return (
     <>

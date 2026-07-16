@@ -5,6 +5,7 @@
  * GUIA: usa comentarios DISEÑO/LOGICA/RUTA/SERVICIO para ubicar rapido donde cambiar algo.
  */
 import React, { useEffect, useMemo, useState } from 'react';
+import ExcelJS from 'exceljs';
 import {
   Alert,
   Box,
@@ -110,11 +111,20 @@ const getMetodoPagoOnline = (pedido: PedidoOnline) => {
   return 'Pago al recoger';
 };
 
-const escapeExcelCell = (value: unknown) => String(value ?? '')
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;');
+const loadLogoBase64 = async () => {
+  try {
+    const response = await fetch('/images/Logo%20Market.png');
+    const blob = await response.blob();
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return '';
+  }
+};
 
 const ReportesPage: React.FC = () => {
   // LOGICA REPORTES - ESTADOS:
@@ -252,58 +262,129 @@ const ReportesPage: React.FC = () => {
     };
   }, [ventasFiltradas]);
 
-  const exportarVentasExcel = () => {
-    const rows = ventasFiltradas.map((venta) => ({
-      id: venta.id,
-      fecha: formatDateTime(venta.fecha),
-      cliente: getClienteLabel(venta),
-      documento: venta.clienteDni || '',
-      metodoPago: venta.metodoPago || 'efectivo',
-      productos: venta.productosVendidos.map(getProductoDetalle).join(' | '),
-      total: Number(venta.total || 0),
-      estado: venta.estado || 'REGISTRADA'
-    }));
-    const htmlRows = rows.map((row) => `
-      <tr>
-        <td>${escapeExcelCell(row.id)}</td>
-        <td>${escapeExcelCell(row.fecha)}</td>
-        <td>${escapeExcelCell(row.cliente)}</td>
-        <td>${escapeExcelCell(row.documento)}</td>
-        <td>${escapeExcelCell(row.metodoPago)}</td>
-        <td>${escapeExcelCell(row.productos)}</td>
-        <td style="mso-number-format:'0.00'">${row.total.toFixed(2)}</td>
-        <td>${escapeExcelCell(row.estado)}</td>
-      </tr>
-    `).join('');
-    const resumenRows = `
-      <tr><td colspan="6"><b>Total de ventas</b></td><td>${resumenPeriodo.totalVentas}</td><td></td></tr>
-      <tr><td colspan="6"><b>Ingresos totales</b></td><td>${resumenPeriodo.ingresosTotales.toFixed(2)}</td><td></td></tr>
-      <tr><td colspan="6"><b>Productos vendidos</b></td><td>${resumenPeriodo.productosVendidos}</td><td></td></tr>
-      <tr><td colspan="6"><b>Ganancia estimada</b></td><td>${resumenPeriodo.gananciaEstimada.toFixed(2)}</td><td></td></tr>
-    `;
-    const html = `
-      <html>
-        <head><meta charset="utf-8" /></head>
-        <body>
-          <h2>Reporte de ventas ${fechaVentas || 'general'}</h2>
-          <table border="1">
-            <thead>
-              <tr>
-                <th>ID Venta</th><th>Fecha</th><th>Cliente</th><th>Documento</th>
-                <th>Metodo de pago</th><th>Productos</th><th>Total</th><th>Estado</th>
-              </tr>
-            </thead>
-            <tbody>${htmlRows || '<tr><td colspan="8">Sin ventas</td></tr>'}</tbody>
-            <tfoot>${resumenRows}</tfoot>
-          </table>
-        </body>
-      </html>
-    `;
-    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' });
+  const exportarVentasExcel = async () => {
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'ECOMARKET - LA CANASTA';
+    workbook.created = new Date();
+
+    const sheet = workbook.addWorksheet('Ventas', {
+      views: [{ state: 'frozen', ySplit: 8 }]
+    });
+    sheet.properties.defaultRowHeight = 22;
+    sheet.columns = [
+      { key: 'id', width: 13 },
+      { key: 'fecha', width: 24 },
+      { key: 'cliente', width: 34 },
+      { key: 'documento', width: 22 },
+      { key: 'metodoPago', width: 24 },
+      { key: 'productos', width: 58 },
+      { key: 'total', width: 14 },
+      { key: 'estado', width: 15 }
+    ];
+
+    const logo = await loadLogoBase64();
+    if (logo) {
+      const imageId = workbook.addImage({ base64: logo, extension: 'png' });
+      sheet.addImage(imageId, { tl: { col: 0.2, row: 0.2 }, ext: { width: 92, height: 64 } });
+    }
+
+    sheet.mergeCells('B1:H1');
+    sheet.getCell('B1').value = 'ECOMARKET - LA CANASTA';
+    sheet.getCell('B1').font = { bold: true, size: 20, color: { argb: 'FF0F172A' } };
+    sheet.getCell('B1').alignment = { horizontal: 'center' };
+
+    sheet.mergeCells('B2:H2');
+    sheet.getCell('B2').value = `Reporte de ventas ${fechaVentas || 'general'}`;
+    sheet.getCell('B2').font = { bold: true, size: 15, color: { argb: 'FF1976D2' } };
+    sheet.getCell('B2').alignment = { horizontal: 'center' };
+
+    sheet.mergeCells('B3:H3');
+    sheet.getCell('B3').value = `Generado: ${formatDateTime(new Date().toISOString())}`;
+    sheet.getCell('B3').alignment = { horizontal: 'center' };
+    sheet.getCell('B3').font = { color: { argb: 'FF64748B' } };
+
+    const summary = [
+      ['Total de ventas', resumenPeriodo.totalVentas, 'Ingresos totales', resumenPeriodo.ingresosTotales],
+      ['Productos vendidos', resumenPeriodo.productosVendidos, 'Promedio por venta', resumenPeriodo.promedioPorVenta],
+      ['Ganancia estimada', resumenPeriodo.gananciaEstimada, 'Periodo', fechaVentas || 'General']
+    ];
+    summary.forEach((row, index) => {
+      const excelRow = sheet.getRow(5 + index);
+      excelRow.values = ['', ...row];
+      [2, 4].forEach((col) => {
+        excelRow.getCell(col).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        excelRow.getCell(col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1976D2' } };
+      });
+      [3, 5].forEach((col) => {
+        excelRow.getCell(col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE3F2FD' } };
+      });
+      excelRow.eachCell((cell) => {
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          right: { style: 'thin', color: { argb: 'FFCBD5E1' } }
+        };
+      });
+    });
+    ['C5', 'E5', 'E6', 'C7'].forEach((cellRef) => {
+      sheet.getCell(cellRef).numFmt = '"S/ "#,##0.00';
+    });
+
+    const headerRow = sheet.getRow(9);
+    headerRow.values = ['ID Venta', 'Fecha', 'Cliente', 'Documento', 'Metodo de pago', 'Productos', 'Total', 'Estado'];
+    headerRow.height = 26;
+    headerRow.eachCell((cell) => {
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF111827' } };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FF111827' } },
+        left: { style: 'thin', color: { argb: 'FF111827' } },
+        bottom: { style: 'thin', color: { argb: 'FF111827' } },
+        right: { style: 'thin', color: { argb: 'FF111827' } }
+      };
+    });
+
+    if (ventasFiltradas.length === 0) {
+      sheet.addRow(['Sin ventas para el periodo seleccionado']);
+      sheet.mergeCells('A10:H10');
+    } else {
+      ventasFiltradas.forEach((venta) => {
+        const row = sheet.addRow([
+          venta.id,
+          formatDateTime(venta.fecha),
+          getClienteLabel(venta),
+          venta.clienteDni || '',
+          venta.metodoPago || 'efectivo',
+          venta.productosVendidos.map(getProductoDetalle).join(' | '),
+          Number(venta.total || 0),
+          venta.estado || 'REGISTRADA'
+        ]);
+        row.getCell(7).numFmt = '"S/ "#,##0.00';
+        row.eachCell((cell) => {
+          cell.alignment = { vertical: 'middle', wrapText: true };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+            left: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+            bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+            right: { style: 'thin', color: { argb: 'FFE5E7EB' } }
+          };
+        });
+      });
+    }
+
+    sheet.autoFilter = {
+      from: 'A9',
+      to: `H${Math.max(10, 9 + ventasFiltradas.length)}`
+    };
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `reporte_ventas_${fechaVentas || 'general'}.xls`;
+    link.download = `reporte_ventas_${fechaVentas || 'general'}.xlsx`;
     document.body.appendChild(link);
     link.click();
     link.remove();

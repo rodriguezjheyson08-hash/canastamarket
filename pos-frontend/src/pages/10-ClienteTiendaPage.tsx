@@ -79,12 +79,32 @@ import {
 } from '../features/ventas/utils';
 import PasswordResetDialog from '../components/common/PasswordResetDialog';
 import GoogleSignInButton from '../components/common/GoogleSignInButton';
+import {
+  PEDIDOS_ONLINE_NOTIFY_CHANNEL,
+  PEDIDOS_ONLINE_NOTIFY_STORAGE_KEY
+} from '../components/layout/Header';
 
 const CLIENT_CART_KEY = 'cliente_tienda_carrito';
 const CLIENT_PROFILE_KEY = 'cliente_tienda_perfil';
 const CLIENT_ORDERS_KEY = 'cliente_tienda_pedidos';
 const CLIENT_TOKEN_KEY = 'cliente_tienda_token';
 const CLIENT_PENDING_MP_ORDER_KEY = 'cliente_tienda_mp_pendiente';
+
+const notifyInternalPedidoOnline = (payload: { id: number; codigo: string }) => {
+  const message = { ...payload, createdAt: Date.now() };
+  try {
+    localStorage.setItem(PEDIDOS_ONLINE_NOTIFY_STORAGE_KEY, JSON.stringify(message));
+  } catch {
+    // La notificacion interna es auxiliar; el pedido ya fue registrado.
+  }
+  try {
+    const channel = new BroadcastChannel(PEDIDOS_ONLINE_NOTIFY_CHANNEL);
+    channel.postMessage(message);
+    channel.close();
+  } catch {
+    // Navegadores antiguos seguiran usando el polling del header.
+  }
+};
 
 type CartItems = Record<number, number>;
 
@@ -1063,6 +1083,7 @@ const ClienteTiendaPage: React.FC = () => {
       productos: pedidoConBoleta.productos
     }, clienteToken);
 
+    notifyInternalPedidoOnline({ id: pedidoBackend.id, codigo: pedidoBackend.codigo });
     setPedidos((prev) => [{ ...pedidoConBoleta, backendId: pedidoBackend.id }, ...prev]);
     setCartItems({});
     setCheckoutOpen(false);
