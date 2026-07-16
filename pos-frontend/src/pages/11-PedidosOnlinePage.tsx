@@ -30,7 +30,7 @@ import {
   TextField,
   Typography
 } from '@mui/material';
-import { AssignmentTurnedIn, Payment, Refresh, ReceiptLong, Search } from '@mui/icons-material';
+import { AssignmentTurnedIn, Cancel, Payment, Refresh, ReceiptLong, Search } from '@mui/icons-material';
 import { getPedidosOnline, updatePedidoOnlineEstado } from '../services/api';
 import { PedidoOnline } from '../types';
 import { PEDIDOS_ONLINE_UPDATE_EVENT } from '../components/layout/Header';
@@ -134,6 +134,8 @@ const PedidosOnlinePage: React.FC = () => {
   const [busqueda, setBusqueda] = useState('');
   const [selectedPedido, setSelectedPedido] = useState<PedidoOnline | null>(null);
   const [pedidoCobro, setPedidoCobro] = useState<PedidoOnline | null>(null);
+  const [pedidoAnulacion, setPedidoAnulacion] = useState<PedidoOnline | null>(null);
+  const [motivoAnulacion, setMotivoAnulacion] = useState('');
   const [cobroMetodo, setCobroMetodo] = useState('efectivo');
   const [cobroRecibido, setCobroRecibido] = useState('');
   const [cobroMixtoEfectivo, setCobroMixtoEfectivo] = useState('');
@@ -199,10 +201,13 @@ const PedidosOnlinePage: React.FC = () => {
     pagoRecogida?: { metodo: string; recibido?: number | null; efectivo?: number | null; yape?: number | null }
   ) => {
     try {
-      const actualizado = await updatePedidoOnlineEstado(pedido.id, estado, undefined, pagoRecogida);
+      const motivo = estado === 'ANULADO' ? motivoAnulacion.trim() : undefined;
+      const actualizado = await updatePedidoOnlineEstado(pedido.id, estado, motivo, pagoRecogida);
       setPedidos((prev) => prev.map((item) => (item.id === actualizado.id ? actualizado : item)));
       setSelectedPedido((prev) => (prev?.id === actualizado.id ? actualizado : prev));
       setPedidoCobro((prev) => (prev?.id === actualizado.id ? null : prev));
+      setPedidoAnulacion((prev) => (prev?.id === actualizado.id ? null : prev));
+      if (estado === 'ANULADO') setMotivoAnulacion('');
       globalThis.dispatchEvent(new Event(PEDIDOS_ONLINE_UPDATE_EVENT));
     } catch (err: any) {
       setError(err?.response?.data?.message || 'No se pudo actualizar el estado del pedido.');
@@ -219,6 +224,20 @@ const PedidosOnlinePage: React.FC = () => {
       return;
     }
     void cambiarEstado(pedido, 'RECOGIDO');
+  };
+
+  const iniciarAnulacion = (pedido: PedidoOnline) => {
+    setPedidoAnulacion(pedido);
+    setMotivoAnulacion('');
+  };
+
+  const confirmarAnulacion = () => {
+    if (!pedidoAnulacion) return;
+    if (!motivoAnulacion.trim()) {
+      setError('Indica el motivo para rechazar o anular el pedido.');
+      return;
+    }
+    void cambiarEstado(pedidoAnulacion, 'ANULADO');
   };
 
   const confirmarCobroRecogida = () => {
@@ -362,14 +381,24 @@ const PedidosOnlinePage: React.FC = () => {
                         Ver
                       </Button>
                       {!['RECOGIDO', 'ANULADO'].includes(pedido.estado) && (
-                        <Button
-                          size="small"
-                          variant="contained"
-                          onClick={() => iniciarRecogido(pedido)}
-                          disabled={pedido.metodoPago === 'MERCADO_PAGO' && pedido.estado === 'PENDIENTE_PAGO'}
-                        >
-                          Recogido
-                        </Button>
+                        <>
+                          <Button
+                            size="small"
+                            variant="contained"
+                            onClick={() => iniciarRecogido(pedido)}
+                            disabled={pedido.metodoPago === 'MERCADO_PAGO' && pedido.estado === 'PENDIENTE_PAGO'}
+                          >
+                            Recogido
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            color="error"
+                            onClick={() => iniciarAnulacion(pedido)}
+                          >
+                            Rechazar
+                          </Button>
+                        </>
                       )}
                     </Stack>
                   </TableCell>
@@ -417,6 +446,11 @@ const PedidosOnlinePage: React.FC = () => {
                   </Alert>
                 </Grid>
               </Grid>
+              {selectedPedido.estado === 'ANULADO' && (
+                <Alert severity="error">
+                  <strong>Pedido anulado:</strong> {selectedPedido.cancelacionMotivo || 'Sin motivo registrado.'}
+                </Alert>
+              )}
               <Table size="small">
                 <TableHead>
                   <TableRow>
@@ -448,16 +482,57 @@ const PedidosOnlinePage: React.FC = () => {
             </Button>
           )}
           {selectedPedido && !['RECOGIDO', 'ANULADO'].includes(selectedPedido.estado) && (
-            <Button
-              startIcon={<AssignmentTurnedIn />}
-              variant="contained"
-              onClick={() => iniciarRecogido(selectedPedido)}
-              disabled={selectedPedido.metodoPago === 'MERCADO_PAGO' && selectedPedido.estado === 'PENDIENTE_PAGO'}
-            >
-              Marcar recogido
-            </Button>
+            <>
+              <Button
+                startIcon={<Cancel />}
+                color="error"
+                onClick={() => iniciarAnulacion(selectedPedido)}
+              >
+                Rechazar pedido
+              </Button>
+              <Button
+                startIcon={<AssignmentTurnedIn />}
+                variant="contained"
+                onClick={() => iniciarRecogido(selectedPedido)}
+                disabled={selectedPedido.metodoPago === 'MERCADO_PAGO' && selectedPedido.estado === 'PENDIENTE_PAGO'}
+              >
+                Marcar recogido
+              </Button>
+            </>
           )}
           <Button onClick={() => setSelectedPedido(null)}>Cerrar</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(pedidoAnulacion)} onClose={() => setPedidoAnulacion(null)} fullWidth maxWidth="sm">
+        <DialogTitle>Rechazar o anular pedido online</DialogTitle>
+        <DialogContent dividers>
+          {pedidoAnulacion && (
+            <Stack spacing={2}>
+              <Alert severity="warning">
+                Si anulas este pedido, el stock reservado se devuelve. No se registra dinero en caja.
+                Si el pago fue online, quedara marcado para revision/reembolso manual cuando corresponda.
+              </Alert>
+              <Typography fontWeight={700}>
+                {pedidoAnulacion.codigo} - {formatCurrency(pedidoAnulacion.total)}
+              </Typography>
+              <TextField
+                label="Motivo obligatorio"
+                value={motivoAnulacion}
+                onChange={(event) => setMotivoAnulacion(event.target.value)}
+                placeholder="Ejemplo: cliente no recogio, cliente cancelo por llamada, pedido duplicado"
+                fullWidth
+                multiline
+                minRows={3}
+              />
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPedidoAnulacion(null)}>Cancelar</Button>
+          <Button variant="contained" color="error" onClick={confirmarAnulacion} disabled={!motivoAnulacion.trim()}>
+            Confirmar anulacion
+          </Button>
         </DialogActions>
       </Dialog>
 
