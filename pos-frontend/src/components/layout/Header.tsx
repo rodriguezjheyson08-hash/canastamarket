@@ -26,40 +26,72 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
   const config = useAppConfig();
   const { t } = useI18n();
   const lastPedidoIdsRef = useRef<Set<number> | null>(null);
+  const notificationAudioRef = useRef<AudioContext | null>(null);
 
   const isPedidoPendiente = useCallback((pedido: any) => (
     ['PENDIENTE_RECOJO', 'PENDIENTE_PAGO', 'PAGADO'].includes(String(pedido.estado || ''))
   ), []);
 
-  const playNotificationSound = useCallback(() => {
+  const getNotificationAudio = useCallback(() => {
     try {
       const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioContextCtor) return;
-      const context = new AudioContextCtor();
-      const master = context.createGain();
-      master.gain.value = 0.55;
-      master.connect(context.destination);
+      if (!AudioContextCtor) return null;
+      if (!notificationAudioRef.current || notificationAudioRef.current.state === 'closed') {
+        notificationAudioRef.current = new AudioContextCtor();
+      }
+      return notificationAudioRef.current;
+    } catch {
+      return null;
+    }
+  }, []);
 
-      [880, 1174.66, 880, 1318.51].forEach((frequency, index) => {
-        const start = context.currentTime + index * 0.12;
+  const primeNotificationAudio = useCallback(() => {
+    const context = getNotificationAudio();
+    if (!context) return;
+    void context.resume().then(() => {
+      try {
         const oscillator = context.createOscillator();
         const gain = context.createGain();
-        oscillator.type = 'square';
+        gain.gain.value = 0.0001;
+        oscillator.connect(gain);
+        gain.connect(context.destination);
+        oscillator.start();
+        oscillator.stop(context.currentTime + 0.03);
+      } catch {
+        // Solo intenta desbloquear el audio del navegador.
+      }
+    }).catch(() => undefined);
+  }, [getNotificationAudio]);
+
+  const playNotificationSound = useCallback(() => {
+    try {
+      const context = getNotificationAudio();
+      if (!context) return;
+      if (context.state === 'suspended') {
+        void context.resume().catch(() => undefined);
+      }
+      const master = context.createGain();
+      master.gain.value = 0.95;
+      master.connect(context.destination);
+
+      [988, 1318.51, 1567.98, 1318.51, 1760].forEach((frequency, index) => {
+        const start = context.currentTime + index * 0.14;
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        oscillator.type = 'triangle';
         oscillator.frequency.value = frequency;
         gain.gain.setValueAtTime(0.0001, start);
-        gain.gain.exponentialRampToValueAtTime(0.65, start + 0.018);
-        gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.28);
+        gain.gain.exponentialRampToValueAtTime(0.9, start + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.38);
         oscillator.connect(gain);
         gain.connect(master);
         oscillator.start(start);
-        oscillator.stop(start + 0.3);
+        oscillator.stop(start + 0.4);
       });
-
-      window.setTimeout(() => context.close().catch(() => undefined), 1300);
     } catch {
       // Algunos navegadores bloquean sonido hasta que exista interaccion.
     }
-  }, []);
+  }, [getNotificationAudio]);
 
   const getNotificationRegistration = useCallback(async () => {
     if (!('serviceWorker' in navigator)) return null;
@@ -96,27 +128,29 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
 
     const options: NotificationOptions = {
       body: mensaje,
-      icon: '/images/logo192.png',
+      icon: '/images/logo512.png',
       badge: '/images/logo192.png',
       tag: `pedido-online-${Date.now()}`,
       renotify: true,
       requireInteraction: true,
       silent: false,
+      timestamp: Date.now(),
       data: { url: '/dashboard/pedidos-online' } as any,
     };
 
     try {
+      const registration = await getNotificationRegistration();
+      if (registration?.showNotification) {
+        await registration.showNotification(titulo, options);
+        return;
+      }
       const notification = new Notification(titulo, options);
       notification.onclick = () => {
         window.focus();
         window.location.assign('/dashboard/pedidos-online');
       };
-      return;
     } catch {
-      const registration = await getNotificationRegistration();
-      if (registration?.showNotification) {
-        await registration.showNotification(titulo, options);
-      }
+      // Si el navegador bloquea las notificaciones nativas, no se puede forzar desde codigo.
     }
   }, [getNotificationRegistration]);
 
@@ -180,12 +214,11 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
     void fetchPedidos();
     void getNotificationRegistration();
     const askPermissionOnInteraction = () => {
+      primeNotificationAudio();
       void requestNativeNotificationPermission();
     };
-    if ('Notification' in window && Notification.permission === 'default') {
-      window.addEventListener('pointerdown', askPermissionOnInteraction, { once: true });
-      window.addEventListener('keydown', askPermissionOnInteraction, { once: true });
-    }
+    window.addEventListener('pointerdown', askPermissionOnInteraction, { once: true });
+    window.addEventListener('keydown', askPermissionOnInteraction, { once: true });
     const intervalId = window.setInterval(fetchPedidos, 10000);
     globalThis.addEventListener(PEDIDOS_ONLINE_UPDATE_EVENT, handlePedidosUpdate);
     window.addEventListener('storage', handleStorage);
@@ -198,7 +231,7 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
       window.removeEventListener('keydown', askPermissionOnInteraction);
       channel?.close();
     };
-  }, [getNotificationRegistration, isPedidoPendiente, notifyPedidoOnline, requestNativeNotificationPermission, user]);
+  }, [getNotificationRegistration, isPedidoPendiente, notifyPedidoOnline, primeNotificationAudio, requestNativeNotificationPermission, user]);
 
   return (
     <>
