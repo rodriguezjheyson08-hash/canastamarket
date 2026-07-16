@@ -402,7 +402,9 @@ const createPedidoOnlinePublic = async (req, res) => {
     res.status(201).json(pedido);
     setTimeout(() => {
       void notifyPedidoOnlineCreated({ codigo: cleanCodigo, total: totalCalculado });
-      void sendPedidoOnlineBoletaEmail(pedido).catch(() => undefined);
+      if (cleanMetodo === 'MERCADO_PAGO' && cleanEstado === 'PAGADO') {
+        void sendPedidoOnlineBoletaEmail(pedido).catch(() => undefined);
+      }
     }, 0);
   } catch (error) {
     await connection.rollback();
