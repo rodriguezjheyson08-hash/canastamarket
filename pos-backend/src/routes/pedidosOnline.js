@@ -12,6 +12,8 @@ const {
   createPedidoOnlineCliente,
   listPedidosOnlineMine,
   listPedidosOnline,
+  getPedidoOnlinePushPublicKey,
+  subscribePedidoOnlinePush,
   updatePedidoOnlineEstado,
   cancelarPedidoOnlineCliente
 } = require('../controllers/pedidosOnlineController');
@@ -25,6 +27,8 @@ router.patch('/mine/:id/cancelar', requireAuth({ type: 'cliente' }), asyncHandle
 
 // RUTAS INTERNAS - ADMIN/CAJERO:
 // Permiten ver pedidos recibidos y actualizar su estado desde el sistema POS.
+router.get('/push/public-key', requireAuth({ type: 'admin' }), requirePermission('pedidosOnline'), asyncHandler(getPedidoOnlinePushPublicKey));
+router.post('/push/subscribe', requireAuth({ type: 'admin' }), requirePermission('pedidosOnline'), asyncHandler(subscribePedidoOnlinePush));
 router.get('/', requireAuth({ type: 'admin' }), requirePermission('pedidosOnline'), asyncHandler(listPedidosOnline));
 router.patch('/:id/estado', requireAuth({ type: 'admin' }), requirePermission('pedidosOnline'), asyncHandler(updatePedidoOnlineEstado));
 

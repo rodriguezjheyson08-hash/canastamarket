@@ -12,6 +12,11 @@ const { registrarAuditoria } = require('../features/auditoria/service');
 const { registrarMovimientoInventario } = require('../features/inventario/service');
 const { ensureCajasSchema } = require('../features/cajas/schema');
 const { getPayment } = require('../pagos/mercadopagoService');
+const {
+  getPublicKey,
+  saveSubscription,
+  notifyPedidoOnlineCreated
+} = require('../features/pushNotifications/service');
 
 const ESTADOS_VALIDOS = new Set(['PENDIENTE_RECOJO', 'PENDIENTE_PAGO', 'PAGADO', 'RECOGIDO', 'ANULADO']);
 const METODOS_VALIDOS = new Set(['RECOJO', 'MERCADO_PAGO']);
@@ -134,6 +139,19 @@ const listPedidosOnline = async (req, res) => {
   }, {});
 
   res.json(pedidos.map((pedido) => mapPedidoOnline(pedido, detallePorPedido[pedido.id] || [])));
+};
+
+const getPedidoOnlinePushPublicKey = async (req, res) => {
+  res.json({ publicKey: getPublicKey() });
+};
+
+const subscribePedidoOnlinePush = async (req, res) => {
+  await saveSubscription({
+    usuarioId: req.auth?.sub,
+    subscription: req.body?.subscription || req.body,
+    userAgent: req.headers['user-agent']
+  });
+  res.status(204).send();
 };
 
 // CONTROLADOR PUBLICO - HISTORIAL DEL CLIENTE:
@@ -363,6 +381,9 @@ const createPedidoOnlinePublic = async (req, res) => {
     await connection.commit();
     const pedido = await fetchPedidoById(pedidoId);
     res.status(201).json(pedido);
+    setTimeout(() => {
+      void notifyPedidoOnlineCreated({ codigo: cleanCodigo, total: totalCalculado });
+    }, 0);
   } catch (error) {
     await connection.rollback();
     res.status(400).json({ message: error.message || 'No se pudo registrar el pedido online.' });
@@ -639,6 +660,8 @@ module.exports = {
   createPedidoOnlinePublic,
   createPedidoOnlineCliente,
   listPedidosOnlineMine,
+  getPedidoOnlinePushPublicKey,
+  subscribePedidoOnlinePush,
   updatePedidoOnlineEstado,
   cancelarPedidoOnlineCliente,
   getPedidoOnlineByCodigo

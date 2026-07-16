@@ -10,13 +10,28 @@ import { useAuth } from '../../contexts/AuthContext';
 import BackButton from '../common/BackButton';
 import { useAppConfig } from '../../hooks/useAppConfig';
 import { useI18n } from '../../hooks/useI18n';
-import { getPedidosOnline } from '../../services/api';
+import {
+  getPedidosOnline,
+  getPedidosOnlinePushPublicKey,
+  subscribePedidosOnlinePush
+} from '../../services/api';
 import { canAccess } from '../../utils/permissions';
 
 export const PEDIDOS_ONLINE_UPDATE_EVENT = 'pedidos-online-update';
 export const PEDIDOS_ONLINE_NOTIFY_STORAGE_KEY = 'ecomarket:pedido-online-notify';
 export const PEDIDOS_ONLINE_NOTIFY_CHANNEL = 'ecomarket-pedidos-online';
 const PEDIDOS_ONLINE_NOTIFICATION_TAG = 'ecomarket-pedido-online';
+
+const urlBase64ToUint8Array = (base64String: string) => {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i += 1) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+};
 
 interface HeaderProps {
   showBack?: boolean;
@@ -28,6 +43,7 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
   const { t } = useI18n();
   const lastPedidoIdsRef = useRef<Set<number> | null>(null);
   const notificationAudioRef = useRef<AudioContext | null>(null);
+  const pushSubscriptionStartedRef = useRef(false);
 
   const isPedidoPendiente = useCallback((pedido: any) => (
     ['PENDIENTE_RECOJO', 'PENDIENTE_PAGO', 'PAGADO'].includes(String(pedido.estado || ''))
@@ -113,6 +129,27 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
       // El navegador puede bloquear el prompt si no hubo interaccion real.
     }
   }, []);
+
+  const ensurePedidoPushSubscription = useCallback(async () => {
+    if (pushSubscriptionStartedRef.current) return;
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+
+    pushSubscriptionStartedRef.current = true;
+    try {
+      const registration = await getNotificationRegistration();
+      if (!registration?.pushManager) return;
+      const publicKey = await getPedidosOnlinePushPublicKey();
+      const existing = await registration.pushManager.getSubscription();
+      const subscription = existing || await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey)
+      });
+      await subscribePedidosOnlinePush(subscription);
+    } catch {
+      pushSubscriptionStartedRef.current = false;
+    }
+  }, [getNotificationRegistration]);
 
   const showNativeNotification = useCallback(async (titulo: string, mensaje: string) => {
     if (!('Notification' in window)) return;
@@ -220,8 +257,9 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
     void getNotificationRegistration();
     const askPermissionOnInteraction = () => {
       primeNotificationAudio();
-      void requestNativeNotificationPermission();
+      void requestNativeNotificationPermission().then(() => ensurePedidoPushSubscription());
     };
+    void ensurePedidoPushSubscription();
     window.addEventListener('pointerdown', askPermissionOnInteraction, { once: true });
     window.addEventListener('keydown', askPermissionOnInteraction, { once: true });
     const intervalId = window.setInterval(fetchPedidos, 2500);
@@ -236,7 +274,15 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
       window.removeEventListener('keydown', askPermissionOnInteraction);
       channel?.close();
     };
-  }, [getNotificationRegistration, isPedidoPendiente, notifyPedidoOnline, primeNotificationAudio, requestNativeNotificationPermission, user]);
+  }, [
+    ensurePedidoPushSubscription,
+    getNotificationRegistration,
+    isPedidoPendiente,
+    notifyPedidoOnline,
+    primeNotificationAudio,
+    requestNativeNotificationPermission,
+    user
+  ]);
 
   return (
     <>

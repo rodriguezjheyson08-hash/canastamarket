@@ -392,6 +392,21 @@ export const getPedidosOnline = async (estado?: PedidoOnline['estado'], token?: 
   return res.data;
 };
 
+export const getPedidosOnlinePushPublicKey = async (token?: string | null): Promise<string> => {
+  const authToken = token ?? getToken();
+  const res = await axios.get(`${API_URL}/pedidos-online/push/public-key`, {
+    headers: buildAuthHeaders(authToken)
+  });
+  return res.data.publicKey;
+};
+
+export const subscribePedidosOnlinePush = async (subscription: PushSubscription, token?: string | null): Promise<void> => {
+  const authToken = token ?? getToken();
+  await axios.post(`${API_URL}/pedidos-online/push/subscribe`, { subscription }, {
+    headers: buildAuthHeaders(authToken)
+  });
+};
+
 // SERVICIO FRONTEND PUBLICO: consulta pedidos del cliente por correo para ver su estado actualizado.
 // SERVICIO FRONTEND ADMIN: cambia el estado de un pedido web cuando se atiende o se recoge.
 export const updatePedidoOnlineEstado = async (
