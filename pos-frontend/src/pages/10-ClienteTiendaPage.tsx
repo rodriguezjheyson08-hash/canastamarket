@@ -1087,7 +1087,11 @@ const ClienteTiendaPage: React.FC = () => {
     setPedidos((prev) => [{ ...pedidoConBoleta, backendId: pedidoBackend.id }, ...prev]);
     setCartItems({});
     setCheckoutOpen(false);
-    showSnackbar(`Pedido registrado. Boleta generada para ${clienteActual.email}.`);
+    if (pedidoConBoleta.metodoPago === 'MERCADO_PAGO') {
+      showSnackbar(`Compra realizada exitosamente. Tu boleta fue enviada a ${clienteActual.email}.`);
+    } else {
+      showSnackbar(`Pedido registrado correctamente. Tu boleta fue generada para ${clienteActual.email}.`);
+    }
   }, [clienteToken, config.appName, perfil, perfilForm, showSnackbar]);
 
   useEffect(() => {
@@ -1129,7 +1133,6 @@ const ClienteTiendaPage: React.FC = () => {
               pagoReferencia: paymentId
             });
             localStorage.removeItem(CLIENT_PENDING_MP_ORDER_KEY);
-            showSnackbar('Pago confirmado. Tu pedido fue registrado correctamente.');
           } catch (error: any) {
             showSnackbar(error?.response?.data?.message || 'No se pudo validar el pago con Mercado Pago. No se registro el pedido.', 'error');
           } finally {
