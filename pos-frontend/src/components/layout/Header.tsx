@@ -6,7 +6,6 @@
 import React, { useCallback, useEffect, useRef } from 'react';
 import { AppBar, Avatar, Box, Button, Toolbar, Typography } from '@mui/material';
 import StorefrontIcon from '@mui/icons-material/Storefront';
-import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import { useAuth } from '../../contexts/AuthContext';
 import BackButton from '../common/BackButton';
 import { useAppConfig } from '../../hooks/useAppConfig';
@@ -27,9 +26,6 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
   const config = useAppConfig();
   const { t } = useI18n();
   const lastPedidoIdsRef = useRef<Set<number> | null>(null);
-  const [notificationPermission, setNotificationPermission] = React.useState<NotificationPermission>(
-    typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'denied'
-  );
 
   const isPedidoPendiente = useCallback((pedido: any) => (
     ['PENDIENTE_RECOJO', 'PENDIENTE_PAGO', 'PAGADO'].includes(String(pedido.estado || ''))
@@ -77,16 +73,11 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
 
   const requestNativeNotificationPermission = useCallback(async () => {
     if (!('Notification' in window)) return;
-    if (Notification.permission !== 'default') {
-      setNotificationPermission(Notification.permission);
-      return;
-    }
+    if (Notification.permission !== 'default') return;
     try {
-      const permission = await Notification.requestPermission();
-      setNotificationPermission(permission);
+      await Notification.requestPermission();
     } catch {
       // El navegador puede bloquear el prompt si no hubo interaccion real.
-      setNotificationPermission(Notification.permission);
     }
   }, []);
 
@@ -121,15 +112,6 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
     }
     new Notification(titulo, options);
   }, [getNotificationRegistration]);
-
-  const handleActivateNotifications = useCallback(async () => {
-    await requestNativeNotificationPermission();
-    setNotificationPermission('Notification' in window ? Notification.permission : 'denied');
-    if ('Notification' in window && Notification.permission === 'granted') {
-      await showNativeNotification('Notificaciones activadas', 'Los nuevos pedidos online apareceran en Windows.');
-      playNotificationSound();
-    }
-  }, [playNotificationSound, requestNativeNotificationPermission, showNativeNotification]);
 
   const notifyPedidoOnline = useCallback((cantidad: number) => {
     const titulo = cantidad === 1 ? 'Nuevo pedido online' : `${cantidad} nuevos pedidos online`;
@@ -222,22 +204,6 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
           </Typography>
           {user && (
             <Box display="flex" alignItems="center" gap={2}>
-              {canAccess(user, 'pedidosOnline') && notificationPermission !== 'granted' && (
-                <Button
-                  color="inherit"
-                  variant="outlined"
-                  size="small"
-                  startIcon={<NotificationsActiveIcon />}
-                  onClick={handleActivateNotifications}
-                  title={
-                    notificationPermission === 'denied'
-                      ? 'Permiso bloqueado. Activalo desde el candado de la URL.'
-                      : 'Activar notificaciones nativas de Windows'
-                  }
-                >
-                  {notificationPermission === 'denied' ? 'Notificaciones bloqueadas' : 'Activar notificaciones'}
-                </Button>
-              )}
               <Avatar sx={{ width: 32, height: 32, bgcolor: 'secondary.main' }}>
                 {user.nombreCompleto?.charAt(0) || user.nombreUsuario.charAt(0)}
               </Avatar>

@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, waitFor } from '@testing-library/react';
 import Header from '../../components/layout/Header';
 import { useAuth } from '../../contexts/AuthContext';
 import { getPedidosOnline } from '../../services/api';
@@ -58,7 +58,7 @@ describe('Header notifications', () => {
     });
   });
 
-  test('solicita permiso nativo al activar notificaciones', async () => {
+  test('solicita permiso nativo con una interaccion del navegador', async () => {
     const requestPermission = jest.fn().mockResolvedValue('granted');
     const NotificationMock = jest.fn();
     Object.defineProperty(NotificationMock, 'permission', {
@@ -76,7 +76,7 @@ describe('Header notifications', () => {
     });
 
     render(<Header />);
-    fireEvent.click(screen.getByRole('button', { name: /activar notificaciones/i }));
+    fireEvent.pointerDown(window);
 
     await waitFor(() => {
       expect(requestPermission).toHaveBeenCalledTimes(1);
