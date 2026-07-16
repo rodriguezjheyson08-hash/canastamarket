@@ -52,11 +52,12 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
   }, []);
 
   const notifyPedidoOnline = useCallback((cantidad: number) => {
-    const mensaje = cantidad === 1 ? 'Nuevo pedido online recibido.' : `${cantidad} nuevos pedidos online recibidos.`;
+    const titulo = cantidad === 1 ? 'Nuevo pedido online' : `${cantidad} nuevos pedidos online`;
+    const mensaje = 'Revisa Pedidos Online para atenderlo.';
     playNotificationSound();
     if ('Notification' in window) {
       if (Notification.permission === 'granted') {
-        new Notification('ECOMARKET - Pedido online', {
+        new Notification(titulo, {
           body: mensaje,
           icon: '/logo192.png',
           tag: `pedido-online-${Date.now()}`,
@@ -65,7 +66,7 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
       } else if (Notification.permission === 'default') {
         Notification.requestPermission().then((permission) => {
           if (permission === 'granted') {
-            new Notification('ECOMARKET - Pedido online', {
+            new Notification(titulo, {
               body: mensaje,
               icon: '/logo192.png',
               tag: `pedido-online-${Date.now()}`,
