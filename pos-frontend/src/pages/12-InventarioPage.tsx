@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Chip,
@@ -98,6 +99,11 @@ const InventarioPage: React.FC = () => {
     [productos]
   );
 
+  const productoSeleccionado = useMemo(
+    () => productosActivos.find((producto) => String(producto.id) === productoId) || null,
+    [productoId, productosActivos]
+  );
+
   const operaciones = useMemo<OperacionRow[]>(() => {
     const stockRows = movimientos.map((mov) => ({
       id: `stock-${mov.id}`,
@@ -165,6 +171,10 @@ const InventarioPage: React.FC = () => {
       const id = Number(productoId);
       const qty = Number(cantidad);
       const tipoFinal = tipo === 'OTRO' ? tipoPersonalizado : tipo;
+      if (!Number.isInteger(id) || id <= 0) {
+        setError('Selecciona un producto valido.');
+        return;
+      }
       await registrarPerdidaInventario({ productoId: id, cantidad: qty, tipo: tipoFinal, motivo });
       setMessage('Perdida registrada y stock actualizado.');
       setMotivo('');
@@ -201,13 +211,43 @@ const InventarioPage: React.FC = () => {
         <Paper sx={{ p: 2 }}>
           <Grid container spacing={2}>
             <Grid item xs={12} md={5}>
-              <TextField select fullWidth label="Producto" value={productoId} onChange={(e) => setProductoId(e.target.value)}>
-                {productosActivos.map((producto) => (
-                  <MenuItem key={producto.id} value={producto.id}>
-                    {producto.nombre} - Stock: {producto.stockActual}
-                  </MenuItem>
-                ))}
-              </TextField>
+              <Autocomplete
+                fullWidth
+                options={productosActivos}
+                value={productoSeleccionado}
+                onChange={(_, value) => setProductoId(value ? String(value.id) : '')}
+                getOptionLabel={(producto) => `${producto.nombre} - Stock: ${producto.stockActual}`}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+                filterOptions={(options, state) => {
+                  const q = state.inputValue.trim().toLowerCase();
+                  if (!q) return options.slice(0, 50);
+                  return options
+                    .filter((producto) => [
+                      producto.nombre,
+                      producto.descripcion,
+                      producto.codigoBarras,
+                      String(producto.stockActual)
+                    ].filter(Boolean).join(' ').toLowerCase().includes(q))
+                    .slice(0, 50);
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Producto"
+                    placeholder="Buscar por nombre, descripcion o codigo"
+                  />
+                )}
+                renderOption={(props, producto) => (
+                  <Box component="li" {...props} key={producto.id}>
+                    <Box>
+                      <Typography variant="body2" fontWeight={700}>{producto.nombre}</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Stock: {producto.stockActual} {producto.codigoBarras ? `| Codigo: ${producto.codigoBarras}` : ''}
+                      </Typography>
+                    </Box>
+                  </Box>
+                )}
+              />
             </Grid>
             <Grid item xs={12} sm={6} md={2}>
               <TextField select fullWidth label="Tipo" value={tipo} onChange={(e) => setTipo(e.target.value)}>
