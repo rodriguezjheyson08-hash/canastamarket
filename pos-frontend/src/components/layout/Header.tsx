@@ -3,8 +3,8 @@
  * UBICACION: pos-frontend/src/components/layout/Header.tsx
  * QUE HACE: Header compartido del sistema interno y monitor de pedidos online.
  */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, AppBar, Avatar, Badge, Box, Button, Snackbar, Toolbar, Typography } from '@mui/material';
+import React, { useCallback, useEffect, useRef } from 'react';
+import { AppBar, Avatar, Box, Button, Toolbar, Typography } from '@mui/material';
 import StorefrontIcon from '@mui/icons-material/Storefront';
 import { useAuth } from '../../contexts/AuthContext';
 import BackButton from '../common/BackButton';
@@ -23,8 +23,6 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
   const { user, logout } = useAuth();
   const config = useAppConfig();
   const { t } = useI18n();
-  const [pedidosPendientes, setPedidosPendientes] = useState(0);
-  const [pedidoAviso, setPedidoAviso] = useState('');
   const lastPedidoIdsRef = useRef<Set<number> | null>(null);
 
   const isPedidoPendiente = useCallback((pedido: any) => (
@@ -55,15 +53,24 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
 
   const notifyPedidoOnline = useCallback((cantidad: number) => {
     const mensaje = cantidad === 1 ? 'Nuevo pedido online recibido.' : `${cantidad} nuevos pedidos online recibidos.`;
-    setPedidoAviso(mensaje);
     playNotificationSound();
     if ('Notification' in window) {
       if (Notification.permission === 'granted') {
-        new Notification('ECOMARKET - Pedido online', { body: mensaje });
+        new Notification('ECOMARKET - Pedido online', {
+          body: mensaje,
+          icon: '/logo192.png',
+          tag: `pedido-online-${Date.now()}`,
+          requireInteraction: true,
+        });
       } else if (Notification.permission === 'default') {
         Notification.requestPermission().then((permission) => {
           if (permission === 'granted') {
-            new Notification('ECOMARKET - Pedido online', { body: mensaje });
+            new Notification('ECOMARKET - Pedido online', {
+              body: mensaje,
+              icon: '/logo192.png',
+              tag: `pedido-online-${Date.now()}`,
+              requireInteraction: true,
+            });
           }
         }).catch(() => undefined);
       }
@@ -72,7 +79,6 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
 
   useEffect(() => {
     if (!user || !canAccess(user, 'pedidosOnline')) {
-      setPedidosPendientes(0);
       lastPedidoIdsRef.current = null;
       return undefined;
     }
@@ -83,7 +89,6 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
         const pedidos = await getPedidosOnline();
         if (!active || !Array.isArray(pedidos)) return;
         const pendientes = pedidos.filter(isPedidoPendiente);
-        setPedidosPendientes(pendientes.length);
         const currentIds = new Set(pendientes.map((pedido: any) => Number(pedido.id)));
         const previousIds = lastPedidoIdsRef.current;
         if (previousIds) {
@@ -95,7 +100,7 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
         }
         lastPedidoIdsRef.current = currentIds;
       } catch {
-        if (active) setPedidosPendientes(0);
+        if (active) lastPedidoIdsRef.current = null;
       }
     };
 
@@ -120,13 +125,6 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
           </Typography>
           {user && (
             <Box display="flex" alignItems="center" gap={2}>
-              {canAccess(user, 'pedidosOnline') && (
-                <Badge badgeContent={pedidosPendientes} color="error" invisible={pedidosPendientes === 0}>
-                  <Typography variant="caption" sx={{ fontWeight: 800 }}>
-                    Pedidos
-                  </Typography>
-                </Badge>
-              )}
               <Avatar sx={{ width: 32, height: 32, bgcolor: 'secondary.main' }}>
                 {user.nombreCompleto?.charAt(0) || user.nombreUsuario.charAt(0)}
               </Avatar>
@@ -142,16 +140,6 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
           )}
         </Toolbar>
       </AppBar>
-      <Snackbar
-        open={Boolean(pedidoAviso)}
-        autoHideDuration={6500}
-        onClose={() => setPedidoAviso('')}
-        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-      >
-        <Alert severity="info" variant="filled" onClose={() => setPedidoAviso('')}>
-          {pedidoAviso}
-        </Alert>
-      </Snackbar>
     </>
   );
 };
