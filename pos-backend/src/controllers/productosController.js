@@ -317,6 +317,8 @@ const updateProducto = async (req, res) => {
 // CONTROLADOR BACKEND: delete Producto procesa request/respuesta de este flujo.
 const deleteProducto = async (req, res) => {
   const { id } = req.params;
+  const [existingRows] = await pool.query(`SELECT ${PRODUCTO_SELECT} FROM productos WHERE id = ?`, [id]);
+  const existing = existingRows[0] ? mapProducto(existingRows[0]) : null;
   let result;
   try {
     [result] = await pool.execute('DELETE FROM productos WHERE id = ?', [id]);
@@ -343,7 +345,7 @@ const deleteProducto = async (req, res) => {
     accion: 'PRODUCTO_ELIMINADO',
     entidad: 'producto',
     entidadId: id,
-    detalle: { productoId: id }
+    detalle: existing || { productoId: id }
   });
 
   res.status(204).send();

@@ -75,7 +75,7 @@ const listMovimientosInventario = async (req, res) => {
        LEFT JOIN pedidos_online po ON im.referencia_tipo = 'PEDIDO_ONLINE' AND po.id = im.referencia_id
        ${where}
       ORDER BY im.created_at DESC, im.id DESC
-      LIMIT 200`,
+      LIMIT 1000`,
     params
   );
   res.json(rows.map((row) => mapMovimiento({
@@ -126,7 +126,7 @@ const listAuditoria = async (_req, res) => {
     `SELECT *
        FROM auditoria_logs
       ORDER BY created_at DESC, id DESC
-      LIMIT 200`
+      LIMIT 1000`
   );
   res.json(rows.map(mapAuditoria));
 };

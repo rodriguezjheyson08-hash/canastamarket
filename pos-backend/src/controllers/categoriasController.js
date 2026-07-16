@@ -8,6 +8,7 @@ const {
   categoryAvailabilitySql,
   isRemovedCategoryName
 } = require('../utils/catalogAvailability');
+const { registrarAuditoria } = require('../features/auditoria/service');
 
 const DUPLICATE_CATEGORY_MESSAGE = 'Ya existe una categoría con ese nombre.';
 const CATEGORY_WITH_PRODUCTS_MESSAGE =
@@ -79,6 +80,13 @@ const createCategoria = async (req, res) => {
     [nombre, descripcion]
   );
   const created = await findCategoriaById(result.insertId);
+  await registrarAuditoria(pool, {
+    req,
+    accion: 'CATEGORIA_CREADA',
+    entidad: 'categoria',
+    entidadId: created.id,
+    detalle: { nombre: created.nombre }
+  });
   res.status(201).json(created);
 };
 
@@ -117,16 +125,32 @@ const updateCategoria = async (req, res) => {
   );
 
   const updated = await findCategoriaById(id);
+  await registrarAuditoria(pool, {
+    req,
+    accion: 'CATEGORIA_ACTUALIZADA',
+    entidad: 'categoria',
+    entidadId: id,
+    detalle: { antes: currentCategoria, despues: updated }
+  });
   res.json(updated);
 };
 
 const deleteCategoria = async (req, res) => {
   const { id } = req.params;
+  const currentCategoria = await findCategoriaById(id);
   const [result] = await pool.execute('DELETE FROM categorias WHERE id = ?', [id]);
 
   if (result.affectedRows === 0) {
     return res.status(404).json({ message: 'Categoría no encontrada.' });
   }
+
+  await registrarAuditoria(pool, {
+    req,
+    accion: 'CATEGORIA_ELIMINADA',
+    entidad: 'categoria',
+    entidadId: id,
+    detalle: currentCategoria || { categoriaId: id }
+  });
 
   res.status(204).send();
 };

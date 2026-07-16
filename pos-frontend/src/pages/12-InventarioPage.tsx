@@ -41,6 +41,24 @@ const formatMoney = (value: unknown) => {
   return Number.isFinite(amount) ? `S/ ${amount.toFixed(2)}` : 'S/ 0.00';
 };
 
+const compactValue = (value: unknown) => {
+  if (value === undefined || value === null || value === '') return '-';
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : '-';
+  if (typeof value === 'boolean') return value ? 'si' : 'no';
+  if (Array.isArray(value)) return value.join(', ');
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+};
+
+const summarizeChanges = (antes: Record<string, any> = {}, despues: Record<string, any> = {}) => {
+  const keys = Array.from(new Set([...Object.keys(antes), ...Object.keys(despues)]));
+  const cambios = keys
+    .filter((key) => JSON.stringify(antes[key]) !== JSON.stringify(despues[key]))
+    .slice(0, 6)
+    .map((key) => `${key}: ${compactValue(antes[key])} -> ${compactValue(despues[key])}`);
+  return cambios.length ? cambios.join(' | ') : 'Sin cambios visibles';
+};
+
 type OperacionRow = {
   id: string;
   fecha: string;
@@ -66,8 +84,50 @@ const detalleAuditoria = (log: AuditoriaLog) => {
       return `Salida de efectivo ${formatMoney(detalle.monto)}. Motivo: ${detalle.motivo || '-'}.`;
     case 'VENTA_CREADA':
       return `Venta registrada por ${formatMoney(detalle.total)} con ${detalle.productos || 0} producto(s).`;
+    case 'VENTA_ANULADA':
+      return `Venta anulada. Motivo: ${detalle.motivo || '-'}. Total: ${formatMoney(detalle.total)}.`;
     case 'PERDIDA_REGISTRADA':
       return `Perdida ${detalle.tipo || ''} por ${detalle.cantidad || 0} unidad(es). Motivo: ${detalle.motivo || '-'}.`;
+    case 'PRODUCTO_CREADO':
+      return `Producto creado: ${detalle.nombre || '-'} | Stock ${compactValue(detalle.stockActual)} | Precio ${formatMoney(detalle.precioVenta)}.`;
+    case 'PRODUCTO_ACTUALIZADO':
+      return `Producto actualizado. ${summarizeChanges(detalle.antes, detalle.despues)}.`;
+    case 'PRODUCTO_ELIMINADO':
+      return `Producto eliminado/desactivado: ${detalle.nombre || detalle.productoId || '-'} | Stock ${compactValue(detalle.stockActual)} | Precio ${formatMoney(detalle.precioVenta)}.`;
+    case 'CATEGORIA_CREADA':
+      return `Categoria creada: ${detalle.nombre || '-'}.`;
+    case 'CATEGORIA_ACTUALIZADA':
+      return `Categoria actualizada. ${summarizeChanges(detalle.antes, detalle.despues)}.`;
+    case 'CATEGORIA_ELIMINADA':
+      return `Categoria eliminada: ${detalle.nombre || detalle.categoriaId || '-'}.`;
+    case 'PROVEEDOR_CREADO':
+      return `Proveedor creado: ${detalle.razonSocial || '-'} | RUC ${detalle.ruc || '-'}.`;
+    case 'PROVEEDOR_ACTUALIZADO':
+      return `Proveedor actualizado: ${detalle.razonSocial || '-'} | RUC ${detalle.ruc || '-'}.`;
+    case 'PROVEEDOR_ELIMINADO':
+      return `Proveedor eliminado/desactivado #${detalle.proveedorId || '-'}.`;
+    case 'USUARIO_CREADO':
+      return `Usuario creado: ${detalle.nombreUsuario || '-'} | Rol ${detalle.rol || '-'}.`;
+    case 'USUARIO_ACTUALIZADO':
+      return `Usuario actualizado: ${detalle.nombreUsuario || '-'} | Rol ${detalle.rol || '-'} | Password: ${detalle.passwordActualizada ? 'actualizada' : 'sin cambio'} | Activo: ${compactValue(detalle.activo)}.`;
+    case 'USUARIO_ELIMINADO':
+      return `Usuario eliminado #${detalle.usuarioId || '-'}.`;
+    case 'USUARIO_DESBLOQUEADO':
+      return `Usuario desbloqueado: ${detalle.nombreUsuario || '-'}.`;
+    case 'CONFIGURACION_ACTUALIZADA':
+      return `Configuracion actualizada: ${(detalle.claves || []).join(', ') || '-'}.`;
+    case 'PEDIDO_COMPRA_CREADO':
+      return `Pedido de compra creado. Proveedor #${detalle.proveedorId || '-'} | Items ${detalle.items || 0}.`;
+    case 'PEDIDO_COMPRA_RECIBIDO':
+      return `Pedido de compra recibido. Items ${detalle.items || 0}. Motivo: ${detalle.motivo || '-'}.`;
+    case 'PEDIDO_COMPRA_ELIMINADO':
+      return `Pedido de compra eliminado #${detalle.pedidoCompraId || '-'}.`;
+    case 'PEDIDO_ONLINE_CREADO':
+      return `Pedido online creado por ${formatMoney(detalle.total)} con ${detalle.productos || 0} producto(s).`;
+    case 'PEDIDO_ONLINE_ANULADO':
+      return `Pedido online anulado. Motivo: ${detalle.motivo || '-'}.`;
+    case 'PEDIDO_ONLINE_CAMBIO_ESTADO':
+      return `Pedido online cambio de estado: ${detalle.estadoAnterior || '-'} -> ${detalle.estadoNuevo || '-'}${detalle.pagoRecogidaMetodo ? ` | Pago: ${detalle.pagoRecogidaMetodo}` : ''}.`;
     default:
       if (!log.detalle) return 'Sin detalle';
       return Object.entries(detalle)
@@ -149,7 +209,7 @@ const InventarioPage: React.FC = () => {
 
   const fetchData = async () => {
     const [productosData, movimientosData, lotesData, auditoriaData] = await Promise.all([
-      getProductos(),
+      getProductos(undefined, { incluirVencidos: true }),
       getInventarioMovimientos(),
       getInventarioLotes(),
       getAuditoriaLogs()
