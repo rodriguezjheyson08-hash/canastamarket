@@ -16,6 +16,7 @@ import { canAccess } from '../../utils/permissions';
 export const PEDIDOS_ONLINE_UPDATE_EVENT = 'pedidos-online-update';
 export const PEDIDOS_ONLINE_NOTIFY_STORAGE_KEY = 'ecomarket:pedido-online-notify';
 export const PEDIDOS_ONLINE_NOTIFY_CHANNEL = 'ecomarket-pedidos-online';
+const PEDIDOS_ONLINE_NOTIFICATION_TAG = 'ecomarket-pedido-online';
 
 interface HeaderProps {
   showBack?: boolean;
@@ -71,22 +72,22 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
         void context.resume().catch(() => undefined);
       }
       const master = context.createGain();
-      master.gain.value = 0.95;
+      master.gain.value = 1;
       master.connect(context.destination);
 
-      [988, 1318.51, 1567.98, 1318.51, 1760].forEach((frequency, index) => {
-        const start = context.currentTime + index * 0.14;
+      [783.99, 987.77, 1318.51, 987.77].forEach((frequency, index) => {
+        const start = context.currentTime + index * 0.16;
         const oscillator = context.createOscillator();
         const gain = context.createGain();
-        oscillator.type = 'triangle';
+        oscillator.type = 'sine';
         oscillator.frequency.value = frequency;
         gain.gain.setValueAtTime(0.0001, start);
-        gain.gain.exponentialRampToValueAtTime(0.9, start + 0.015);
-        gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.38);
+        gain.gain.exponentialRampToValueAtTime(1, start + 0.018);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.42);
         oscillator.connect(gain);
         gain.connect(master);
         oscillator.start(start);
-        oscillator.stop(start + 0.4);
+        oscillator.stop(start + 0.44);
       });
     } catch {
       // Algunos navegadores bloquean sonido hasta que exista interaccion.
@@ -130,7 +131,7 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
       body: mensaje,
       icon: '/images/logo512.png',
       badge: '/images/logo192.png',
-      tag: `pedido-online-${Date.now()}`,
+      tag: PEDIDOS_ONLINE_NOTIFICATION_TAG,
       renotify: true,
       requireInteraction: true,
       silent: false,
@@ -142,8 +143,12 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
       const registration = await getNotificationRegistration();
       if (registration?.showNotification) {
         await registration.showNotification(titulo, options);
-        return;
       }
+    } catch {
+      // Si el navegador bloquea el service worker, se intenta la notificacion directa.
+    }
+
+    try {
       const notification = new Notification(titulo, options);
       notification.onclick = () => {
         window.focus();
@@ -219,7 +224,7 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
     };
     window.addEventListener('pointerdown', askPermissionOnInteraction, { once: true });
     window.addEventListener('keydown', askPermissionOnInteraction, { once: true });
-    const intervalId = window.setInterval(fetchPedidos, 10000);
+    const intervalId = window.setInterval(fetchPedidos, 2500);
     globalThis.addEventListener(PEDIDOS_ONLINE_UPDATE_EVENT, handlePedidosUpdate);
     window.addEventListener('storage', handleStorage);
     return () => {
