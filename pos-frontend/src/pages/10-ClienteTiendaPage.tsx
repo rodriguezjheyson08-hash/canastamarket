@@ -1059,6 +1059,7 @@ const ClienteTiendaPage: React.FC = () => {
       openAuthDialog('login', true);
       return;
     }
+    setPerfilOpen(false);
     setCheckoutOpen(true);
   };
 
@@ -1449,24 +1450,38 @@ const ClienteTiendaPage: React.FC = () => {
                       ) : (
                         <List dense>
                           {clientePedidos.slice(0, 4).map((pedido) => (
-                          <ListItem key={pedido.id} divider secondaryAction={
-                            <Stack direction="row" spacing={0.5}>
-                              <Button size="small" startIcon={<ReceiptLong />} onClick={() => openBoleta(pedido)}>
+                          <ListItem
+                            key={pedido.id}
+                            divider
+                            sx={{
+                              display: 'block',
+                              pr: '0 !important',
+                              py: { xs: 1, sm: 1.25 },
+                              '& .MuiListItemSecondaryAction-root': {
+                                position: 'static',
+                                transform: 'none',
+                                mt: 0.75,
+                                textAlign: 'right'
+                              }
+                            }}
+                            secondaryAction={
+                            <Stack direction="row" spacing={0.5} justifyContent="flex-end" flexWrap="wrap">
+                              <Button size="small" startIcon={<ReceiptLong />} onClick={() => openBoleta(pedido)} sx={{ minWidth: 0, px: 0.75, fontSize: { xs: '0.68rem', sm: '0.75rem' } }}>
                                 Ver
                               </Button>
-                              <Button size="small" startIcon={<Download />} onClick={() => downloadBoleta(pedido)}>
+                              <Button size="small" startIcon={<Download />} onClick={() => downloadBoleta(pedido)} sx={{ minWidth: 0, px: 0.75, fontSize: { xs: '0.68rem', sm: '0.75rem' } }}>
                                 Descargar
                               </Button>
                               {canCancelPedido(pedido) && (
-                                <Button size="small" color="error" onClick={() => handleCancelarPedido(pedido)}>
+                                <Button size="small" color="error" onClick={() => handleCancelarPedido(pedido)} sx={{ minWidth: 0, px: 0.75, fontSize: { xs: '0.68rem', sm: '0.75rem' } }}>
                                   Cancelar
                                 </Button>
                               )}
                             </Stack>
                           }>
-                              <ListItemAvatar>
-                                <Avatar sx={{ bgcolor: pedido.boletaEnviada ? '#1976d2' : '#78909c' }}>
-                                  <ReceiptLong />
+                              <ListItemAvatar sx={{ minWidth: { xs: 42, sm: 56 } }}>
+                                <Avatar sx={{ width: { xs: 36, sm: 40 }, height: { xs: 36, sm: 40 }, bgcolor: pedido.boletaEnviada ? '#1976d2' : '#78909c' }}>
+                                  <ReceiptLong fontSize="small" />
                                 </Avatar>
                               </ListItemAvatar>
                               <ListItemText
