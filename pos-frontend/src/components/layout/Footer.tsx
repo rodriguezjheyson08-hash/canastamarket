@@ -7,7 +7,7 @@
 // DISEÑO FRONTEND - PIE DE PAGINA:
 // Muestra texto institucional al final del layout principal.
 import React from 'react';
-import { Box, Typography, Link } from '@mui/material';
+import { Box, Typography } from '@mui/material';
 import { useAppConfig } from '../../hooks/useAppConfig';
 // IMPORTACIONES FRONTEND: librerias, helpers y tipos que usa este archivo.
 import { useI18n } from '../../hooks/useI18n';
@@ -32,7 +32,7 @@ const Footer: React.FC = () => {
         © {new Date().getFullYear()} {config.appName}. {t('Todos los derechos reservados.', 'All rights reserved.')}
       </Typography>
       <Typography variant="caption">
-        {t('Desarrollado por', 'Developed by')} <Link href="#" color="inherit" underline="hover"> el Grupo 06 </Link>
+        {t('Desarrollado por JHS', 'Developed by JHS')}
       </Typography>
     </Box>
   );
