@@ -51,6 +51,7 @@ import {
   LocationOn,
   LocalMall,
   Logout,
+  Menu,
   Payment,
   Person,
   ReceiptLong,
@@ -1261,7 +1262,15 @@ const ClienteTiendaPage: React.FC = () => {
       {/* DISEÑO CLIENTE - BARRA SUPERIOR:
           Entrada publica al catalogo sin cambiar el header privado del dashboard. */}
       <AppBar position="sticky" color="primary" elevation={2} sx={{ zIndex: 1201 }}>
-        <Toolbar sx={{ gap: { xs: 0.5, sm: 1.5 }, minHeight: { xs: 48, sm: 64 }, px: { xs: 1, sm: 2 } }}>
+        <Toolbar sx={{ gap: { xs: 0.25, sm: 1, md: 1.5 }, minHeight: { xs: 48, sm: 64 }, px: { xs: 0.75, sm: 2 } }}>
+          <IconButton
+            color="inherit"
+            aria-label="Abrir menu de la tienda"
+            onClick={() => setInfoOpen(true)}
+            sx={{ display: { xs: 'inline-flex', sm: 'none' }, p: 0.45, flexShrink: 0 }}
+          >
+            <Menu fontSize="small" />
+          </IconButton>
           <IconButton
             color="inherit"
             aria-label="Ver informacion de la tienda"
@@ -1279,19 +1288,38 @@ const ClienteTiendaPage: React.FC = () => {
               <Storefront sx={{ fontSize: { xs: 20, sm: 26 } }} />
             )}
           </IconButton>
-          <Typography variant="h6" noWrap sx={{ flexGrow: 1, minWidth: 0, fontWeight: 800, fontSize: { xs: '0.82rem', sm: '1.25rem' }, maxWidth: { xs: isClienteRegistrado ? 92 : 120, sm: 'none' } }}>
+          <Typography variant="h6" noWrap sx={{ flexGrow: 1, minWidth: 0, fontWeight: 800, fontSize: { xs: '0.82rem', sm: '1.25rem' }, maxWidth: { xs: isClienteRegistrado ? 84 : 112, sm: 'none' } }}>
             {config.appName}
           </Typography>
+          <Stack direction="row" spacing={0.5} sx={{ display: { xs: 'none', md: 'flex' }, mr: 0.5 }}>
+            <Button color="inherit" startIcon={<InfoOutlined />} onClick={() => setInfoOpen(true)} sx={{ fontSize: '0.8rem', fontWeight: 800 }}>
+              Acerca de
+            </Button>
+            <Button
+              color="inherit"
+              startIcon={<WhatsApp />}
+              onClick={() => {
+                if (whatsappUrl) {
+                  window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+                } else {
+                  setInfoOpen(true);
+                }
+              }}
+              sx={{ fontSize: '0.8rem', fontWeight: 800 }}
+            >
+              Contactanos
+            </Button>
+          </Stack>
           {isClienteRegistrado ? (
             <>
-              <Button color="inherit" startIcon={<Avatar src={perfil.fotoUrl || buildAvatarUrl(perfil)} sx={{ width: 22, height: 22 }} />} onClick={() => setPerfilOpen(true)} sx={{ minWidth: { xs: 34, sm: 64 }, px: { xs: 0.35, sm: 1.5 }, fontSize: { xs: '0.68rem', sm: '0.875rem' }, '& .MuiButton-startIcon': { mr: { xs: 0, sm: 0.75 } } }}>
-                <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>{perfil.nombre.split(' ')[0]}</Box>
-              </Button>
               <Button color="inherit" startIcon={<History />} onClick={() => setHistorialOpen(true)} sx={{ minWidth: { xs: 34, sm: 64 }, px: { xs: 0.35, sm: 1.5 }, fontSize: { xs: '0.68rem', sm: '0.875rem' }, '& .MuiButton-startIcon': { mr: { xs: 0, sm: 0.75 } } }}>
                 <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Historial</Box>
               </Button>
               <Button color="inherit" startIcon={<Logout />} onClick={logoutCliente} sx={{ minWidth: { xs: 34, sm: 64 }, px: { xs: 0.35, sm: 1.5 }, fontSize: { xs: '0.68rem', sm: '0.875rem' }, '& .MuiButton-startIcon': { mr: { xs: 0, sm: 0.75 } } }}>
                 <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Salir</Box>
+              </Button>
+              <Button color="inherit" startIcon={<Avatar src={perfil.fotoUrl || buildAvatarUrl(perfil)} sx={{ width: 22, height: 22 }} />} onClick={() => setPerfilOpen(true)} sx={{ minWidth: { xs: 34, sm: 64 }, px: { xs: 0.35, sm: 1.5 }, fontSize: { xs: '0.68rem', sm: '0.875rem' }, '& .MuiButton-startIcon': { mr: { xs: 0, sm: 0.75 } } }}>
+                <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>{perfil.nombre.split(' ')[0]}</Box>
               </Button>
             </>
           ) : (
@@ -1317,34 +1345,39 @@ const ClienteTiendaPage: React.FC = () => {
         </Toolbar>
       </AppBar>
 
-      <Drawer anchor="left" open={infoOpen} onClose={() => setInfoOpen(false)}>
-        <Box sx={{ width: { xs: 300, sm: 340 }, p: 2.25 }}>
-          <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-            <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
-              {config.logo ? (
-                <Box
-                  component="img"
-                  src={config.logo}
-                  alt={config.appName}
-                  sx={{ width: 44, height: 44, objectFit: 'contain', bgcolor: '#fff', borderRadius: 1, border: '1px solid #e0e0e0' }}
-                />
-              ) : (
-                <Avatar sx={{ bgcolor: 'primary.main' }}><Storefront /></Avatar>
-              )}
-              <Box sx={{ minWidth: 0 }}>
-                <Typography fontWeight={900} noWrap>{config.appName}</Typography>
-                <Typography variant="caption" color="text.secondary">Tienda online</Typography>
-              </Box>
+      <Drawer
+        anchor="left"
+        open={infoOpen}
+        onClose={() => setInfoOpen(false)}
+        PaperProps={{ sx: { width: { xs: 292, sm: 360 }, maxWidth: '86vw', bgcolor: '#f6f8fb' } }}
+      >
+        <Box sx={{ p: { xs: 1.25, sm: 1.75 }, height: '100%' }}>
+          <Paper elevation={0} sx={{ p: 1.5, borderRadius: 2, bgcolor: 'primary.main', color: 'primary.contrastText' }}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1.25}>
+              <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
+                {config.logo ? (
+                  <Box
+                    component="img"
+                    src={config.logo}
+                    alt={config.appName}
+                    sx={{ width: 42, height: 42, objectFit: 'contain', bgcolor: '#fff', borderRadius: 1, p: 0.25 }}
+                  />
+                ) : (
+                  <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.22)' }}><Storefront /></Avatar>
+                )}
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography fontWeight={900} noWrap>{config.appName}</Typography>
+                  <Typography variant="caption" sx={{ opacity: 0.9 }}>Tienda online</Typography>
+                </Box>
+              </Stack>
+              <IconButton aria-label="Cerrar informacion" onClick={() => setInfoOpen(false)} sx={{ color: 'inherit' }}>
+                <Close />
+              </IconButton>
             </Stack>
-            <IconButton aria-label="Cerrar informacion" onClick={() => setInfoOpen(false)}>
-              <Close />
-            </IconButton>
-          </Stack>
+          </Paper>
 
-          <Divider sx={{ mb: 2 }} />
-
-          <Stack spacing={2}>
-            <Box>
+          <Stack spacing={1.25} mt={1.5}>
+            <Paper elevation={0} sx={{ p: 1.5, borderRadius: 2 }}>
               <Stack direction="row" spacing={1} alignItems="center" mb={0.5}>
                 <InfoOutlined color="primary" fontSize="small" />
                 <Typography fontWeight={900}>Acerca de nosotros</Typography>
@@ -1352,9 +1385,24 @@ const ClienteTiendaPage: React.FC = () => {
               <Typography variant="body2" color="text.secondary">
                 Compra en linea, paga con Mercado Pago o al recoger, y retira tu pedido en tienda.
               </Typography>
-            </Box>
+            </Paper>
 
-            <Box>
+            <Paper elevation={0} sx={{ p: 1.5, borderRadius: 2 }}>
+              <Stack direction="row" spacing={1} alignItems="center" mb={0.75}>
+                <WhatsApp color="success" fontSize="small" />
+                <Typography fontWeight={900}>Contactanos</Typography>
+              </Stack>
+              <Typography variant="body2" color="text.secondary" mb={1}>
+                WhatsApp: <strong>{boletaConfig.telefono || '-'}</strong>
+              </Typography>
+              {whatsappUrl && (
+                <Button component="a" href={whatsappUrl} target="_blank" rel="noopener noreferrer" variant="contained" color="success" startIcon={<WhatsApp />} fullWidth>
+                  Escribir por WhatsApp
+                </Button>
+              )}
+            </Paper>
+
+            <Paper elevation={0} sx={{ p: 1.5, borderRadius: 2 }}>
               <Stack direction="row" spacing={1} alignItems="center" mb={0.5}>
                 <LocationOn color="primary" fontSize="small" />
                 <Typography fontWeight={900}>Ubicacion</Typography>
@@ -1362,19 +1410,7 @@ const ClienteTiendaPage: React.FC = () => {
               <Typography variant="body2" color="text.secondary">
                 {boletaConfig.direccion || 'Direccion pendiente de configurar'}
               </Typography>
-            </Box>
-
-            <Box>
-              <Typography variant="body2" color="text.secondary">
-                Telefono / WhatsApp: <strong>{boletaConfig.telefono || '-'}</strong>
-              </Typography>
-            </Box>
-
-            {whatsappUrl && (
-              <Button component="a" href={whatsappUrl} target="_blank" rel="noopener noreferrer" variant="contained" color="success" startIcon={<WhatsApp />} fullWidth>
-                Escribir por WhatsApp
-              </Button>
-            )}
+            </Paper>
           </Stack>
         </Box>
       </Drawer>
