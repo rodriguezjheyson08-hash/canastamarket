@@ -1266,9 +1266,16 @@ const ClienteTiendaPage: React.FC = () => {
               </Button>
             </>
           )}
-          <Badge badgeContent={cartCount} color="warning">
-            <LocalMall />
-          </Badge>
+          <IconButton
+            color="inherit"
+            aria-label={cartCount > 0 ? `Ir a pagar ${cartCount} producto(s)` : 'Carrito vacio'}
+            onClick={openCheckout}
+            sx={{ p: { xs: 0.5, sm: 1 }, flexShrink: 0 }}
+          >
+            <Badge badgeContent={cartCount} color="warning">
+              <LocalMall />
+            </Badge>
+          </IconButton>
         </Toolbar>
       </AppBar>
 
