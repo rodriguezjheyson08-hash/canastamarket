@@ -70,6 +70,41 @@ const getConfiguracionPublica = async (_req, res) => {
   res.json(data);
 };
 
+const getLogoFromConfig = async () => {
+  await ensureConfiguracionSistemaSchema();
+  const [rows] = await pool.query(
+    'SELECT clave, valor FROM configuracion_sistema WHERE clave IN (?, ?)',
+    ['personalizacion', 'boleta']
+  );
+  const data = {};
+  for (const row of rows) {
+    data[row.clave] = parseConfigValue(row.valor);
+  }
+  return String(data.personalizacion?.logo || data.boleta?.logo || '').trim();
+};
+
+// CONFIGURACION PUBLICA - LOGO SOCIAL:
+// WhatsApp no ejecuta React; esta imagen dinamica lee el logo global guardado.
+const getConfiguracionPreviewLogo = async (_req, res) => {
+  const logo = await getLogoFromConfig();
+  res.set?.('Cache-Control', 'no-store, max-age=0');
+
+  const dataUrlMatch = logo.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+  if (dataUrlMatch) {
+    const [, contentType, base64] = dataUrlMatch;
+    const buffer = Buffer.from(base64, 'base64');
+    res.set?.('Content-Type', contentType);
+    res.set?.('Content-Length', String(buffer.length));
+    return res.end(buffer);
+  }
+
+  if (/^https?:\/\//i.test(logo)) {
+    return res.redirect(302, logo);
+  }
+
+  return res.redirect(302, '/images/logo512.png');
+};
+
 // CONTROLADOR BACKEND: save Configuracion Sistema persiste ambos formularios de configuracion.
 const saveConfiguracionSistema = async (req, res) => {
   await ensureConfiguracionSistemaSchema();
@@ -118,6 +153,7 @@ const saveConfiguracionSistema = async (req, res) => {
 };
 
 module.exports = {
+  getConfiguracionPreviewLogo,
   getConfiguracionPublica,
   getConfiguracionSistema,
   saveConfiguracionSistema

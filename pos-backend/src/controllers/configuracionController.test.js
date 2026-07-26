@@ -15,9 +15,14 @@ jest.mock('../utils/ensureConfiguracionSistemaSchema', () => ({
   ensureConfiguracionSistemaSchema: jest.fn()
 }));
 
+jest.mock('../features/auditoria/service', () => ({
+  registrarAuditoria: jest.fn()
+}));
+
 const pool = require('../db/pool');
 const { ensureConfiguracionSistemaSchema } = require('../utils/ensureConfiguracionSistemaSchema');
 const {
+  getConfiguracionPreviewLogo,
   getConfiguracionPublica,
   getConfiguracionSistema,
   saveConfiguracionSistema
@@ -27,7 +32,10 @@ const {
 const createResponse = () => {
   const res = {
     status: jest.fn(),
-    json: jest.fn()
+    json: jest.fn(),
+    end: jest.fn(),
+    redirect: jest.fn(),
+    set: jest.fn()
   };
   res.status.mockReturnValue(res);
   return res;
@@ -91,23 +99,40 @@ describe('configuracionController', () => {
   });
 
   describe('getConfiguracionPublica', () => {
-    test('devuelve solo la personalizacion global sin datos de boleta', async () => {
+    test('devuelve la personalizacion y boleta publica global', async () => {
       pool.query.mockResolvedValueOnce([[
-        { valor: JSON.stringify({ appName: 'ECOMARKET', idioma: 'es' }) }
+        { clave: 'personalizacion', valor: JSON.stringify({ appName: 'ECOMARKET', idioma: 'es' }) },
+        { clave: 'boleta', valor: JSON.stringify({ telefono: '975929943' }) }
       ]]);
       const res = createResponse();
-      res.set = jest.fn();
 
       await getConfiguracionPublica({}, res);
 
       expect(pool.query).toHaveBeenCalledWith(
-        'SELECT valor FROM configuracion_sistema WHERE clave = ? LIMIT 1',
-        ['personalizacion']
+        'SELECT clave, valor FROM configuracion_sistema WHERE clave IN (?, ?)',
+        ['personalizacion', 'boleta']
       );
       expect(res.set).toHaveBeenCalledWith('Cache-Control', 'no-store, max-age=0');
       expect(res.json).toHaveBeenCalledWith({
-        personalizacion: { appName: 'ECOMARKET', idioma: 'es' }
+        personalizacion: { appName: 'ECOMARKET', idioma: 'es' },
+        boleta: { telefono: '975929943' }
       });
+    });
+  });
+
+  describe('getConfiguracionPreviewLogo', () => {
+    test('devuelve el logo base64 configurado para previews sociales', async () => {
+      const pngBase64 = Buffer.from('logo-test').toString('base64');
+      pool.query.mockResolvedValueOnce([[
+        { clave: 'personalizacion', valor: JSON.stringify({ logo: `data:image/png;base64,${pngBase64}` }) }
+      ]]);
+      const res = createResponse();
+
+      await getConfiguracionPreviewLogo({}, res);
+
+      expect(res.set).toHaveBeenCalledWith('Cache-Control', 'no-store, max-age=0');
+      expect(res.set).toHaveBeenCalledWith('Content-Type', 'image/png');
+      expect(res.end).toHaveBeenCalledWith(Buffer.from('logo-test'));
     });
   });
 

@@ -8,6 +8,7 @@ const express = require('express');
 const asyncHandler = require('../utils/asyncHandler');
 const { requireAuth } = require('../utils/requireAuth');
 const {
+  getConfiguracionPreviewLogo,
   getConfiguracionPublica,
   getConfiguracionSistema,
   saveConfiguracionSistema
@@ -17,6 +18,7 @@ const router = express.Router();
 
 // El nombre, logo e idioma son globales y deben estar disponibles antes del login.
 router.get('/public', asyncHandler(getConfiguracionPublica));
+router.get('/preview-logo', asyncHandler(getConfiguracionPreviewLogo));
 
 // RUTA BACKEND: solo administradores pueden leer o guardar Personalizacion y Boleta.
 router.use(requireAuth({ type: 'admin', roles: ['ADMINISTRADOR'] }));
