@@ -6,6 +6,7 @@
  */
 const pool = require('../db/pool');
 const { ensureConfiguracionSistemaSchema } = require('../utils/ensureConfiguracionSistemaSchema');
+const { registrarAuditoria } = require('../features/auditoria/service');
 
 const ALLOWED_KEYS = ['personalizacion', 'boleta', 'vueltos'];
 const MAX_JSON_LENGTH = 1024 * 1024 * 4;
@@ -50,18 +51,23 @@ const getConfiguracionSistema = async (_req, res) => {
   res.json(data);
 };
 
-// CONFIGURACION PUBLICA: permite que cualquier dispositivo cargue el nombre y la imagen
-// globales sin exponer la configuracion privada de boleta ni requerir una sesion iniciada.
+// CONFIGURACION PUBLICA: permite que cualquier dispositivo cargue nombre, imagen y datos
+// publicos de boleta para que la tienda online refleje cambios sin iniciar sesion.
 const getConfiguracionPublica = async (_req, res) => {
   await ensureConfiguracionSistemaSchema();
   const [rows] = await pool.query(
-    'SELECT valor FROM configuracion_sistema WHERE clave = ? LIMIT 1',
-    ['personalizacion']
+    'SELECT clave, valor FROM configuracion_sistema WHERE clave IN (?, ?)',
+    ['personalizacion', 'boleta']
   );
+  const data = {
+    personalizacion: null,
+    boleta: null
+  };
+  for (const row of rows) {
+    data[row.clave] = parseConfigValue(row.valor);
+  }
   res.set?.('Cache-Control', 'no-store, max-age=0');
-  res.json({
-    personalizacion: rows.length > 0 ? parseConfigValue(rows[0].valor) : null
-  });
+  res.json(data);
 };
 
 // CONTROLADOR BACKEND: save Configuracion Sistema persiste ambos formularios de configuracion.
@@ -99,6 +105,14 @@ const saveConfiguracionSistema = async (req, res) => {
   for (const row of rows) {
     saved[row.clave] = parseConfigValue(row.valor);
   }
+
+  await registrarAuditoria(pool, {
+    req,
+    accion: 'CONFIGURACION_ACTUALIZADA',
+    entidad: 'configuracion_sistema',
+    entidadId: null,
+    detalle: { claves: entries.map(([clave]) => clave) }
+  });
 
   res.json(saved);
 };

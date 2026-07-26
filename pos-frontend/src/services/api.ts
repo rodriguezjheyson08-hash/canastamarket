@@ -185,9 +185,10 @@ export interface ConfiguracionSistemaResponse {
 
 export interface ConfiguracionPublicaResponse {
   personalizacion: AppConfig | null;
+  boleta?: BoletaConfig | null;
 }
 
-// SERVICIO PUBLICO: obtiene el nombre y apariencia globales para login y pagina inicial.
+// SERVICIO PUBLICO: obtiene apariencia y datos publicos de boleta para login y tienda.
 export const getConfiguracionPublica = async (): Promise<ConfiguracionPublicaResponse> => {
   const res = await axios.get(`${API_URL}/configuracion/public`, {
     headers: { 'Cache-Control': 'no-cache' }

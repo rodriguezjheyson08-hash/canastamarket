@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { APP_CONFIG_UPDATE_EVENT, AppConfig, applyAppConfigToDocument, loadAppConfig, saveAppConfig } from '../utils/appConfig';
 import { getConfiguracionPublica } from '../services/api';
+import { loadBoletaConfig, saveBoletaConfig } from '../utils/boletaConfig';
 
 const CONFIG_REFRESH_MS = 10_000;
 let sharedSyncPromise: Promise<void> | null = null;
@@ -19,11 +20,20 @@ const syncGlobalConfig = () => {
   if (sharedSyncPromise) return sharedSyncPromise;
 
   sharedSyncPromise = getConfiguracionPublica()
-    .then(({ personalizacion }) => {
-      if (!personalizacion) return;
-      const current = loadAppConfig();
-      if (JSON.stringify(current) === JSON.stringify(personalizacion)) return;
-      saveAppConfig(personalizacion);
+    .then(({ personalizacion, boleta }) => {
+      if (personalizacion) {
+        const current = loadAppConfig();
+        if (JSON.stringify(current) !== JSON.stringify(personalizacion)) {
+          saveAppConfig(personalizacion);
+        }
+      }
+      if (boleta) {
+        const currentBoleta = loadBoletaConfig();
+        const nextBoleta = { ...currentBoleta, ...boleta };
+        if (JSON.stringify(currentBoleta) !== JSON.stringify(nextBoleta)) {
+          saveBoletaConfig(nextBoleta);
+        }
+      }
     })
     .catch(() => {
       // Si no hay internet se conserva la ultima configuracion conocida del dispositivo.

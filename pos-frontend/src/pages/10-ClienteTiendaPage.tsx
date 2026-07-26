@@ -52,7 +52,8 @@ import {
   ReceiptLong,
   Remove,
   Search,
-  Storefront
+  Storefront,
+  WhatsApp
 } from '@mui/icons-material';
 import {
   createPedidoOnlineCliente,
@@ -70,7 +71,7 @@ import {
 } from '../services/api';
 import { Producto, Categoria, Venta } from '../types';
 import { useAppConfig } from '../hooks/useAppConfig';
-import { loadBoletaConfig } from '../utils/boletaConfig';
+import { BOLETA_CONFIG_UPDATE_EVENT, loadBoletaConfig } from '../utils/boletaConfig';
 import {
   formatFechaBoleta,
   formatMetodoPagoBoleta,
@@ -632,6 +633,7 @@ const buildBoletaHtml = (pedido: ClientePedido, cliente: ClientePerfil, appName:
 
 const ClienteTiendaPage: React.FC = () => {
   const config = useAppConfig();
+  const [boletaConfig, setBoletaConfig] = useState(() => loadBoletaConfig());
 
   // LOGICA CLIENTE - ESTADOS PRINCIPALES:
   // Manejan catalogo, busqueda, carrito, perfil, checkout, historial y mensajes.
@@ -658,6 +660,19 @@ const ClienteTiendaPage: React.FC = () => {
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
   const [paying, setPaying] = useState(false);
 
+  const whatsappNumber = useMemo(() => {
+    const digits = String(boletaConfig.telefono || '').replace(/\D/g, '');
+    if (!digits) return '';
+    if (digits.length === 9) return `51${digits}`;
+    return digits;
+  }, [boletaConfig.telefono]);
+
+  const whatsappUrl = useMemo(() => {
+    if (!whatsappNumber) return '';
+    const message = `Hola, quiero consultar sobre ${config.appName}.`;
+    return `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
+  }, [config.appName, whatsappNumber]);
+
   const isClienteRegistrado = Boolean(perfil.email && perfil.nombre);
   const clientePedidos = useMemo(
     () => pedidos.filter((pedido) => !perfil.email || pedido.clienteEmail === perfil.email),
@@ -666,6 +681,16 @@ const ClienteTiendaPage: React.FC = () => {
 
   const showSnackbar = useCallback((message: string, severity: 'success' | 'error' = 'success') => {
     setSnackbar({ open: true, message, severity });
+  }, []);
+
+  useEffect(() => {
+    const reloadBoleta = () => setBoletaConfig(loadBoletaConfig());
+    globalThis.addEventListener(BOLETA_CONFIG_UPDATE_EVENT, reloadBoleta);
+    globalThis.addEventListener('storage', reloadBoleta);
+    return () => {
+      globalThis.removeEventListener(BOLETA_CONFIG_UPDATE_EVENT, reloadBoleta);
+      globalThis.removeEventListener('storage', reloadBoleta);
+    };
   }, []);
 
   useEffect(() => {
@@ -1691,7 +1716,7 @@ const ClienteTiendaPage: React.FC = () => {
             )}
           </Grid>
 
-          <Grid item xs={12} lg={3.5}>
+          <Grid item xs={12} lg={3.5} sx={{ display: { xs: 'none', lg: 'block' } }}>
             {/* DISEÑO CLIENTE - PANEL CARRITO:
                 Muestra productos seleccionados, controles de cantidad, subtotal y total. */}
             <Paper elevation={2} sx={{ p: { xs: 2, sm: 2.5 }, position: { lg: 'sticky' }, top: { lg: 88 } }}>
@@ -1903,6 +1928,30 @@ const ClienteTiendaPage: React.FC = () => {
           <Button onClick={() => setHistorialOpen(false)}>Cerrar</Button>
         </DialogActions>
       </Dialog>
+
+      {whatsappUrl && (
+        <IconButton
+          component="a"
+          href={whatsappUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Contactar por WhatsApp"
+          sx={{
+            position: 'fixed',
+            right: { xs: 14, sm: 24 },
+            bottom: { xs: 72, sm: 24 },
+            zIndex: 1300,
+            width: { xs: 48, sm: 56 },
+            height: { xs: 48, sm: 56 },
+            bgcolor: '#25D366',
+            color: '#fff',
+            boxShadow: 4,
+            '&:hover': { bgcolor: '#1ebe5d' }
+          }}
+        >
+          <WhatsApp sx={{ fontSize: { xs: 28, sm: 32 } }} />
+        </IconButton>
+      )}
 
       <Snackbar
         open={snackbar.open}
