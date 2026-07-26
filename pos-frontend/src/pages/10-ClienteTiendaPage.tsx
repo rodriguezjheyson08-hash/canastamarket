@@ -23,6 +23,7 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  Drawer,
   Grid,
   IconButton,
   InputAdornment,
@@ -41,10 +42,13 @@ import {
 import {
   AccountCircle,
   Add,
+  Close,
   Delete,
   Download,
   Email,
   History,
+  InfoOutlined,
+  LocationOn,
   LocalMall,
   Logout,
   Payment,
@@ -649,6 +653,7 @@ const ClienteTiendaPage: React.FC = () => {
   const [authOpen, setAuthOpen] = useState(false);
   const [perfilOpen, setPerfilOpen] = useState(false);
   const [historialOpen, setHistorialOpen] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [authStep, setAuthStep] = useState<'login' | 'register'>('login');
   const [checkoutAfterAuth, setCheckoutAfterAuth] = useState(false);
@@ -1257,29 +1262,36 @@ const ClienteTiendaPage: React.FC = () => {
           Entrada publica al catalogo sin cambiar el header privado del dashboard. */}
       <AppBar position="sticky" color="primary" elevation={2} sx={{ zIndex: 1201 }}>
         <Toolbar sx={{ gap: { xs: 0.5, sm: 1.5 }, minHeight: { xs: 48, sm: 64 }, px: { xs: 1, sm: 2 } }}>
-          {config.logo ? (
-            <Box
-              component="img"
-              src={config.logo}
-              alt={config.appName}
-              sx={{ width: { xs: 24, sm: 32 }, height: { xs: 24, sm: 32 }, objectFit: 'contain', bgcolor: '#fff', borderRadius: 0.75, p: 0.25, flexShrink: 0 }}
-            />
-          ) : (
-            <Storefront sx={{ fontSize: { xs: 20, sm: 26 }, flexShrink: 0 }} />
-          )}
+          <IconButton
+            color="inherit"
+            aria-label="Ver informacion de la tienda"
+            onClick={() => setInfoOpen(true)}
+            sx={{ p: 0.25, flexShrink: 0 }}
+          >
+            {config.logo ? (
+              <Box
+                component="img"
+                src={config.logo}
+                alt={config.appName}
+                sx={{ width: { xs: 24, sm: 32 }, height: { xs: 24, sm: 32 }, objectFit: 'contain', bgcolor: '#fff', borderRadius: 0.75, p: 0.25 }}
+              />
+            ) : (
+              <Storefront sx={{ fontSize: { xs: 20, sm: 26 } }} />
+            )}
+          </IconButton>
           <Typography variant="h6" noWrap sx={{ flexGrow: 1, minWidth: 0, fontWeight: 800, fontSize: { xs: '0.82rem', sm: '1.25rem' }, maxWidth: { xs: isClienteRegistrado ? 92 : 120, sm: 'none' } }}>
             {config.appName}
           </Typography>
           {isClienteRegistrado ? (
             <>
               <Button color="inherit" startIcon={<Avatar src={perfil.fotoUrl || buildAvatarUrl(perfil)} sx={{ width: 22, height: 22 }} />} onClick={() => setPerfilOpen(true)} sx={{ minWidth: { xs: 34, sm: 64 }, px: { xs: 0.35, sm: 1.5 }, fontSize: { xs: '0.68rem', sm: '0.875rem' }, '& .MuiButton-startIcon': { mr: { xs: 0, sm: 0.75 } } }}>
-                {perfil.nombre.split(' ')[0]}
+                <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>{perfil.nombre.split(' ')[0]}</Box>
               </Button>
               <Button color="inherit" startIcon={<History />} onClick={() => setHistorialOpen(true)} sx={{ minWidth: { xs: 34, sm: 64 }, px: { xs: 0.35, sm: 1.5 }, fontSize: { xs: '0.68rem', sm: '0.875rem' }, '& .MuiButton-startIcon': { mr: { xs: 0, sm: 0.75 } } }}>
-                Historial
+                <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Historial</Box>
               </Button>
               <Button color="inherit" startIcon={<Logout />} onClick={logoutCliente} sx={{ minWidth: { xs: 34, sm: 64 }, px: { xs: 0.35, sm: 1.5 }, fontSize: { xs: '0.68rem', sm: '0.875rem' }, '& .MuiButton-startIcon': { mr: { xs: 0, sm: 0.75 } } }}>
-                Salir
+                <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Salir</Box>
               </Button>
             </>
           ) : (
@@ -1304,6 +1316,68 @@ const ClienteTiendaPage: React.FC = () => {
           </IconButton>
         </Toolbar>
       </AppBar>
+
+      <Drawer anchor="left" open={infoOpen} onClose={() => setInfoOpen(false)}>
+        <Box sx={{ width: { xs: 300, sm: 340 }, p: 2.25 }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+            <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
+              {config.logo ? (
+                <Box
+                  component="img"
+                  src={config.logo}
+                  alt={config.appName}
+                  sx={{ width: 44, height: 44, objectFit: 'contain', bgcolor: '#fff', borderRadius: 1, border: '1px solid #e0e0e0' }}
+                />
+              ) : (
+                <Avatar sx={{ bgcolor: 'primary.main' }}><Storefront /></Avatar>
+              )}
+              <Box sx={{ minWidth: 0 }}>
+                <Typography fontWeight={900} noWrap>{config.appName}</Typography>
+                <Typography variant="caption" color="text.secondary">Tienda online</Typography>
+              </Box>
+            </Stack>
+            <IconButton aria-label="Cerrar informacion" onClick={() => setInfoOpen(false)}>
+              <Close />
+            </IconButton>
+          </Stack>
+
+          <Divider sx={{ mb: 2 }} />
+
+          <Stack spacing={2}>
+            <Box>
+              <Stack direction="row" spacing={1} alignItems="center" mb={0.5}>
+                <InfoOutlined color="primary" fontSize="small" />
+                <Typography fontWeight={900}>Acerca de nosotros</Typography>
+              </Stack>
+              <Typography variant="body2" color="text.secondary">
+                Compra en linea, paga con Mercado Pago o al recoger, y retira tu pedido en tienda.
+              </Typography>
+            </Box>
+
+            <Box>
+              <Stack direction="row" spacing={1} alignItems="center" mb={0.5}>
+                <LocationOn color="primary" fontSize="small" />
+                <Typography fontWeight={900}>Ubicacion</Typography>
+              </Stack>
+              <Typography variant="body2" color="text.secondary">
+                {boletaConfig.direccion || 'Direccion pendiente de configurar'}
+              </Typography>
+            </Box>
+
+            <Box>
+              <Typography variant="body2" color="text.secondary">
+                Telefono / WhatsApp: <strong>{boletaConfig.telefono || '-'}</strong>
+              </Typography>
+            </Box>
+
+            {whatsappUrl && (
+              <Button component="a" href={whatsappUrl} target="_blank" rel="noopener noreferrer" variant="contained" color="success" startIcon={<WhatsApp />} fullWidth>
+                Escribir por WhatsApp
+              </Button>
+            )}
+          </Stack>
+        </Box>
+      </Drawer>
 
       <Container maxWidth="xl" sx={{ py: { xs: 1.5, md: 4 }, px: { xs: 1, sm: 3 } }}>
         {perfilOpen ? (
@@ -1878,7 +1952,7 @@ const ClienteTiendaPage: React.FC = () => {
           Lista las compras guardadas localmente con estado y productos. */}
       <PasswordResetDialog open={resetOpen} onClose={() => setResetOpen(false)} accountType="cliente" defaultEmail={loginEmail} />
 
-      <Dialog open={historialOpen} onClose={() => setHistorialOpen(false)} fullWidth maxWidth="md">
+      <Dialog open={historialOpen} onClose={() => setHistorialOpen(false)} fullWidth maxWidth="md" PaperProps={{ sx: { m: { xs: 1.5, sm: 3 }, width: { xs: 'calc(100% - 24px)', sm: '100%' } } }}>
         <DialogTitle>Historial de compras</DialogTitle>
         <DialogContent dividers>
           {clientePedidos.length === 0 ? (
@@ -1890,29 +1964,42 @@ const ClienteTiendaPage: React.FC = () => {
 	                  key={pedido.id}
 	                  alignItems="flex-start"
 	                  divider
+                    sx={{
+                      display: 'block',
+                      pr: '0 !important',
+                      py: { xs: 1.25, sm: 1.5 },
+                      '& .MuiListItemSecondaryAction-root': {
+                        position: 'static',
+                        transform: 'none',
+                        mt: 0.75,
+                        textAlign: 'right'
+                      }
+                    }}
 	                  secondaryAction={
-	                    <Stack direction="row" spacing={0.5}>
-	                      <Button size="small" startIcon={<ReceiptLong />} onClick={() => openBoleta(pedido)}>
+	                    <Stack direction="row" spacing={0.5} justifyContent="flex-end" flexWrap="wrap">
+	                      <Button size="small" startIcon={<ReceiptLong />} onClick={() => openBoleta(pedido)} sx={{ minWidth: 0, px: 0.75, fontSize: { xs: '0.68rem', sm: '0.75rem' } }}>
 	                        Ver
 	                      </Button>
-	                      <Button size="small" startIcon={<Download />} onClick={() => downloadBoleta(pedido)}>
+	                      <Button size="small" startIcon={<Download />} onClick={() => downloadBoleta(pedido)} sx={{ minWidth: 0, px: 0.75, fontSize: { xs: '0.68rem', sm: '0.75rem' } }}>
 	                        Descargar
 	                      </Button>
 	                      {canCancelPedido(pedido) && (
-	                        <Button size="small" color="error" onClick={() => handleCancelarPedido(pedido)}>
+	                        <Button size="small" color="error" onClick={() => handleCancelarPedido(pedido)} sx={{ minWidth: 0, px: 0.75, fontSize: { xs: '0.68rem', sm: '0.75rem' } }}>
 	                          Cancelar
 	                        </Button>
 	                      )}
 	                    </Stack>
 	                  }
 	                >
-                  <ListItemAvatar>
-                    <Avatar sx={{ bgcolor: pedido.metodoPago === 'MERCADO_PAGO' ? '#1565c0' : '#0f766e' }}>
-                      <LocalMall />
+                  <ListItemAvatar sx={{ minWidth: { xs: 42, sm: 56 } }}>
+                    <Avatar sx={{ width: { xs: 36, sm: 40 }, height: { xs: 36, sm: 40 }, bgcolor: pedido.metodoPago === 'MERCADO_PAGO' ? '#1565c0' : '#0f766e' }}>
+                      <LocalMall fontSize="small" />
                     </Avatar>
                   </ListItemAvatar>
                   <ListItemText
                     primary={`${pedido.id} - ${formatCurrency(pedido.total)}`}
+                    primaryTypographyProps={{ fontSize: { xs: '0.86rem', sm: '1rem' }, fontWeight: 800, lineHeight: 1.2 }}
+                    secondaryTypographyProps={{ component: 'div', fontSize: { xs: '0.76rem', sm: '0.875rem' }, lineHeight: 1.25 }}
                     secondary={
                       <>
                         <Typography component="span" variant="body2" color="text.primary">
