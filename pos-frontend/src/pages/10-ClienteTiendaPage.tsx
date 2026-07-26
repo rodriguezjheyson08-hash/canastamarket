@@ -1230,29 +1230,38 @@ const ClienteTiendaPage: React.FC = () => {
       {/* DISEÑO CLIENTE - BARRA SUPERIOR:
           Entrada publica al catalogo sin cambiar el header privado del dashboard. */}
       <AppBar position="sticky" color="primary" elevation={2} sx={{ zIndex: 1201 }}>
-        <Toolbar sx={{ gap: { xs: 0.75, sm: 1.5 }, minHeight: { xs: 56, sm: 64 } }}>
-          <Storefront />
-          <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 800, fontSize: { xs: '1rem', sm: '1.25rem' } }}>
+        <Toolbar sx={{ gap: { xs: 0.5, sm: 1.5 }, minHeight: { xs: 48, sm: 64 }, px: { xs: 1, sm: 2 } }}>
+          {config.logo ? (
+            <Box
+              component="img"
+              src={config.logo}
+              alt={config.appName}
+              sx={{ width: { xs: 24, sm: 32 }, height: { xs: 24, sm: 32 }, objectFit: 'contain', bgcolor: '#fff', borderRadius: 0.75, p: 0.25, flexShrink: 0 }}
+            />
+          ) : (
+            <Storefront sx={{ fontSize: { xs: 20, sm: 26 }, flexShrink: 0 }} />
+          )}
+          <Typography variant="h6" noWrap sx={{ flexGrow: 1, minWidth: 0, fontWeight: 800, fontSize: { xs: '0.82rem', sm: '1.25rem' }, maxWidth: { xs: isClienteRegistrado ? 92 : 120, sm: 'none' } }}>
             {config.appName}
           </Typography>
           {isClienteRegistrado ? (
             <>
-              <Button color="inherit" startIcon={<Avatar src={perfil.fotoUrl || buildAvatarUrl(perfil)} sx={{ width: 24, height: 24 }} />} onClick={() => setPerfilOpen(true)} sx={{ minWidth: { xs: 40, sm: 64 }, px: { xs: 0.75, sm: 1.5 } }}>
+              <Button color="inherit" startIcon={<Avatar src={perfil.fotoUrl || buildAvatarUrl(perfil)} sx={{ width: 22, height: 22 }} />} onClick={() => setPerfilOpen(true)} sx={{ minWidth: { xs: 34, sm: 64 }, px: { xs: 0.35, sm: 1.5 }, fontSize: { xs: '0.68rem', sm: '0.875rem' }, '& .MuiButton-startIcon': { mr: { xs: 0, sm: 0.75 } } }}>
                 {perfil.nombre.split(' ')[0]}
               </Button>
-              <Button color="inherit" startIcon={<History />} onClick={() => setHistorialOpen(true)} sx={{ minWidth: { xs: 40, sm: 64 }, px: { xs: 0.75, sm: 1.5 } }}>
+              <Button color="inherit" startIcon={<History />} onClick={() => setHistorialOpen(true)} sx={{ minWidth: { xs: 34, sm: 64 }, px: { xs: 0.35, sm: 1.5 }, fontSize: { xs: '0.68rem', sm: '0.875rem' }, '& .MuiButton-startIcon': { mr: { xs: 0, sm: 0.75 } } }}>
                 Historial
               </Button>
-              <Button color="inherit" startIcon={<Logout />} onClick={logoutCliente} sx={{ minWidth: { xs: 40, sm: 64 }, px: { xs: 0.75, sm: 1.5 } }}>
+              <Button color="inherit" startIcon={<Logout />} onClick={logoutCliente} sx={{ minWidth: { xs: 34, sm: 64 }, px: { xs: 0.35, sm: 1.5 }, fontSize: { xs: '0.68rem', sm: '0.875rem' }, '& .MuiButton-startIcon': { mr: { xs: 0, sm: 0.75 } } }}>
                 Salir
               </Button>
             </>
           ) : (
             <>
-              <Button color="inherit" onClick={() => openAuthDialog('register')} sx={{ minWidth: { xs: 40, sm: 64 }, px: { xs: 0.75, sm: 1.5 } }}>
+              <Button color="inherit" onClick={() => openAuthDialog('register')} sx={{ minWidth: { xs: 34, sm: 64 }, px: { xs: 0.45, sm: 1.5 }, fontSize: { xs: '0.68rem', sm: '0.875rem' } }}>
                 Registrarse
               </Button>
-              <Button color="inherit" startIcon={<Person />} onClick={() => openAuthDialog('login')} sx={{ minWidth: { xs: 40, sm: 64 }, px: { xs: 0.75, sm: 1.5 } }}>
+              <Button color="inherit" startIcon={<Person />} onClick={() => openAuthDialog('login')} sx={{ minWidth: { xs: 34, sm: 64 }, px: { xs: 0.45, sm: 1.5 }, fontSize: { xs: '0.68rem', sm: '0.875rem' }, '& .MuiButton-startIcon': { mr: { xs: 0, sm: 0.75 } } }}>
                 Iniciar sesión
               </Button>
             </>
@@ -1263,7 +1272,7 @@ const ClienteTiendaPage: React.FC = () => {
         </Toolbar>
       </AppBar>
 
-      <Container maxWidth="xl" sx={{ py: { xs: 2, md: 4 }, px: { xs: 1.5, sm: 3 } }}>
+      <Container maxWidth="xl" sx={{ py: { xs: 1.5, md: 4 }, px: { xs: 1, sm: 3 } }}>
         {perfilOpen ? (
           <>
             {/* DISEÑO CLIENTE - PERFIL COMO SECCION:
@@ -1309,7 +1318,7 @@ const ClienteTiendaPage: React.FC = () => {
                 </Stack>
               </Paper>
 
-              <Grid container spacing={2}>
+              <Grid container spacing={{ xs: 1.25, sm: 2 }}>
                 {[
                   { label: 'Pedidos', value: perfilStats.totalPedidos, hint: 'Total registrados' },
                   { label: 'Activos', value: perfilStats.activos, hint: 'Pendientes o en proceso' },
@@ -1536,29 +1545,30 @@ const ClienteTiendaPage: React.FC = () => {
           <>
         {/* DISEÑO CLIENTE - HERO COMERCIAL:
             Presenta la tienda publica y lleva al cliente directo a comprar. */}
-        <Box sx={{ mb: 3 }}>
-          <Typography variant="h3" component="h1" fontWeight={800} gutterBottom sx={{ fontSize: { xs: '2rem', md: '3rem' } }}>
+        <Box sx={{ mb: { xs: 1.5, md: 3 } }}>
+          <Typography variant="h3" component="h1" fontWeight={800} gutterBottom sx={{ fontSize: { xs: '1.45rem', sm: '2rem', md: '3rem' }, lineHeight: 1.1 }}>
             Catalogo de productos
           </Typography>
-          <Typography variant="body1" color="text.secondary">
+          <Typography variant="body1" color="text.secondary" sx={{ fontSize: { xs: '0.82rem', sm: '1rem' }, maxWidth: 760 }}>
             Compra en linea, paga con Mercado Pago o al recoger, y retira tu pedido en tienda.
           </Typography>
         </Box>
 
-        <Grid container spacing={3}>
+        <Grid container spacing={{ xs: 1.5, md: 3 }}>
           <Grid item xs={12} lg={8.5}>
             {/* DISEÑO CLIENTE - BUSCADOR:
                 Filtra productos publicos por nombre o descripcion. */}
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ mb: 2 }}>
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={{ xs: 1, md: 1.5 }} sx={{ mb: { xs: 1.25, md: 2 } }}>
               <TextField
                 value={busqueda}
                 onChange={(event) => setBusqueda(event.target.value)}
                 placeholder="Buscar productos"
+                size="small"
                 fullWidth
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
-                      <Search />
+                      <Search fontSize="small" />
                     </InputAdornment>
                   )
                 }}
@@ -1568,6 +1578,7 @@ const ClienteTiendaPage: React.FC = () => {
                 label="Categoria"
                 value={categoriaFiltro}
                 onChange={(event) => setCategoriaFiltro(Number(event.target.value))}
+                size="small"
                 sx={{ minWidth: { xs: '100%', md: 240 } }}
               >
                 <MenuItem value={0}>Todas las categorias</MenuItem>
@@ -1578,21 +1589,38 @@ const ClienteTiendaPage: React.FC = () => {
                 ))}
               </TextField>
             </Stack>
-            <Stack direction="row" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
+            <Stack
+              direction="row"
+              gap={0.75}
+              sx={{
+                mb: { xs: 1.5, md: 2 },
+                mx: { xs: -0.5, sm: 0 },
+                px: { xs: 0.5, sm: 0 },
+                pb: 0.25,
+                overflowX: { xs: 'auto', sm: 'visible' },
+                flexWrap: { xs: 'nowrap', sm: 'wrap' },
+                scrollbarWidth: 'none',
+                '&::-webkit-scrollbar': { display: 'none' }
+              }}
+            >
               <Chip
                 label="Todas"
+                size="small"
                 color={categoriaFiltro === 0 ? 'primary' : 'default'}
                 onClick={() => setCategoriaFiltro(0)}
                 clickable
+                sx={{ flex: { xs: '0 0 auto', sm: 'initial' } }}
               />
               {categorias.map((categoria) => (
                 <Chip
                   key={categoria.id}
                   label={categoria.nombre}
+                  size="small"
                   color={categoriaFiltro === categoria.id ? 'primary' : 'default'}
                   variant={categoriaFiltro === categoria.id ? 'filled' : 'outlined'}
                   onClick={() => setCategoriaFiltro(categoria.id)}
                   clickable
+                  sx={{ flex: { xs: '0 0 auto', sm: 'initial' } }}
                 />
               ))}
             </Stack>
@@ -1613,37 +1641,38 @@ const ClienteTiendaPage: React.FC = () => {
                   return (
                     <React.Fragment key={producto.id}>
                       {/* Cuatro columnas en escritorio para conservar tarjetas y botones cómodos. */}
-                    <Grid item xs={12} sm={6} md={4} xl={3}>
-                      <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                    <Grid item xs={6} sm={6} md={4} xl={3}>
+                      <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', borderRadius: 1, overflow: 'hidden' }}>
                         <CardMedia
                           component="img"
-                          height="160"
                           image={getProductImage(producto)}
                           alt={producto.nombre}
-                          sx={{ objectFit: 'contain', bgcolor: '#ffffff', p: 1.5 }}
+                          sx={{ height: { xs: 104, sm: 150, md: 160 }, objectFit: 'contain', bgcolor: '#ffffff', p: { xs: 0.75, sm: 1.5 } }}
                         />
-                        <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
-                          <Typography variant="h6" fontWeight={800} lineHeight={1.2}>
+                        <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: { xs: 0.65, sm: 1 }, p: { xs: 1, sm: 2 }, '&:last-child': { pb: { xs: 1, sm: 2 } } }}>
+                          <Typography variant="h6" fontWeight={800} lineHeight={1.15} sx={{ fontSize: { xs: '0.86rem', sm: '1.25rem' } }}>
                             {producto.nombre}
                           </Typography>
-	                          <Typography variant="body2" color="text.secondary" sx={{ minHeight: 38 }}>
+	                          <Typography variant="body2" color="text.secondary" sx={{ minHeight: { xs: 28, sm: 38 }, fontSize: { xs: '0.72rem', sm: '0.875rem' }, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
 	                            {producto.descripcion || 'Producto disponible en tienda'}
 	                          </Typography>
-	                          <Chip label={categoriaNombrePorId[producto.categoriaId] || 'Sin categoria'} size="small" variant="outlined" sx={{ alignSelf: 'flex-start' }} />
+	                          <Chip label={categoriaNombrePorId[producto.categoriaId] || 'Sin categoria'} size="small" variant="outlined" sx={{ alignSelf: 'flex-start', maxWidth: '100%', height: { xs: 22, sm: 24 }, '& .MuiChip-label': { px: { xs: 0.75, sm: 1 }, fontSize: { xs: '0.66rem', sm: '0.8125rem' } } }} />
                           <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
-                            <Typography variant="h6" color="primary" fontWeight={800}>
+                            <Typography variant="h6" color="primary" fontWeight={800} sx={{ fontSize: { xs: '0.95rem', sm: '1.25rem' } }}>
                               {formatCurrency(producto.precioVenta)}
                             </Typography>
-                            <Chip label={`Stock ${stock}`} size="small" color={stock > 5 ? 'success' : 'warning'} />
+                            <Chip label={`Stock ${stock}`} size="small" color={stock > 5 ? 'success' : 'warning'} sx={{ height: { xs: 22, sm: 24 }, '& .MuiChip-label': { px: { xs: 0.75, sm: 1 }, fontSize: { xs: '0.66rem', sm: '0.8125rem' } } }} />
                           </Stack>
                           <Button
                             variant="contained"
                             startIcon={<Add />}
+                            size="small"
                             disabled={cantidadEnCarrito >= stock}
                             onClick={() => addToCart(producto)}
-                            sx={{ mt: 'auto' }}
+                            sx={{ mt: 'auto', minHeight: { xs: 34, sm: 36 }, fontSize: { xs: '0.7rem', sm: '0.8125rem' }, px: { xs: 0.75, sm: 1.5 }, '& .MuiButton-startIcon': { mr: { xs: 0.35, sm: 0.75 } } }}
                           >
-                            Agregar al carrito
+                            <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Agregar al carrito</Box>
+                            <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>Agregar</Box>
                           </Button>
                         </CardContent>
                       </Card>
