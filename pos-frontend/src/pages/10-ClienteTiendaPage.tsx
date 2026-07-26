@@ -1309,41 +1309,41 @@ const ClienteTiendaPage: React.FC = () => {
           <>
             {/* DISEÑO CLIENTE - PERFIL COMO SECCION:
                 Reemplaza el modal por una vista completa para que no tape el catalogo ni se vea encima. */}
-            <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={1.5} mb={2}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={1.25} mb={{ xs: 1.5, sm: 2 }}>
               <Box>
-                <Typography variant="h3" component="h1" fontWeight={900} sx={{ fontSize: { xs: '2rem', md: '2.75rem' } }}>
+                <Typography variant="h3" component="h1" fontWeight={900} sx={{ fontSize: { xs: '1.55rem', sm: '2rem', md: '2.75rem' } }}>
                   Perfil del cliente
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.78rem', sm: '0.875rem' } }}>
                   Gestiona tus datos, revisa tu actividad y consulta tus boletas.
                 </Typography>
               </Box>
-              <Button variant="outlined" startIcon={<Storefront />} onClick={() => setPerfilOpen(false)}>
+              <Button size="small" variant="outlined" startIcon={<Storefront />} onClick={() => setPerfilOpen(false)} sx={{ minHeight: { xs: 34, sm: 36 } }}>
                 Volver al catalogo
               </Button>
             </Stack>
 
-            <Stack spacing={2.5}>
-              <Paper elevation={0} sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 2 }}>
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', sm: 'center' }}>
-                  <Avatar src={perfilForm.fotoUrl || buildAvatarUrl(perfilForm)} sx={{ width: 64, height: 64, bgcolor: '#e3f2fd', color: '#0d47a1', fontWeight: 900 }}>
+            <Stack spacing={{ xs: 1.25, sm: 2.5 }}>
+              <Paper elevation={0} sx={{ p: { xs: 1.5, md: 2.5 }, borderRadius: 2 }}>
+                <Stack direction="row" spacing={{ xs: 1.25, sm: 2 }} alignItems="center" flexWrap="wrap">
+                  <Avatar src={perfilForm.fotoUrl || buildAvatarUrl(perfilForm)} sx={{ width: { xs: 48, sm: 64 }, height: { xs: 48, sm: 64 }, bgcolor: '#e3f2fd', color: '#0d47a1', fontWeight: 900 }}>
                     {(perfilForm.nombre || perfilForm.email || 'C').slice(0, 2).toUpperCase()}
                   </Avatar>
                   <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography variant="h5" fontWeight={900} noWrap>{perfilForm.nombre || 'Cliente'}</Typography>
-                    <Typography variant="body2" color="text.secondary" noWrap>{perfilForm.email || 'Correo pendiente'}</Typography>
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography variant="h5" fontWeight={900} noWrap sx={{ fontSize: { xs: '1rem', sm: '1.5rem' } }}>{perfilForm.nombre || 'Cliente'}</Typography>
+                    <Typography variant="body2" color="text.secondary" noWrap sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>{perfilForm.email || 'Correo pendiente'}</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: '0.7rem', sm: '0.75rem' } }}>
                       {perfilStats.activos > 0 ? `${perfilStats.activos} pedido(s) pendiente(s)` : 'Sin pedidos en curso'}
                     </Typography>
                   </Box>
-                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ width: { xs: '100%', sm: 'auto' } }}>
-                    <Button variant="contained" startIcon={<Storefront />} onClick={() => setPerfilOpen(false)} fullWidth>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} sx={{ width: { xs: '100%', sm: 'auto' } }}>
+                    <Button size="small" variant="contained" startIcon={<Storefront />} onClick={() => setPerfilOpen(false)} fullWidth sx={{ minHeight: 34, fontSize: { xs: '0.72rem', sm: '0.8125rem' } }}>
                       Seguir comprando
                     </Button>
-                    <Button variant="outlined" startIcon={<LocalMall />} onClick={openCheckout} fullWidth>
+                    <Button size="small" variant="outlined" startIcon={<LocalMall />} onClick={openCheckout} fullWidth sx={{ minHeight: 34, fontSize: { xs: '0.72rem', sm: '0.8125rem' } }}>
                       Ir al carrito ({cartCount})
                     </Button>
-                    <Button variant="outlined" color="error" startIcon={<Logout />} onClick={logoutCliente} fullWidth>
+                    <Button size="small" variant="outlined" color="error" startIcon={<Logout />} onClick={logoutCliente} fullWidth sx={{ minHeight: 34, fontSize: { xs: '0.72rem', sm: '0.8125rem' } }}>
                       Cerrar sesión
                     </Button>
                   </Stack>
@@ -1357,36 +1357,36 @@ const ClienteTiendaPage: React.FC = () => {
                   { label: 'Entregados', value: perfilStats.entregados, hint: 'Pedidos completados' },
                   { label: 'Total gastado', value: formatCurrency(perfilStats.totalGastado), hint: 'Historico acumulado' }
                 ].map((item) => (
-                  <Grid item xs={12} sm={6} md={3} key={item.label}>
-                    <Paper elevation={0} sx={{ p: 2, borderRadius: 2, height: '100%' }}>
-                      <Typography variant="body2" color="text.secondary">{item.label}</Typography>
-                      <Typography variant="h4" fontWeight={900}>{item.value}</Typography>
-                      <Typography variant="caption" color="text.secondary">{item.hint}</Typography>
+                  <Grid item xs={6} sm={6} md={3} key={item.label}>
+                    <Paper elevation={0} sx={{ p: { xs: 1.25, sm: 2 }, borderRadius: 2, height: '100%' }}>
+                      <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.72rem', sm: '0.875rem' } }}>{item.label}</Typography>
+                      <Typography variant="h4" fontWeight={900} sx={{ fontSize: { xs: '1.45rem', sm: '2.125rem' } }}>{item.value}</Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2, fontSize: { xs: '0.66rem', sm: '0.75rem' } }}>{item.hint}</Typography>
                     </Paper>
                   </Grid>
                 ))}
               </Grid>
 
-              <Grid container spacing={2}>
+              <Grid container spacing={{ xs: 1.25, sm: 2 }}>
                 <Grid item xs={12} md={6}>
                   {/* DISEÑO CLIENTE - FORMULARIO PERFIL:
                       Campos editables del cliente para comprar mas rapido y mantener datos actualizados. */}
-                  <Paper elevation={0} sx={{ p: 2, borderRadius: 2 }}>
-                    <Typography variant="overline" color="text.secondary">Ajustes personales</Typography>
-                    <Typography variant="h6" fontWeight={900} gutterBottom>Tu cuenta</Typography>
-                    <Typography variant="body2" color="text.secondary" mb={2}>
+                  <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2 }, borderRadius: 2 }}>
+                    <Typography variant="overline" color="text.secondary" sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' } }}>Ajustes personales</Typography>
+                    <Typography variant="h6" fontWeight={900} gutterBottom sx={{ fontSize: { xs: '1.05rem', sm: '1.25rem' } }}>Tu cuenta</Typography>
+                    <Typography variant="body2" color="text.secondary" mb={{ xs: 1.25, sm: 2 }} sx={{ fontSize: { xs: '0.78rem', sm: '0.875rem' } }}>
                       Mantén tus datos listos para generar pedidos, boleta y contacto de recojo.
                     </Typography>
-                    <Stack spacing={2}>
-                      <TextField label="Correo" type="email" value={perfilForm.email} onChange={(e) => setPerfilForm((prev) => ({ ...prev, email: e.target.value.trim().toLowerCase() }))} fullWidth InputProps={{ startAdornment: <InputAdornment position="start"><Email fontSize="small" /></InputAdornment> }} />
-                      <TextField label="Nombre completo" value={perfilForm.nombre} onChange={(e) => setPerfilForm((prev) => ({ ...prev, nombre: e.target.value }))} fullWidth InputProps={{ startAdornment: <InputAdornment position="start"><Person fontSize="small" /></InputAdornment> }} />
-                      <TextField label="DNI" value={perfilForm.dni} onChange={(e) => setPerfilForm((prev) => ({ ...prev, dni: e.target.value.replace(/\D/g, '').slice(0, 8) }))} fullWidth inputProps={{ maxLength: 8, inputMode: 'numeric' }} />
-                      <TextField label="Telefono" value={perfilForm.telefono} onChange={(e) => setPerfilForm((prev) => ({ ...prev, telefono: e.target.value.replace(/\D/g, '').slice(0, 9) }))} fullWidth inputProps={{ maxLength: 9, inputMode: 'numeric' }} helperText="Debe tener 9 digitos" />
-                      <TextField label="Direccion referencial" value={perfilForm.direccion} onChange={(e) => setPerfilForm((prev) => ({ ...prev, direccion: e.target.value }))} fullWidth multiline minRows={2} />
-                      <Button variant="contained" startIcon={<AccountCircle />} onClick={savePerfil} size="large">
+                    <Stack spacing={{ xs: 1.25, sm: 2 }}>
+                      <TextField size="small" label="Correo" type="email" value={perfilForm.email} onChange={(e) => setPerfilForm((prev) => ({ ...prev, email: e.target.value.trim().toLowerCase() }))} fullWidth InputProps={{ startAdornment: <InputAdornment position="start"><Email fontSize="small" /></InputAdornment> }} />
+                      <TextField size="small" label="Nombre completo" value={perfilForm.nombre} onChange={(e) => setPerfilForm((prev) => ({ ...prev, nombre: e.target.value }))} fullWidth InputProps={{ startAdornment: <InputAdornment position="start"><Person fontSize="small" /></InputAdornment> }} />
+                      <TextField size="small" label="DNI" value={perfilForm.dni} onChange={(e) => setPerfilForm((prev) => ({ ...prev, dni: e.target.value.replace(/\D/g, '').slice(0, 8) }))} fullWidth inputProps={{ maxLength: 8, inputMode: 'numeric' }} />
+                      <TextField size="small" label="Telefono" value={perfilForm.telefono} onChange={(e) => setPerfilForm((prev) => ({ ...prev, telefono: e.target.value.replace(/\D/g, '').slice(0, 9) }))} fullWidth inputProps={{ maxLength: 9, inputMode: 'numeric' }} helperText="Debe tener 9 digitos" />
+                      <TextField size="small" label="Direccion referencial" value={perfilForm.direccion} onChange={(e) => setPerfilForm((prev) => ({ ...prev, direccion: e.target.value }))} fullWidth multiline minRows={2} />
+                      <Button variant="contained" startIcon={<AccountCircle />} onClick={savePerfil} size="medium">
                         Guardar cambios
                       </Button>
-                      <Button variant="outlined" onClick={() => setResetOpen(true)}>
+                      <Button size="small" variant="outlined" onClick={() => setResetOpen(true)}>
                         Cambiar contraseña por correo
                       </Button>
                     </Stack>
@@ -1394,8 +1394,8 @@ const ClienteTiendaPage: React.FC = () => {
                 </Grid>
 
                 <Grid item xs={12} md={6}>
-                  <Stack spacing={2}>
-                    <Paper elevation={0} sx={{ p: 2, borderRadius: 2 }}>
+                  <Stack spacing={{ xs: 1.25, sm: 2 }}>
+                    <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2 }, borderRadius: 2 }}>
                       <Typography variant="overline" color="text.secondary">Tu estado actual</Typography>
                       <Typography variant="h6" fontWeight={900}>
                         {perfilForm.dni && perfilForm.telefono && perfilForm.direccion ? 'Cuenta lista para comprar' : 'Completa tus datos de contacto'}
@@ -1412,7 +1412,7 @@ const ClienteTiendaPage: React.FC = () => {
                       </Stack>
                     </Paper>
 
-                    <Paper elevation={0} sx={{ p: 2, borderRadius: 2 }}>
+                    <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2 }, borderRadius: 2 }}>
                       <Typography variant="overline" color="text.secondary">Actividad reciente</Typography>
                       {perfilStats.ultimoPedido ? (
                         <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1}>
@@ -1436,7 +1436,7 @@ const ClienteTiendaPage: React.FC = () => {
                       )}
                     </Paper>
 
-                    <Paper elevation={0} sx={{ p: 2, borderRadius: 2 }}>
+                    <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2 }, borderRadius: 2 }}>
                       <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
                         <Box>
                           <Typography variant="overline" color="text.secondary">Historial de compras</Typography>
@@ -1487,47 +1487,48 @@ const ClienteTiendaPage: React.FC = () => {
           <>
             {/* DISEÑO CLIENTE - CHECKOUT SEPARADO:
                 Pantalla independiente para revisar carrito, elegir pago y confirmar pedido sin tapar el catalogo. */}
-            <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={1.5} mb={2}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={1.25} mb={{ xs: 1.5, sm: 2 }}>
               <Box>
-                <Typography variant="h3" component="h1" fontWeight={900} sx={{ fontSize: { xs: '2rem', md: '2.75rem' } }}>
+                <Typography variant="h3" component="h1" fontWeight={900} sx={{ fontSize: { xs: '1.65rem', sm: '2rem', md: '2.75rem' } }}>
                   Tu carrito
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.78rem', sm: '0.875rem' } }}>
                   Revisa cantidades, confirma recojo en tienda y elige tu metodo de pago.
                 </Typography>
               </Box>
               <Chip label={`Items: ${cartCount}`} color="primary" variant="outlined" />
             </Stack>
 
-            <Grid container spacing={3}>
+            <Grid container spacing={{ xs: 1.5, md: 3 }}>
               <Grid item xs={12} md={8}>
-                <Stack spacing={2}>
+                <Stack spacing={{ xs: 1.25, sm: 2 }}>
                   {cartRows.map(({ producto, cantidad, subtotal }) => (
-                    <Paper key={producto.id} elevation={1} sx={{ p: 2, borderRadius: 2 }}>
-                      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'stretch', sm: 'center' }}>
-                        <Avatar src={getProductImage(producto)} variant="rounded" sx={{ width: 72, height: 72, alignSelf: { xs: 'center', sm: 'auto' } }} />
+                    <Paper key={producto.id} elevation={1} sx={{ p: { xs: 1.25, sm: 2 }, borderRadius: 2 }}>
+                      <Stack direction="row" spacing={{ xs: 1, sm: 2 }} alignItems="center" flexWrap={{ xs: 'wrap', sm: 'nowrap' }}>
+                        <Avatar src={getProductImage(producto)} variant="rounded" sx={{ width: { xs: 56, sm: 72 }, height: { xs: 56, sm: 72 }, flexShrink: 0 }} />
                         <Box sx={{ flex: 1, minWidth: 0 }}>
-                          <Typography fontWeight={900}>{producto.nombre}</Typography>
-                          <Typography variant="body2" color="text.secondary">{formatCurrency(producto.precioVenta)}</Typography>
+                          <Typography fontWeight={900} sx={{ fontSize: { xs: '0.92rem', sm: '1rem' }, lineHeight: 1.2 }}>{producto.nombre}</Typography>
+                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.76rem', sm: '0.875rem' } }}>{formatCurrency(producto.precioVenta)}</Typography>
                         </Box>
                         <TextField
+                          size="small"
                           type="number"
-                          label="Cantidad"
+                          label="Cant."
                           value={cantidad}
                           onChange={(e) => updateCartQuantity(producto, Number(e.target.value))}
                           inputProps={{ min: 1, max: Number(producto.stockActual || 0) }}
-                          sx={{ width: { xs: '100%', sm: 130 } }}
+                          sx={{ width: { xs: 88, sm: 130 } }}
                         />
-                        <Typography fontWeight={900} minWidth={90} textAlign={{ xs: 'left', sm: 'right' }}>
+                        <Typography fontWeight={900} minWidth={{ xs: 74, sm: 90 }} textAlign={{ xs: 'right', sm: 'right' }} sx={{ ml: 'auto', fontSize: { xs: '0.95rem', sm: '1rem' } }}>
                           {formatCurrency(subtotal)}
                         </Typography>
-                        <IconButton color="error" onClick={() => updateCartQuantity(producto, 0)}>
+                        <IconButton size="small" color="error" onClick={() => updateCartQuantity(producto, 0)}>
                           <Delete />
                         </IconButton>
                       </Stack>
                     </Paper>
                   ))}
-                  <Button variant="outlined" onClick={() => setCheckoutOpen(false)} sx={{ alignSelf: 'flex-start' }}>
+                  <Button size="small" variant="outlined" onClick={() => setCheckoutOpen(false)} sx={{ alignSelf: 'flex-start', minHeight: 34 }}>
                     Volver al catalogo
                   </Button>
                 </Stack>
@@ -1938,6 +1939,7 @@ const ClienteTiendaPage: React.FC = () => {
           aria-label="Contactar por WhatsApp"
           sx={{
             position: 'fixed',
+            display: { xs: (checkoutOpen || perfilOpen) ? 'none' : 'inline-flex', sm: 'inline-flex' },
             right: { xs: 14, sm: 24 },
             bottom: { xs: 72, sm: 24 },
             zIndex: 1300,
