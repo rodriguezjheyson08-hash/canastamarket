@@ -136,6 +136,10 @@ export const getVentaTotal = (venta: Venta) => {
 // LOGICA VENTAS: decide la serie de boleta segun configuracion y tipo.
 export const getBoletaSerie = (boletaEmpresa: BoletaConfig, tipo: TipoBoleta) => {
   const rawSerie = (boletaEmpresa.serie || '').trim().toUpperCase().replace(/\s+/g, '');
+  if (tipo === 'ticket') {
+    const digits = rawSerie.replace(/\D/g, '');
+    return digits ? `T${digits.padStart(3, '0').slice(-3)}` : 'T001';
+  }
   if (tipo === 'factura') {
     if (!rawSerie) return DEFAULT_FACTURA_SERIE;
     if (rawSerie.startsWith('F')) return rawSerie;
@@ -187,8 +191,10 @@ export const getBoletaResumenTributario = (venta: Venta, tipoBoleta: TipoBoleta)
   return { opGravada, igv, opInafecta: 0, opExonerada: 0, isc: 0, total };
 };
 
-export const getTipoComprobanteSunat = (tipoBoleta: TipoBoleta) =>
-  tipoBoleta === 'factura' ? TIPO_COMPROBANTE_FACTURA : TIPO_COMPROBANTE_BOLETA;
+export const getTipoComprobanteSunat = (tipoBoleta: TipoBoleta) => {
+  if (tipoBoleta === 'ticket') return '00';
+  return tipoBoleta === 'factura' ? TIPO_COMPROBANTE_FACTURA : TIPO_COMPROBANTE_BOLETA;
+};
 
 // LOGICA VENTAS: hash que SUNAT usa para validar la representacion impresa con QR.
 export const getBoletaHash = (
@@ -197,6 +203,7 @@ export const getBoletaHash = (
   tipoBoleta: TipoBoleta,
   cliente?: ClienteBoleta | null
 ) => {
+  if (tipoBoleta === 'ticket') return '';
   const resumen = getBoletaResumenTributario(venta, tipoBoleta);
   const serie = getBoletaSerie(boletaEmpresa, tipoBoleta);
   const numero = getBoletaCorrelativo(venta);

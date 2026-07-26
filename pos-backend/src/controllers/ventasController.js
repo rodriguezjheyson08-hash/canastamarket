@@ -169,7 +169,7 @@ const createVenta = async (req, res) => {
     const vueltoParsed = vuelto === null || vuelto === undefined || vuelto === '' ? null : Number(vuelto);
     const shouldConfirmPago = metodoLower === 'yape' && !!cleanPagoReferencia;
 
-    if (cleanTipoComprobante && !['boleta', 'factura'].includes(cleanTipoComprobante)) {
+    if (cleanTipoComprobante && !['ticket', 'boleta', 'factura'].includes(cleanTipoComprobante)) {
       throw new Error('Tipo de comprobante inválido.');
     }
     if (cleanTipoComprobante === 'factura') {
@@ -184,7 +184,7 @@ const createVenta = async (req, res) => {
     if (cleanTipoComprobante !== 'factura' && cleanDni && !/^\d{8}$/.test(cleanDni)) {
       throw new Error('El DNI del cliente debe tener 8 dígitos.');
     }
-    if (cleanTipoComprobante === 'boleta' && cleanClienteNumeroDocumento && !/^\d{8}$/.test(cleanClienteNumeroDocumento)) {
+    if (['boleta', 'ticket'].includes(cleanTipoComprobante) && cleanClienteNumeroDocumento && !/^\d{8}$/.test(cleanClienteNumeroDocumento)) {
       throw new Error('El DNI del cliente debe tener 8 dígitos.');
     }
     if (!Number.isFinite(totalExtraParsed) || totalExtraParsed < 0) {

@@ -7,7 +7,7 @@
 import { Producto } from '../../types';
 
 // TIPOS VENTAS: define el comprobante electronico SUNAT usado en la venta.
-export type TipoBoleta = 'boleta' | 'factura';
+export type TipoBoleta = 'ticket' | 'boleta' | 'factura';
 
 // TIPOS VENTAS: item del carrito, une producto seleccionado con cantidad.
 export interface CarritoItem {

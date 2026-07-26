@@ -179,7 +179,7 @@ export interface Venta {
   vuelto?: number;
   clienteDni?: string | null;
   clienteNombre?: string | null;
-  tipoComprobante?: 'boleta' | 'factura' | null;
+  tipoComprobante?: 'ticket' | 'boleta' | 'factura' | null;
   clienteTipoDocumento?: '1' | '6' | string | null;
   clienteNumeroDocumento?: string | null;
   clienteRuc?: string | null;
@@ -265,7 +265,7 @@ export type VentaCreatePayload = {
   pagoReferencia?: string | null;
   clienteDni?: string | null;
   clienteNombre?: string | null;
-  tipoComprobante?: 'boleta' | 'factura' | null;
+  tipoComprobante?: 'ticket' | 'boleta' | 'factura' | null;
   clienteTipoDocumento?: '1' | '6' | string | null;
   clienteNumeroDocumento?: string | null;
   clienteRuc?: string | null;

@@ -361,6 +361,9 @@ const VentasPage: React.FC = () => {
   const isDniClienteValido = (dni: string) => /^\d{8}$/.test(dni.trim()) && !/^(\d)\1{7}$/.test(dni.trim());
 
   const documentoClienteValido = () => {
+    if (tipoBoleta === 'ticket') {
+      return !dniCliente.trim() || isDniClienteValido(dniCliente);
+    }
     if (tipoBoleta === 'factura') {
       return /^\d{11}$/.test(rucCliente.trim()) && razonSocialCliente.trim().length > 0;
     }
@@ -371,11 +374,11 @@ const VentasPage: React.FC = () => {
     if (!cliente) {
       return {
         tipoComprobante: comprobante,
-        clienteTipoDocumento: comprobante === 'factura' ? '6' : '1',
+        clienteTipoDocumento: comprobante === 'factura' ? '6' : (comprobante === 'boleta' ? '1' : null),
         clienteNumeroDocumento: null,
         clienteRuc: null,
         clienteDni: null,
-        clienteNombre: null,
+        clienteNombre: comprobante === 'ticket' ? 'Cliente en general' : null,
         clienteDireccion: null
       };
     }
@@ -383,11 +386,11 @@ const VentasPage: React.FC = () => {
     const numeroDocumento = cliente.numeroDocumento || cliente.ruc || cliente.dni || null;
     return {
       tipoComprobante: comprobante,
-      clienteTipoDocumento: cliente.tipoDocumento || (comprobante === 'factura' ? '6' : '1'),
+      clienteTipoDocumento: cliente.tipoDocumento || (comprobante === 'factura' ? '6' : (comprobante === 'boleta' ? '1' : null)),
       clienteNumeroDocumento: numeroDocumento,
       clienteRuc: comprobante === 'factura' ? (cliente.ruc || numeroDocumento) : null,
-      clienteDni: comprobante === 'boleta' ? (cliente.dni || numeroDocumento) : null,
-      clienteNombre: cliente.razonSocial || cliente.nombreCompleto || null,
+      clienteDni: comprobante === 'boleta' || comprobante === 'ticket' ? (cliente.dni || numeroDocumento) : null,
+      clienteNombre: cliente.razonSocial || cliente.nombreCompleto || (comprobante === 'ticket' ? 'Cliente en general' : null),
       clienteDireccion: cliente.direccion || null
     };
   }, [tipoBoleta]);
@@ -870,6 +873,8 @@ const VentasPage: React.FC = () => {
       showSnackbar(
         tipoBoleta === 'factura'
           ? 'Para factura electrónica ingresa un RUC válido y la razón social.'
+          : tipoBoleta === 'ticket'
+            ? 'Si ingresas DNI en ticket simple debe tener 8 digitos validos.'
           : 'Para boleta electrónica ingresa un DNI válido y el nombre del cliente.',
         'error'
       );
@@ -981,6 +986,8 @@ const VentasPage: React.FC = () => {
       showSnackbar(
         tipoBoleta === 'factura'
           ? 'Para factura electrónica ingresa un RUC válido y la razón social.'
+          : tipoBoleta === 'ticket'
+            ? 'Si ingresas DNI en ticket simple debe tener 8 digitos validos.'
           : 'Para boleta electrónica ingresa un DNI válido y el nombre del cliente.',
         'error'
       );
@@ -1034,10 +1041,11 @@ const VentasPage: React.FC = () => {
   const renderBoletaImpresion = (venta: Venta) => {
     const resumen = getBoletaResumenTributario(venta);
     const esFactura = tipoBoletaReciente === 'factura';
-    const esElectronica = true;
-    const usarFormatoTicket = false;
-    const clienteNombre = clienteBoleta?.razonSocial || clienteBoleta?.nombreCompleto || venta.clienteNombre || (esFactura ? 'RAZON SOCIAL CLIENTE' : 'PUBLICO GENERAL');
-    const clienteDocumento = clienteBoleta?.numeroDocumento || clienteBoleta?.ruc || clienteBoleta?.dni || venta.clienteDni || (esFactura ? '00000000000' : '00000000');
+    const esTicketSimple = tipoBoletaReciente === 'ticket';
+    const esElectronica = !esTicketSimple;
+    const usarFormatoTicket = esTicketSimple;
+    const clienteNombre = clienteBoleta?.razonSocial || clienteBoleta?.nombreCompleto || venta.clienteNombre || (esFactura ? 'RAZON SOCIAL CLIENTE' : 'Cliente en general');
+    const clienteDocumento = clienteBoleta?.numeroDocumento || clienteBoleta?.ruc || clienteBoleta?.dni || venta.clienteDni || (esFactura ? '00000000000' : '-');
     const hash = getBoletaHash(venta);
     const totalItems = venta.productosVendidos.reduce((sum, item) => sum + Math.max(1, item.cantidad || 1), 0);
     const ticketSeparator = '------------------------------------------------';
@@ -1075,7 +1083,7 @@ const VentasPage: React.FC = () => {
                 RUC: {boletaEmpresa.ruc || '-'}
               </Typography>
               <Typography component="div" sx={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase' }}>
-                {esFactura ? 'Factura electronica' : 'Boleta de venta electronica'}
+                {esFactura ? 'Factura electronica' : esTicketSimple ? 'Ticket simple' : 'Boleta de venta electronica'}
               </Typography>
               <Typography component="div" sx={{ mt: 0.25, fontSize: 13, fontWeight: 900 }}>
                 {formatBoletaSerieNumero(venta, tipoBoletaReciente)}
@@ -1092,7 +1100,9 @@ const VentasPage: React.FC = () => {
               </div>
             )}
             <div><strong>{esFactura ? 'Razon social' : 'Cliente'}:</strong> {clienteNombre}</div>
-            <div><strong>{esFactura ? 'RUC' : 'DNI'}:</strong> {clienteDocumento}</div>
+            {!esTicketSimple || clienteDocumento !== '-' ? (
+              <div><strong>{esFactura ? 'RUC' : 'DNI'}:</strong> {clienteDocumento}</div>
+            ) : null}
             {esFactura && clienteBoleta?.direccion && (
               <div style={{ gridColumn: '1 / -1' }}><strong>Direccion fiscal:</strong> {clienteBoleta.direccion}</div>
             )}
@@ -1101,7 +1111,7 @@ const VentasPage: React.FC = () => {
           <table className="simple-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                <th colSpan={6} style={{ background: '#000', color: '#fff', textAlign: 'left', padding: '5px 6px', fontSize: 10 }}>{esFactura ? 'DETALLES DE LA FACTURA' : 'DETALLES DE LA BOLETA'}</th>
+                <th colSpan={6} style={{ background: '#000', color: '#fff', textAlign: 'left', padding: '5px 6px', fontSize: 10 }}>{esFactura ? 'DETALLES DE LA FACTURA' : esTicketSimple ? 'DETALLE DEL TICKET' : 'DETALLES DE LA BOLETA'}</th>
               </tr>
               <tr>
                 <th style={{ background: '#000', color: '#fff', textAlign: 'center', padding: '5px 4px', fontSize: 10, width: 42 }}>Cant.</th>
@@ -1150,7 +1160,7 @@ const VentasPage: React.FC = () => {
             Op. Gravada: S/ {formatMoneyNumber(resumen.opGravada)} | IGV (18%): S/ {formatMoneyNumber(resumen.igv)} | Hash: {hash}
           </Box>
           <Box className="simple-footer" sx={{ mt: 2, textAlign: 'center', fontSize: 10 }}>
-            <div>Representación impresa de {esFactura ? 'factura electrónica' : 'boleta electrónica'}</div>
+            <div>{esTicketSimple ? 'Ticket simple de venta interna' : `Representación impresa de ${esFactura ? 'factura electrónica' : 'boleta electrónica'}`}</div>
             Gracias por su compra
           </Box>
         </Box>
@@ -1204,7 +1214,7 @@ const VentasPage: React.FC = () => {
 
         <Box className="ticket-doc" sx={{ textAlign: 'center' }}>
           <Typography component="div" sx={{ fontSize: 12.5, fontWeight: 900, lineHeight: 1.2 }}>
-            {esFactura ? 'FACTURA ELECTRÓNICA' : 'BOLETA DE VENTA ELECTRÓNICA'}
+            {esFactura ? 'FACTURA ELECTRÓNICA' : esTicketSimple ? 'TICKET SIMPLE' : 'BOLETA DE VENTA ELECTRÓNICA'}
           </Typography>
           <Typography component="div" sx={{ mt: 0.4, fontSize: 12, fontWeight: 900, lineHeight: 1.2 }}>
             {formatBoletaSerieNumero(venta, tipoBoletaReciente)}
@@ -1218,7 +1228,7 @@ const VentasPage: React.FC = () => {
         <Box className="ticket-info" sx={{ fontSize: 10, lineHeight: 1.35 }}>
           <div><strong>Fecha:</strong> {formatFechaBoleta(venta.fecha)}</div>
           <div><strong>Cliente:</strong> {clienteNombre}</div>
-          <div><strong>Doc.:</strong> {clienteDocumento}</div>
+          {clienteDocumento !== '-' ? <div><strong>Doc.:</strong> {clienteDocumento}</div> : null}
           <div><strong>Pago:</strong> {formatMetodoPagoBoleta(venta.metodoPago)}</div>
           {venta.pagos && venta.pagos.length > 1 && (
             <div><strong>Detalle:</strong> {venta.pagos.map((pago) => `${formatMetodoPagoBoleta(pago.metodo)} ${formatCurrency(pago.monto)}`).join(' + ')}</div>
@@ -1329,7 +1339,7 @@ const VentasPage: React.FC = () => {
           </>
         ) : (
           <Box className="ticket-footer" sx={{ textAlign: 'center', fontSize: 8.4, lineHeight: 1.35 }}>
-            <div>Representación impresa de boleta electrónica</div>
+            <div>{esTicketSimple ? 'Ticket simple de venta interna' : 'Representación impresa de boleta electrónica'}</div>
             <div>Gracias por su compra</div>
           </Box>
         )}
@@ -1343,9 +1353,9 @@ const VentasPage: React.FC = () => {
     const printContents = globalThis.document.getElementById('boleta-print')?.outerHTML;
     if (!printContents) return;
     const boletaNumero = ventaReciente ? formatBoletaSerieNumero(ventaReciente) : 'SIN-NUMERO';
-    const printTitle = `${tipoBoletaReciente === 'factura' ? 'Factura Electrónica' : 'Boleta Electrónica'} ${boletaNumero}`;
-    const esElectronica = false;
-    const win = globalThis.open('', '', esElectronica ? 'width=420,height=900' : 'width=760,height=900');
+    const usarFormatoTicket = tipoBoletaReciente === 'ticket';
+    const printTitle = `${tipoBoletaReciente === 'factura' ? 'Factura Electrónica' : usarFormatoTicket ? 'Ticket simple' : 'Boleta Electrónica'} ${boletaNumero}`;
+    const win = globalThis.open('', '', usarFormatoTicket ? 'width=420,height=900' : 'width=760,height=900');
     if (!win) return;
     win.document.write(`
       <html>
@@ -1501,7 +1511,7 @@ const VentasPage: React.FC = () => {
                 width: 80mm;
               }
             }
-            ${!esElectronica ? `
+            ${!usarFormatoTicket ? `
             @page { size: A4; margin: 12mm; }
             body {
               font-family: Arial, Helvetica, sans-serif;
@@ -2038,17 +2048,20 @@ const VentasPage: React.FC = () => {
             }}
             sx={{ mb: 2 }}
           >
+            <FormControlLabel value="ticket" control={<Radio />} label="Ticket simple" />
             <FormControlLabel value="boleta" control={<Radio />} label="Boleta electrónica" />
             <FormControlLabel value="factura" control={<Radio />} label="Factura electrónica" />
           </RadioGroup>
           <Alert severity="info" sx={{ mb: 2 }}>
             {tipoBoleta === 'factura'
               ? 'Factura electrónica: requiere RUC y razón social del cliente.'
-              : 'Boleta electrónica: requiere DNI y datos del cliente.'}
+              : tipoBoleta === 'ticket'
+                ? 'Ticket simple: DNI y nombre son opcionales. Si no llenas datos saldrá Cliente en general.'
+                : 'Boleta electrónica: requiere DNI y datos del cliente.'}
           </Alert>
           <Box sx={{ mb: 2 }}>
             <Typography variant="subtitle2" gutterBottom>
-              {tipoBoleta === 'factura' ? 'Datos para factura electrónica' : 'Datos para boleta electrónica'}
+              {tipoBoleta === 'factura' ? 'Datos para factura electrónica' : tipoBoleta === 'ticket' ? 'Datos opcionales para ticket simple' : 'Datos para boleta electrónica'}
             </Typography>
             {tipoBoleta === 'factura' ? (
               <Box>
@@ -2103,7 +2116,7 @@ const VentasPage: React.FC = () => {
                     inputProps={{ maxLength: 8, inputMode: 'numeric' }}
                     size="small"
                     fullWidth
-                    required
+                    required={tipoBoleta === 'boleta'}
                     error={dniCliente.trim().length > 0 && !isDniClienteValido(dniCliente)}
                     helperText={dniCliente.trim().length > 0 && !isDniClienteValido(dniCliente) ? 'Ingresa un DNI valido de 8 digitos.' : ' '}
                   />
@@ -2122,7 +2135,7 @@ const VentasPage: React.FC = () => {
                     onChange={e => setNombresCliente(e.target.value)}
                     size="small"
                     fullWidth
-                    required
+                    required={tipoBoleta === 'boleta'}
                   />
                   <TextField
                     label="Apellidos"
@@ -2303,7 +2316,7 @@ const VentasPage: React.FC = () => {
           sx: { maxWidth: 760 }
         }}
       >
-        <DialogTitle>{tipoBoletaReciente === 'factura' ? 'Venta realizada - Factura electrónica' : 'Venta realizada - Boleta electrónica'}</DialogTitle>
+        <DialogTitle>{tipoBoletaReciente === 'factura' ? 'Venta realizada - Factura electrónica' : tipoBoletaReciente === 'ticket' ? 'Venta realizada - Ticket simple' : 'Venta realizada - Boleta electrónica'}</DialogTitle>
         <DialogContent
           dividers
         >
@@ -2325,7 +2338,7 @@ const VentasPage: React.FC = () => {
             variant="contained"
             startIcon={<Print />}
           >
-            {tipoBoletaReciente === 'factura' ? 'Imprimir factura electrónica' : 'Imprimir boleta electrónica'}
+            {tipoBoletaReciente === 'factura' ? 'Imprimir factura electrónica' : tipoBoletaReciente === 'ticket' ? 'Imprimir ticket simple' : 'Imprimir boleta electrónica'}
           </Button>
         </DialogActions>
       </Dialog>
