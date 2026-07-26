@@ -941,7 +941,9 @@ const VentasPage: React.FC = () => {
   };
 
   const boletaQrPayload = ventaReciente
-    ? buildSunatQrPayload(ventaReciente, boletaEmpresa, tipoBoletaReciente, clienteBoleta)
+    ? tipoBoletaReciente === 'ticket'
+      ? `${globalThis.location.origin}/`
+      : buildSunatQrPayload(ventaReciente, boletaEmpresa, tipoBoletaReciente, clienteBoleta)
     : '';
 
   useEffect(() => {
@@ -1341,6 +1343,20 @@ const VentasPage: React.FC = () => {
           <Box className="ticket-footer" sx={{ textAlign: 'center', fontSize: 8.4, lineHeight: 1.35 }}>
             <div>{esTicketSimple ? 'Ticket simple de venta interna' : 'Representación impresa de boleta electrónica'}</div>
             <div>Gracias por su compra</div>
+            {esTicketSimple && (
+              <Box className="ticket-qr-wrap" sx={{ textAlign: 'center', my: 1.2 }}>
+                <Box className="ticket-qr-box" sx={{ display: 'inline-flex', width: 112, height: 112, alignItems: 'center', justifyContent: 'center' }}>
+                  {boletaQrDataUrl ? (
+                    <img src={boletaQrDataUrl} alt="QR para volver al catalogo" style={{ width: '100%', height: '100%' }} />
+                  ) : (
+                    <Typography variant="caption" color="text.secondary">Generando QR...</Typography>
+                  )}
+                </Box>
+                <Typography component="div" sx={{ mt: 0.5, fontSize: 8.5 }}>
+                  Escanea para volver al catalogo
+                </Typography>
+              </Box>
+            )}
           </Box>
         )}
       </Box>
@@ -1362,11 +1378,22 @@ const VentasPage: React.FC = () => {
         <head>
           <title>${printTitle}</title>
           <style>
-            @page { size: 80mm auto; margin: 3mm; }
+            @page { size: 80mm 260mm; margin: 2mm; }
             * { box-sizing: border-box; }
+            html {
+              width: 80mm;
+              min-width: 80mm;
+              max-width: 80mm;
+              margin: 0;
+              padding: 0;
+              background: #fff;
+            }
             body {
               margin: 0;
               padding: 0;
+              width: 80mm;
+              min-width: 80mm;
+              max-width: 80mm;
               font-family: Consolas, "Courier New", monospace;
               color: #111;
               background: #fff;
@@ -1513,9 +1540,16 @@ const VentasPage: React.FC = () => {
             }
             ${!usarFormatoTicket ? `
             @page { size: A4; margin: 12mm; }
+            html {
+              width: auto;
+              min-width: 0;
+              max-width: none;
+            }
             body {
               font-family: Arial, Helvetica, sans-serif;
               width: auto;
+              min-width: 0;
+              max-width: none;
             }
             @media print {
               body {
@@ -1600,9 +1634,21 @@ const VentasPage: React.FC = () => {
     `);
     win.document.close();
     win.document.title = printTitle;
-    win.focus();
-    win.print();
-    win.close();
+    const images = Array.from(win.document.images);
+    const waitForImages = Promise.all(images.map((image) => {
+      if (image.complete) return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        image.onload = () => resolve();
+        image.onerror = () => resolve();
+      });
+    }));
+    void waitForImages.then(() => {
+      win.focus();
+      setTimeout(() => {
+        win.print();
+        win.close();
+      }, 250);
+    });
   };
 
   if (loading) {

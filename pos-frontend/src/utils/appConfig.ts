@@ -14,6 +14,7 @@ export interface AppConfig {
 
 // CONSTANTE: APP_CONFIG_STORAGE_KEY guarda un valor fijo usado por este bloque.
 export const APP_CONFIG_STORAGE_KEY = 'configApp';
+export const APP_CONFIG_UPDATE_EVENT = 'configAppUpdate';
 
 export const DEFAULT_APP_CONFIG: AppConfig = {
   appName: 'Sistema POS',
@@ -32,6 +33,16 @@ export const applyAppConfigToDocument = (config: AppConfig): void => {
   const descriptionMeta = globalThis.document.querySelector('meta[name="description"]');
   if (descriptionMeta) {
     descriptionMeta.setAttribute('content', config.appName);
+  }
+
+  if (config.logo) {
+    let favicon = globalThis.document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+    if (!favicon) {
+      favicon = globalThis.document.createElement('link');
+      favicon.rel = 'icon';
+      globalThis.document.head.appendChild(favicon);
+    }
+    favicon.href = config.logo;
   }
 };
 
@@ -76,6 +87,6 @@ export const saveAppConfig = (config: Partial<AppConfig>): AppConfig => {
   globalThis.localStorage.setItem(APP_CONFIG_STORAGE_KEY, JSON.stringify(normalized));
   applyAppConfigToDocument(normalized);
   globalThis.dispatchEvent(new Event('storage'));
-  globalThis.dispatchEvent(new Event('configAppUpdate'));
+  globalThis.dispatchEvent(new Event(APP_CONFIG_UPDATE_EVENT));
   return normalized;
 };

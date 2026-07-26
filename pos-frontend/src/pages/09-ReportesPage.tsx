@@ -32,6 +32,7 @@ import { Assessment, AttachMoney, FileDownload, Inventory, PointOfSale, Warning 
 import {
   anularVenta,
   getCajas,
+  getConfiguracionSistema,
   getDashboardStats,
   getPedidosOnline,
   getVentas
@@ -40,6 +41,7 @@ import { CajaSesion, DashboardStats, PedidoOnline, Venta, VentaProducto } from '
 import { useAuth } from '../contexts/AuthContext';
 import { useI18n } from '../hooks/useI18n';
 import { formatBusinessDateTime, getBusinessDateValue } from '../utils/businessTime';
+import { BOLETA_CONFIG_UPDATE_EVENT, BoletaConfig, loadBoletaConfig, saveBoletaConfig } from '../utils/boletaConfig';
 
 type ReportStatCardProps = {
   icon: React.ReactNode;
@@ -111,9 +113,11 @@ const getMetodoPagoOnline = (pedido: PedidoOnline) => {
   return 'Pago al recoger';
 };
 
-const loadLogoBase64 = async () => {
+const loadLogoBase64 = async (logoSrc: string) => {
+  if (!logoSrc) return '';
+  if (logoSrc.startsWith('data:image/')) return logoSrc;
   try {
-    const response = await fetch('/images/Logo%20Market.png');
+    const response = await fetch(logoSrc);
     const blob = await response.blob();
     return await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
@@ -139,6 +143,7 @@ const ReportesPage: React.FC = () => {
   const [selectedVenta, setSelectedVenta] = useState<Venta | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [boletaEmpresa, setBoletaEmpresa] = useState<BoletaConfig>(() => loadBoletaConfig());
 
   const isAdmin = String(user?.rol || '').toUpperCase() === 'ADMINISTRADOR';
 
@@ -179,6 +184,11 @@ const ReportesPage: React.FC = () => {
         setVentas(Array.isArray(ventasData) ? ventasData : []);
         setPedidosOnline(Array.isArray(pedidosOnlineData) ? pedidosOnlineData : []);
         setCajas(Array.isArray(cajasData) ? cajasData : []);
+        void getConfiguracionSistema()
+          .then((config) => {
+            if (config.boleta) setBoletaEmpresa(saveBoletaConfig(config.boleta));
+          })
+          .catch(() => undefined);
       } catch (err: any) {
         setError(err?.response?.data?.message || t('No se pudieron cargar los reportes.', 'Could not load reports.'));
       } finally {
@@ -192,6 +202,16 @@ const ReportesPage: React.FC = () => {
       setLoading(false);
     }
   }, [isAdmin, t]);
+
+  useEffect(() => {
+    const reloadBoletaConfig = () => setBoletaEmpresa(loadBoletaConfig());
+    globalThis.addEventListener(BOLETA_CONFIG_UPDATE_EVENT, reloadBoletaConfig);
+    globalThis.addEventListener('storage', reloadBoletaConfig);
+    return () => {
+      globalThis.removeEventListener(BOLETA_CONFIG_UPDATE_EVENT, reloadBoletaConfig);
+      globalThis.removeEventListener('storage', reloadBoletaConfig);
+    };
+  }, []);
 
   // LOGICA REPORTES - VENTAS ONLINE:
   // Convierte pedidos online completados a la misma forma de venta para que aparezcan en Reportes.
@@ -264,7 +284,7 @@ const ReportesPage: React.FC = () => {
 
   const exportarVentasExcel = async () => {
     const workbook = new ExcelJS.Workbook();
-    workbook.creator = 'ECOMARKET - LA CANASTA';
+    workbook.creator = boletaEmpresa.nombre;
     workbook.created = new Date();
 
     const sheet = workbook.addWorksheet('Ventas', {
@@ -282,14 +302,14 @@ const ReportesPage: React.FC = () => {
       { key: 'estado', width: 15 }
     ];
 
-    const logo = await loadLogoBase64();
+    const logo = await loadLogoBase64(boletaEmpresa.logo);
     if (logo) {
       const imageId = workbook.addImage({ base64: logo, extension: 'png' });
       sheet.addImage(imageId, { tl: { col: 0.2, row: 0.2 }, ext: { width: 92, height: 64 } });
     }
 
     sheet.mergeCells('B1:H1');
-    sheet.getCell('B1').value = 'ECOMARKET - LA CANASTA';
+    sheet.getCell('B1').value = boletaEmpresa.nombre;
     sheet.getCell('B1').font = { bold: true, size: 20, color: { argb: 'FF0F172A' } };
     sheet.getCell('B1').alignment = { horizontal: 'center' };
 

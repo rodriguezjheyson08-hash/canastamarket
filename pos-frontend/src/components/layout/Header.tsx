@@ -289,7 +289,16 @@ const Header: React.FC<HeaderProps> = ({ showBack }) => {
       <AppBar position="sticky" color="primary" elevation={2} sx={{ zIndex: 1201 }}>
         <Toolbar>
           {showBack && <BackButton />}
-          <StorefrontIcon sx={{ mx: 1, fontSize: 32 }} />
+          {config.logo ? (
+            <Box
+              component="img"
+              src={config.logo}
+              alt={config.appName}
+              sx={{ mx: 1, width: 34, height: 34, objectFit: 'contain', bgcolor: 'white', borderRadius: 1 }}
+            />
+          ) : (
+            <StorefrontIcon sx={{ mx: 1, fontSize: 32 }} />
+          )}
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
             {config.appName}
           </Typography>

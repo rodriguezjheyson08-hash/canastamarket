@@ -8,7 +8,7 @@
 // Lee configuracion visual/de negocio que otras pantallas consumen.
 // LOGICA FRONTEND - CAMBIOS: aqui se cambia como React obtiene configuracion de la app.
 import { useCallback, useEffect, useState } from 'react';
-import { AppConfig, applyAppConfigToDocument, loadAppConfig, saveAppConfig } from '../utils/appConfig';
+import { APP_CONFIG_UPDATE_EVENT, AppConfig, applyAppConfigToDocument, loadAppConfig, saveAppConfig } from '../utils/appConfig';
 import { getConfiguracionPublica } from '../services/api';
 
 const CONFIG_REFRESH_MS = 10_000;
@@ -43,11 +43,11 @@ export const useAppConfig = (): AppConfig => {
   }, []);
 
   useEffect(() => {
-    globalThis.addEventListener('configAppUpdate', reloadConfig);
+    globalThis.addEventListener(APP_CONFIG_UPDATE_EVENT, reloadConfig);
     globalThis.addEventListener('storage', reloadConfig);
 
     return () => {
-      globalThis.removeEventListener('configAppUpdate', reloadConfig);
+      globalThis.removeEventListener(APP_CONFIG_UPDATE_EVENT, reloadConfig);
       globalThis.removeEventListener('storage', reloadConfig);
     };
   }, [reloadConfig]);
