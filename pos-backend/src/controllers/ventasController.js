@@ -28,12 +28,38 @@ const getPeruDateKey = (value = new Date()) => {
   }).format(date);
 };
 
+const getCorrelativoTipo = (tipoComprobante) => {
+  if (tipoComprobante === 'factura') return 'factura';
+  if (tipoComprobante === 'boleta') return 'boleta';
+  return 'ticket';
+};
+
+const reservarNumeroComprobante = async (connection, tipoComprobante) => {
+  const tipo = getCorrelativoTipo(tipoComprobante);
+  await connection.execute(
+    `INSERT INTO venta_correlativos (tipo_comprobante, ultimo_numero)
+     VALUES (?, 0)
+     ON DUPLICATE KEY UPDATE ultimo_numero = ultimo_numero`,
+    [tipo]
+  );
+  const [rows] = await connection.query(
+    'SELECT ultimo_numero FROM venta_correlativos WHERE tipo_comprobante = ? FOR UPDATE',
+    [tipo]
+  );
+  const siguiente = Number(rows[0]?.ultimo_numero || 0) + 1;
+  await connection.execute(
+    'UPDATE venta_correlativos SET ultimo_numero = ? WHERE tipo_comprobante = ?',
+    [siguiente, tipo]
+  );
+  return siguiente;
+};
+
 // CONTROLADOR BACKEND: fetch Venta By Id procesa request/respuesta de este flujo.
 const fetchVentaById = async (ventaId) => {
   await ensureCajasSchema();
   await ensureVentaOptionalColumns();
   const [ventas] = await pool.query(
-    `SELECT id, total, estado, anulada_motivo, anulada_at, metodo_pago, recibido, vuelto, cliente_dni, cliente_nombre,
+    `SELECT id, numero_comprobante, total, estado, anulada_motivo, anulada_at, metodo_pago, recibido, vuelto, cliente_dni, cliente_nombre,
             tipo_comprobante, cliente_tipo_documento, cliente_numero_documento, cliente_ruc, cliente_direccion,
             vendedor_id, vendedor_usuario, vendedor_nombre, pago_referencia, pago_confirmado_at,
             caja_sesion_id, fecha
@@ -68,7 +94,7 @@ const listVentas = async (req, res) => {
   const where = isCajero(req) ? 'WHERE vendedor_id = ?' : '';
   if (isCajero(req)) params.push(Number(req.auth?.sub));
   const [ventas] = await pool.query(
-    `SELECT id, total, estado, anulada_motivo, anulada_at, metodo_pago, recibido, vuelto, cliente_dni, cliente_nombre,
+    `SELECT id, numero_comprobante, total, estado, anulada_motivo, anulada_at, metodo_pago, recibido, vuelto, cliente_dni, cliente_nombre,
             tipo_comprobante, cliente_tipo_documento, cliente_numero_documento, cliente_ruc, cliente_direccion,
             vendedor_id, vendedor_usuario, vendedor_nombre, pago_referencia, pago_confirmado_at,
             caja_sesion_id, fecha
@@ -269,15 +295,17 @@ const createVenta = async (req, res) => {
     const efectivoPago = pagosPreparados.find((pago) => pago.metodo === 'efectivo');
     const recibidoValue = efectivoPago?.recibido ?? totalCalculado;
     const vueltoValue = efectivoPago?.vuelto ?? 0;
+    const numeroComprobante = await reservarNumeroComprobante(connection, cleanTipoComprobante);
 
     const [ventaResult] = await connection.execute(
       `INSERT INTO ventas (
-        total, metodo_pago, recibido, vuelto, cliente_dni, cliente_nombre,
+        numero_comprobante, total, metodo_pago, recibido, vuelto, cliente_dni, cliente_nombre,
         tipo_comprobante, cliente_tipo_documento, cliente_numero_documento, cliente_ruc, cliente_direccion,
         vendedor_id, vendedor_usuario, vendedor_nombre, pago_referencia, pago_confirmado_at,
         caja_sesion_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
+        numeroComprobante,
         totalCalculado,
         metodoVenta,
         recibidoValue,

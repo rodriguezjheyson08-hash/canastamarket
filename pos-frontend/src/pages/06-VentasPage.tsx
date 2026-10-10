@@ -1050,6 +1050,7 @@ const VentasPage: React.FC = () => {
     const clienteDocumento = clienteBoleta?.numeroDocumento || clienteBoleta?.ruc || clienteBoleta?.dni || venta.clienteDni || (esFactura ? '00000000000' : '-');
     const hash = getBoletaHash(venta);
     const totalItems = venta.productosVendidos.reduce((sum, item) => sum + Math.max(1, item.cantidad || 1), 0);
+    const ticketSeparator = '------------------------------------------------';
     const ticketLogoSrc = (boletaEmpresa.logo || '').replace(/%20/g, ' ');
 
     if (!usarFormatoTicket) {
@@ -1209,7 +1210,9 @@ const VentasPage: React.FC = () => {
           </Typography>
         </Box>
 
-        <Box className="ticket-separator" aria-hidden="true" sx={{ my: 0.9 }} />
+        <Box className="ticket-separator" sx={{ my: 0.9, fontSize: 10, lineHeight: 1, whiteSpace: 'pre', overflow: 'hidden' }}>
+          {ticketSeparator}
+        </Box>
 
         <Box className="ticket-doc" sx={{ textAlign: 'center' }}>
           <Typography component="div" sx={{ fontSize: 12.5, fontWeight: 900, lineHeight: 1.2 }}>
@@ -1220,7 +1223,9 @@ const VentasPage: React.FC = () => {
           </Typography>
         </Box>
 
-        <Box className="ticket-separator" aria-hidden="true" sx={{ my: 0.9 }} />
+        <Box className="ticket-separator" sx={{ my: 0.9, fontSize: 10, lineHeight: 1, whiteSpace: 'pre', overflow: 'hidden' }}>
+          {ticketSeparator}
+        </Box>
 
         <Box className="ticket-info" sx={{ fontSize: 10, lineHeight: 1.35 }}>
           <div><strong>Fecha:</strong> {formatFechaBoleta(venta.fecha)}</div>
@@ -1233,7 +1238,9 @@ const VentasPage: React.FC = () => {
           <div><strong>Moneda:</strong> SOL</div>
         </Box>
 
-        <Box className="ticket-separator" aria-hidden="true" sx={{ my: 0.9 }} />
+        <Box className="ticket-separator" sx={{ my: 0.9, fontSize: 10, lineHeight: 1, whiteSpace: 'pre', overflow: 'hidden' }}>
+          {ticketSeparator}
+        </Box>
 
         <table className="ticket-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
@@ -1265,7 +1272,9 @@ const VentasPage: React.FC = () => {
           </tbody>
         </table>
 
-        <Box className="ticket-separator" aria-hidden="true" sx={{ my: 0.9 }} />
+        <Box className="ticket-separator" sx={{ my: 0.9, fontSize: 10, lineHeight: 1, whiteSpace: 'pre', overflow: 'hidden' }}>
+          {ticketSeparator}
+        </Box>
 
         <Box className="ticket-totals" sx={{ fontSize: 10, lineHeight: 1.45 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -1289,13 +1298,17 @@ const VentasPage: React.FC = () => {
           </div>
         </Box>
 
-        <Box className="ticket-separator" aria-hidden="true" sx={{ my: 0.9 }} />
+        <Box className="ticket-separator" sx={{ my: 0.9, fontSize: 10, lineHeight: 1, whiteSpace: 'pre', overflow: 'hidden' }}>
+          {ticketSeparator}
+        </Box>
 
         <Box className="ticket-amount-words" sx={{ fontSize: 9, fontWeight: 700, lineHeight: 1.25 }}>
           {montoEnLetras(resumen.total)}
         </Box>
 
-        <Box className="ticket-separator" aria-hidden="true" sx={{ my: 0.9 }} />
+        <Box className="ticket-separator" sx={{ my: 0.9, fontSize: 10, lineHeight: 1, whiteSpace: 'pre', overflow: 'hidden' }}>
+          {ticketSeparator}
+        </Box>
 
         {esElectronica ? (
           <>
@@ -1317,7 +1330,9 @@ const VentasPage: React.FC = () => {
               </Typography>
             </Box>
 
-            <Box className="ticket-separator" aria-hidden="true" sx={{ my: 0.9 }} />
+            <Box className="ticket-separator" sx={{ my: 0.9, fontSize: 10, lineHeight: 1, whiteSpace: 'pre', overflow: 'hidden' }}>
+              {ticketSeparator}
+            </Box>
 
             <Box className="ticket-footer" sx={{ textAlign: 'center', fontSize: 8.4, lineHeight: 1.35 }}>
               <div>Consulte su documento en SUNAT</div>
@@ -1440,11 +1455,11 @@ const VentasPage: React.FC = () => {
               margin: 2.2mm 0;
             }
             .ticket-separator {
-              display: block;
-              width: 100%;
-              height: 0;
-              margin: 2mm 0;
-              border-top: 1px dashed #111;
+              margin: 1.6mm 0;
+              font-size: 7pt;
+              line-height: 1;
+              white-space: pre;
+              overflow: hidden;
             }
             .ticket-info {
               font-size: 7.3pt;
@@ -1506,10 +1521,6 @@ const VentasPage: React.FC = () => {
               font-weight: 800;
             }
             .ticket-amount-words {
-              border-top: 1px dashed #111;
-              border-bottom: 1px dashed #111;
-              padding: 1.5mm 0;
-              margin: 2mm 0;
               font-size: 6.8pt;
               font-weight: 700;
             }
@@ -1534,8 +1545,6 @@ const VentasPage: React.FC = () => {
               height: 100%;
             }
             .ticket-footer {
-              border-top: 1px dashed #111;
-              padding-top: 2mm;
               text-align: center;
               font-size: 6.8pt;
               line-height: 1.35;

@@ -105,6 +105,9 @@ const main = async () => {
       venta_pagos: await tableExists(connection, 'venta_pagos')
         ? await fetchRows(connection, 'SELECT * FROM venta_pagos ORDER BY id')
         : [],
+      venta_correlativos: await tableExists(connection, 'venta_correlativos')
+        ? await fetchRows(connection, 'SELECT * FROM venta_correlativos ORDER BY tipo_comprobante')
+        : [],
       inventario_movimientos_venta: await tableExists(connection, 'inventario_movimientos')
         ? await fetchRows(connection, "SELECT * FROM inventario_movimientos WHERE referencia_tipo = 'VENTA' ORDER BY id")
         : [],
@@ -123,6 +126,7 @@ const main = async () => {
       ventas: backup.ventas.length,
       detalles: backup.venta_detalles.length,
       pagos: backup.venta_pagos.length,
+      correlativos: backup.venta_correlativos.length,
       movimientosVenta: backup.inventario_movimientos_venta.length,
       cajas: backup.caja_sesiones.length,
       movimientosCaja: backup.caja_movimientos_efectivo.length
@@ -152,6 +156,9 @@ const main = async () => {
       await connection.query("DELETE FROM inventario_movimientos WHERE referencia_tipo = 'VENTA'");
     }
     await connection.query('DELETE FROM ventas');
+    if (await tableExists(connection, 'venta_correlativos')) {
+      await connection.query('DELETE FROM venta_correlativos');
+    }
 
     if (resetCaja) {
       if (await tableExists(connection, 'caja_movimientos_efectivo')) {

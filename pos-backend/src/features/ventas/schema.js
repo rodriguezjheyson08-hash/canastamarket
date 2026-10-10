@@ -25,7 +25,8 @@ const ensureVentaOptionalColumns = async (runner = pool) => {
           'cliente_ruc', 'cliente_direccion',
           'vendedor_id', 'vendedor_usuario', 'vendedor_nombre',
           'pago_referencia', 'pago_confirmado_at', 'caja_sesion_id',
-          'estado', 'anulada_at', 'anulada_motivo', 'anulada_por_id', 'anulada_por_nombre'
+          'estado', 'anulada_at', 'anulada_motivo', 'anulada_por_id', 'anulada_por_nombre',
+          'numero_comprobante'
         )`
   );
 
@@ -110,6 +111,19 @@ const ensureVentaOptionalColumns = async (runner = pool) => {
   if (!columnSet.has('anulada_por_nombre')) {
     await runner.query('ALTER TABLE ventas ADD COLUMN anulada_por_nombre VARCHAR(160) NULL');
   }
+
+  if (!columnSet.has('numero_comprobante')) {
+    await runner.query('ALTER TABLE ventas ADD COLUMN numero_comprobante INT NULL');
+    await runner.query('CREATE INDEX idx_ventas_comprobante_numero ON ventas (tipo_comprobante, numero_comprobante)');
+  }
+
+  await runner.query(`
+    CREATE TABLE IF NOT EXISTS venta_correlativos (
+      tipo_comprobante VARCHAR(20) NOT NULL PRIMARY KEY,
+      ultimo_numero INT NOT NULL DEFAULT 0,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `);
 
   ventasColumnsChecked = true;
 };

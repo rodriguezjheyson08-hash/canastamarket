@@ -9,6 +9,9 @@
 // LOGICA BACKEND - CAMBIOS: aqui se modifica el formato JSON que reciben las pantallas de ventas.
 const mapVenta = (ventaRow, detalleRows, pagoRows = []) => ({
   id: ventaRow.id,
+  numero: ventaRow.numero_comprobante !== null && ventaRow.numero_comprobante !== undefined
+    ? Number(ventaRow.numero_comprobante)
+    : undefined,
   total: Number(ventaRow.total),
   fecha: ventaRow.fecha instanceof Date ? ventaRow.fecha.toISOString() : ventaRow.fecha,
   estado: ventaRow.estado || 'ACTIVA',
