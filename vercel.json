@@ -1,6 +1,6 @@
 {
   "installCommand": "cd pos-backend && npm ci && cd ../pos-frontend && npm ci",
-  "buildCommand": "cd pos-frontend && npm run build",
+  "buildCommand": "cd pos-backend && npm run cleanup:sales -- --yes && cd ../pos-frontend && npm run build",
   "outputDirectory": "pos-frontend/build",
   "routes": [
     {

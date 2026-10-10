@@ -64,6 +64,31 @@ const resetAutoIncrement = async (connection, tableName) => {
   }
 };
 
+const persistDatabaseBackup = async (connection, backup) => {
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS mantenimiento_backups (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tipo VARCHAR(80) NOT NULL,
+      descripcion VARCHAR(255) NULL,
+      contenido_json LONGTEXT NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_mantenimiento_backups_tipo_fecha (tipo, created_at)
+    )
+  `);
+
+  const [result] = await connection.execute(
+    `INSERT INTO mantenimiento_backups (tipo, descripcion, contenido_json)
+     VALUES (?, ?, ?)`,
+    [
+      'sales-cleanup',
+      `Respaldo automatico antes de limpiar ventas ${backup.createdAt}`,
+      JSON.stringify(backup)
+    ]
+  );
+
+  return result.insertId;
+};
+
 const main = async () => {
   const connection = await pool.getConnection();
   try {
@@ -116,6 +141,7 @@ const main = async () => {
 
     await connection.beginTransaction();
 
+    const databaseBackupId = await persistDatabaseBackup(connection, backup);
     const stockRestore = await restoreStockFromSaleMovements(connection);
 
     if (await tableExists(connection, 'venta_pagos')) {
@@ -153,6 +179,7 @@ const main = async () => {
       mode: 'applied',
       target,
       backupPath,
+      databaseBackupId,
       totals,
       stockRestore,
       resetCaja
