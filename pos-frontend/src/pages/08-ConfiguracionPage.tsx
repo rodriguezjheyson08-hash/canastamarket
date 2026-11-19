@@ -493,7 +493,7 @@ const ConfiguracionPage: React.FC = () => {
   }
 
   return (
-    <Container maxWidth={false} sx={{ mt: { xs: 2, md: 4 }, mb: 4, px: { xs: 1.5, sm: 2.5, lg: 4 } }}>
+    <Container maxWidth={false} sx={{ mt: { xs: 2, md: 4 }, mb: 4, px: { xs: 1.5, sm: 3, lg: 5 }, maxWidth: 1360, mx: 'auto' }}>
       <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
         <Box display="flex" alignItems="center" gap={1.5}>
           <People color="primary" sx={{ fontSize: 40 }} />

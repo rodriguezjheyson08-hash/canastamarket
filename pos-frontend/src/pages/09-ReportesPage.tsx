@@ -536,14 +536,14 @@ const ReportesPage: React.FC = () => {
   // Mensaje mostrado cuando el usuario no es administrador.
   if (!isAdmin) {
     return (
-      <Container maxWidth={false} sx={{ mt: 4, mb: 4, px: { xs: 1.5, sm: 2.5, lg: 4 } }}>
+      <Container maxWidth={false} sx={{ mt: 4, mb: 4, px: { xs: 1.5, sm: 3, lg: 5 }, maxWidth: 1360, mx: 'auto' }}>
         <Alert severity="warning">{t('Solo el administrador puede consultar reportes.', 'Only the administrator can view reports.')}</Alert>
       </Container>
     );
   }
 
   return (
-    <Container maxWidth={false} sx={{ mt: { xs: 2, md: 4 }, mb: 4, px: { xs: 1.5, sm: 2.5, lg: 4 } }}>
+    <Container maxWidth={false} sx={{ mt: { xs: 2, md: 4 }, mb: 4, px: { xs: 1.5, sm: 3, lg: 5 }, maxWidth: 1360, mx: 'auto' }}>
       {/* DISEÑO REPORTES - PARTE SUPERIOR:
           Titulo principal con icono de reportes. */}
       <Box display="flex" alignItems="center" gap={1.5} mb={2}>

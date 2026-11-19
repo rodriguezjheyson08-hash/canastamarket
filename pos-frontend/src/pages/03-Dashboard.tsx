@@ -46,7 +46,7 @@ const StatCard = ({ title, value, loading, icon }: { title: string; value: strin
     return (
         // DISEÑO: Card es la caja blanca; aqui se define padding, ancho, alto minimo,
         // direccion vertical, alineacion hacia la izquierda y sombra.
-        <Card sx={{ p: { xs: 2, sm: 3 }, width: '100%', minHeight: 120, boxShadow: 3, transition: 'transform .2s ease, box-shadow .2s ease', '&:hover': { transform: 'translateY(-3px)', boxShadow: 6 } }}>
+        <Card sx={{ p: 3, width: '100%', minHeight: 120, boxShadow: 3 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, height: '100%' }}>
                 <Box sx={{ minWidth: 0 }}>
                     {/* DISEÑO: titulo pequeno de la caja, por ejemplo "Ventas Hoy". */}
@@ -220,7 +220,7 @@ const Dashboard: React.FC = () => {
   };
 
   return (
-    <Container maxWidth={false} sx={{ mt: { xs: 2, md: 4 }, mb: 4, px: { xs: 1.5, sm: 2.5, lg: 4 } }}>
+    <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
       {/* Header */}
       <Box mb={4}>
         <Box display="flex" alignItems="center" mb={2}>
@@ -273,7 +273,7 @@ const Dashboard: React.FC = () => {
           const itemPath = item.path;
           const handleCardClick = !isDesignOnly && isEnabled && itemPath ? () => navigate(itemPath) : undefined;
           return (
-            <Grid item xs={12} sm={6} md={4} lg={3} key={item.title}>
+            <Grid item xs={12} sm={6} lg={4} xl={3} key={item.title}>
               {/* DISEÑO: Box sirve como contenedor relativo para poder poner el candado encima si no hay permiso. */}
               <Box position="relative">
                 {/* DISEÑO - CAJA/CARTA DEL MENU:
@@ -288,17 +288,13 @@ const Dashboard: React.FC = () => {
                     opacity: isDisabled ? 0.7 : hasPermission ? 1 : 0.7,
                     border: '2px solid transparent',
                     borderRadius: 3,
-                    transition: 'transform .25s ease, box-shadow .25s ease, border-color .25s ease, filter 0.2s',
-                    '& .modulo-icono': { display: 'inline-flex', transition: 'transform .25s ease' },
-                    // EFECTO HOVER: la tarjeta sube, gana sombra y borde del color del modulo; el icono crece.
+                    transition: 'box-shadow .25s ease, border-color .25s ease, filter 0.2s',
+                    // EFECTO HOVER (sin movimiento): solo cambia la sombra y el borde toma el color del modulo.
                     ...(isEnabled && !isDesignOnly && {
                       '&:hover': {
-                        transform: 'translateY(-6px)',
-                        boxShadow: '0 12px 28px rgba(0,0,0,0.18)',
+                        boxShadow: '0 8px 22px rgba(0,0,0,0.16)',
                         borderColor: item.color
-                      },
-                      '&:hover .modulo-icono': { transform: 'scale(1.18)' },
-                      '&:active': { transform: 'translateY(-2px)' }
+                      }
                     })
                   }}
                   onClick={handleCardClick}
@@ -306,7 +302,7 @@ const Dashboard: React.FC = () => {
                   {/* DISEÑO: contenido centrado dentro de la carta, con espacio vertical. */}
                   <CardContent sx={{ textAlign: 'center', py: 4 }}>
                     {/* DISEÑO: icono superior de la carta; el color viene de item.color. */}
-                    <Box className="modulo-icono" sx={{ color: item.color, mb: 2 }}>
+                    <Box sx={{ color: item.color, mb: 2 }}>
                       {item.permission === 'pedidosOnline' ? (
                         <Badge badgeContent={pedidosPendientes} color="error" invisible={pedidosPendientes === 0}>
                           {item.icon}
