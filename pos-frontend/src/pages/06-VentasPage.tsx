@@ -1480,7 +1480,6 @@ const VentasPage: React.FC = () => {
               text-align: right !important;
             }
             .ticket-table th {
-              border-bottom: 1px dashed #111;
               padding: 1mm 0;
               font-size: 7pt;
               font-weight: 700;
