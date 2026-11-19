@@ -27,7 +27,7 @@ export const pageContainerStyles: SxProps<Theme> = {
   mt: { xs: 2, md: 4 },
   mb: 4,
   // Ancho completo: aprovecha toda la pantalla en escritorio y deja margen comodo en celular.
-  px: { xs: 1.5, sm: 3, lg: 5 },
-  maxWidth: 1360,
+  px: { xs: 1.5, sm: 3 },
+  maxWidth: { xs: '100%', lg: '92%', xl: '90%' },
   mx: 'auto'
 };

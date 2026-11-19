@@ -246,7 +246,7 @@ const InventarioPage: React.FC = () => {
   };
 
   return (
-    <Container maxWidth={false} sx={{ mt: { xs: 2, md: 4 }, mb: 4, px: { xs: 1.5, sm: 3, lg: 5 }, maxWidth: 1360, mx: 'auto' }}>
+    <Container maxWidth={false} sx={{ mt: { xs: 2, md: 4 }, mb: 4, px: { xs: 1.5, sm: 3 }, maxWidth: { xs: '100%', lg: '92%', xl: '90%' }, mx: 'auto' }}>
       <Box display="flex" alignItems="center" justifyContent="space-between" gap={2} mb={3}>
         <Box>
           <Typography variant="h4" fontWeight={800}>Operaciones</Typography>
