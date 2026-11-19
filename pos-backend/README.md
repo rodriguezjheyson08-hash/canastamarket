@@ -1,73 +1,45 @@
-# Backend POS - MySQL
+# Backend
 
-Este backend conecta el frontend con MySQL para registrar productos, categorías y ventas (control de stock).
+API Express del sistema MiniMarket POS.
 
-## Requisitos
-- Node.js 16+
-- MySQL 8+
+## Puerto
 
-## Configuración rápida
-1. Crea/edita el archivo `.env` con tus credenciales.
-2. Crea la base de datos y tablas:
-   ```bash
-   mysql -u root -p < database/schema.sql
-   ```
-   Si ya tenías la base creada, aplica:
-   ```bash
-   mysql -u root -p < database/alter_usuarios_lockout.sql
-   mysql -u root -p < database/alter_usuarios_status.sql
-   ```
-3. Instala dependencias y levanta la API:
-   ```bash
-   npm install
-   npm start
-   ```
+`http://localhost:8083/api`
 
-La API quedará en `http://localhost:8083/api`.
+El script `npm start` inicia el backend en esta terminal y se apaga con `Ctrl+C`.
+Siempre usa el puerto `8083`; no abre otro puerto alternativo.
 
-Variables recomendadas en `.env`:
-```env
-PORT=8083
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=
-DB_NAME=licoreria_pos
-MP_ACCESS_TOKEN=
-RENIEC_BASE_URL=https://api.decolecta.com/v1/reniec/dni
-RENIEC_TOKEN=tu_token_decolecta
+## Comandos
+
+```bash
+npm install
+npm start
+npm run dev
 ```
 
 ## Estructura
-```
-pos-backend/
-├── database/            # Scripts SQL
-├── src/
-│   ├── config/          # Variables de entorno
-│   ├── controllers/     # Lógica de negocio
-│   ├── db/              # Pool de MySQL
-│   ├── routes/          # Rutas HTTP
-│   └── utils/            # Helpers
-└── .env
-```
 
-## Endpoints principales
-- `GET /api/productos`
-- `POST /api/productos`
-- `PUT /api/productos/:id`
-- `DELETE /api/productos/:id`
-- `GET /api/categorias`
-- `POST /api/categorias`
-- `PUT /api/categorias/:id`
-- `DELETE /api/categorias/:id`
-- `GET /api/ventas`
-- `POST /api/ventas`
-- `GET /api/dashboard/stats`
-- `POST /api/auth/login`
-- `GET /api/dni/:dni`
+- `src/index.js`: aplicacion Express.
+- `scripts/start-fixed-port.js`: fuerza el puerto `8083` y permite controlar el proceso con `Ctrl+C`.
+- `src/config/env.js`: lectura de variables `.env`.
+- `src/db/pool.js`: conexion MySQL.
+- `src/routes/`: endpoints HTTP.
+- `src/controllers/`: logica de negocio.
+- `src/utils/`: helpers de autenticacion, permisos y migraciones.
+- `src/pagos/`: integracion Mercado Pago.
+- `src/apidni/`: consulta externa de DNI.
+- `database/`: scripts SQL.
 
-## Notas
-- El backend ahora usa contraseñas con hash y tokens firmados.
-- Antes de producción configura `AUTH_SECRET` y `CORS_ORIGIN`.
-- El `schema.sql` ya no crea usuarios demo por defecto. Debes provisionar el primer administrador manualmente.
-- Si cambias el puerto del backend, actualiza `REACT_APP_API_URL` en el frontend.
+## Configuracion
+
+Archivo activo: `.env`
+
+Plantilla: `../docs/configuracion/backend.env.plantilla`
+
+Valores principales:
+
+```env
+PORT=8083
+CORS_ORIGIN=http://localhost:3000
+DB_NAME=licoreria_pos
+```

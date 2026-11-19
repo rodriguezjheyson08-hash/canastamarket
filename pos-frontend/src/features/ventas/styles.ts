@@ -22,11 +22,12 @@ export const productoCardStyles = (stockActual: number): SxProps<Theme> => ({
 
 // DISEÑO VENTAS: imagen del producto dentro de la tarjeta.
 export const productoImagenStyles: SxProps<Theme> = {
-  width: 70,
-  height: 120,
+  width: '100%',
+  height: { xs: 130, sm: 150, md: 160 },
   objectFit: 'contain',
   borderRadius: 2,
-  bgcolor: '#f5f5f5',
+  bgcolor: '#ffffff',
+  p: 1,
   mb: 1
 };
 
