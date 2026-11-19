@@ -493,7 +493,7 @@ const ConfiguracionPage: React.FC = () => {
   }
 
   return (
-    <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+    <Container maxWidth={false} sx={{ mt: { xs: 2, md: 4 }, mb: 4, px: { xs: 1.5, sm: 2.5, lg: 4 } }}>
       <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
         <Box display="flex" alignItems="center" gap={1.5}>
           <People color="primary" sx={{ fontSize: 40 }} />
@@ -891,6 +891,15 @@ const ConfiguracionPage: React.FC = () => {
                       label="Dirección"
                       value={boletaConfigForm.direccion}
                       onChange={(event) => setBoletaConfigForm((prev) => ({ ...prev, direccion: event.target.value }))}
+                      fullWidth
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      label="URL de ubicacion / Google Maps"
+                      value={boletaConfigForm.mapaUrl}
+                      onChange={(event) => setBoletaConfigForm((prev) => ({ ...prev, mapaUrl: event.target.value }))}
+                      helperText="Pega el enlace de Google Maps para que el cliente pueda abrir la ubicacion del local."
                       fullWidth
                     />
                   </Grid>

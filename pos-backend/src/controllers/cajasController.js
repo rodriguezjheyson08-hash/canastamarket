@@ -325,6 +325,16 @@ const registrarMovimientoEfectivo = async (req, res) => {
   const caja = await findCajaAbierta(usuarioId);
   if (!caja) return res.status(409).json({ message: 'Debes abrir caja antes de registrar movimientos de efectivo.' });
 
+  // Una salida no puede dejar la gaveta en negativo: no puede superar el efectivo esperado en caja.
+  if (tipo === 'SALIDA') {
+    const resumen = await getResumenCaja(caja);
+    if (toMoney(monto) > resumen.montoEsperado) {
+      return res.status(400).json({
+        message: `La salida supera el efectivo disponible en caja (S/ ${resumen.montoEsperado.toFixed(2)}).`
+      });
+    }
+  }
+
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();

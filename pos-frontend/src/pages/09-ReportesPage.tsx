@@ -17,8 +17,10 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Chip,
   Divider,
   Grid,
+  Stack,
   Table,
   TableBody,
   TableCell,
@@ -26,6 +28,7 @@ import {
   TableHead,
   TableRow,
   TextField,
+  MenuItem,
   Typography
 } from '@mui/material';
 import { Assessment, AttachMoney, FileDownload, Inventory, PointOfSale, Warning } from '@mui/icons-material';
@@ -81,6 +84,117 @@ const formatDateTime = formatBusinessDateTime;
 const getSaleDateValue = getBusinessDateValue;
 
 const esVentaDelDia = (venta: Venta) => getSaleDateValue(venta.fecha) === getSaleDateValue(new Date().toISOString());
+
+type PeriodoReporte = 'dia' | 'semana' | 'mes' | 'anio' | 'rango';
+type UnidadRango = 'dia' | 'mes' | 'anio';
+type RangoReporte = { unidad: UnidadRango; desde: string; hasta: string };
+
+const todayDateValue = () => getBusinessDateValue(new Date().toISOString());
+
+const parseDateValue = (value: string) => new Date(`${value}T00:00:00`);
+
+const formatShortDate = (date: Date) => date.toLocaleDateString('es-PE', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric'
+});
+
+const getWeekRange = (dateValue: string) => {
+  const date = parseDateValue(dateValue);
+  const dayOffset = (date.getDay() + 6) % 7;
+  const start = new Date(date);
+  start.setDate(date.getDate() - dayOffset);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  return { start, end };
+};
+
+const ventaEstaEnPeriodo = (venta: Venta, tipo: PeriodoReporte, value: string, rango?: RangoReporte) => {
+  if (tipo === 'rango') {
+    const bounds = rango ? getRangoBounds(rango) : null;
+    if (!bounds) return true;
+    const ventaFecha = getSaleDateValue(venta.fecha);
+    return ventaFecha >= bounds.start && ventaFecha <= bounds.end;
+  }
+  if (!value) return true;
+  const ventaDateValue = getSaleDateValue(venta.fecha);
+  if (tipo === 'dia') return ventaDateValue === value;
+  if (tipo === 'mes') return ventaDateValue.startsWith(value);
+  if (tipo === 'anio') return ventaDateValue.startsWith(value);
+  const ventaDate = parseDateValue(ventaDateValue);
+  const { start, end } = getWeekRange(value);
+  return ventaDate >= start && ventaDate <= end;
+};
+
+const getPeriodoLabel = (tipo: PeriodoReporte, value: string, rango?: RangoReporte) => {
+  if (tipo === 'rango') {
+    const bounds = rango ? getRangoBounds(rango) : null;
+    if (!bounds) return 'general';
+    return `del ${formatShortDate(parseDateValue(bounds.start))} al ${formatShortDate(parseDateValue(bounds.end))}`;
+  }
+  if (!value) return 'general';
+  if (tipo === 'dia') return `dia ${value}`;
+  if (tipo === 'mes') return `mes ${value}`;
+  if (tipo === 'anio') return `anio ${value}`;
+  const { start, end } = getWeekRange(value);
+  return `semana ${formatShortDate(start)} - ${formatShortDate(end)}`;
+};
+
+const getPeriodoFileName = (tipo: PeriodoReporte, value: string, rango?: RangoReporte) =>
+  getPeriodoLabel(tipo, value, rango).replace(/[^\w-]+/g, '_').replace(/^_+|_+$/g, '') || 'general';
+
+const getPeriodoInputType = (tipo: PeriodoReporte | UnidadRango) => {
+  if (tipo === 'mes') return 'month';
+  if (tipo === 'anio') return 'number';
+  return 'date';
+};
+
+// LOGICA REPORTES - RANGO DE FECHAS:
+// Permite filtrar "desde" y "hasta" por dias, meses o años (ej: enero 2026 a marzo 2026).
+const toDateValue = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+const RANGO_FORMATO: Record<UnidadRango, RegExp> = {
+  dia: /^\d{4}-\d{2}-\d{2}$/,
+  mes: /^\d{4}-\d{2}$/,
+  anio: /^\d{4}$/
+};
+
+// Convierte desde/hasta de cualquier unidad a fechas yyyy-mm-dd inclusivas. Si las fechas
+// vienen invertidas las acomoda; si falta alguna o el formato es incompleto no filtra.
+const getRangoBounds = ({ unidad, desde, hasta }: RangoReporte) => {
+  if (!RANGO_FORMATO[unidad].test(desde) || !RANGO_FORMATO[unidad].test(hasta)) return null;
+  const [a, b] = desde <= hasta ? [desde, hasta] : [hasta, desde];
+  if (unidad === 'anio') return { start: `${a}-01-01`, end: `${b}-12-31` };
+  if (unidad === 'mes') {
+    const [year, month] = b.split('-').map(Number);
+    const lastDay = new Date(year, month, 0).getDate();
+    return { start: `${a}-01`, end: `${b}-${String(lastDay).padStart(2, '0')}` };
+  }
+  return { start: a, end: b };
+};
+
+const getRangoPorDefecto = (unidad: UnidadRango): RangoReporte => {
+  const today = todayDateValue();
+  if (unidad === 'mes') return { unidad, desde: `${today.slice(0, 4)}-01`, hasta: today.slice(0, 7) };
+  if (unidad === 'anio') return { unidad, desde: String(Number(today.slice(0, 4)) - 1), hasta: today.slice(0, 4) };
+  return { unidad, desde: `${today.slice(0, 7)}-01`, hasta: today };
+};
+
+const getRangoPresets = (): Array<{ label: string; rango: RangoReporte }> => {
+  const today = todayDateValue();
+  const base = parseDateValue(today);
+  const hace30 = new Date(base);
+  hace30.setDate(base.getDate() - 29);
+  const mesAnteriorInicio = new Date(base.getFullYear(), base.getMonth() - 1, 1);
+  const mesAnteriorFin = new Date(base.getFullYear(), base.getMonth(), 0);
+  return [
+    { label: 'Este mes', rango: { unidad: 'dia', desde: `${today.slice(0, 7)}-01`, hasta: today } },
+    { label: 'Mes anterior', rango: { unidad: 'dia', desde: toDateValue(mesAnteriorInicio), hasta: toDateValue(mesAnteriorFin) } },
+    { label: 'Ultimos 30 dias', rango: { unidad: 'dia', desde: toDateValue(hace30), hasta: today } },
+    { label: 'Este año', rango: { unidad: 'mes', desde: `${today.slice(0, 4)}-01`, hasta: today.slice(0, 7) } }
+  ];
+};
 
 const cajaDeVentaEstaAbierta = (venta: Venta, cajas: CajaSesion[]) => {
   if (!venta.cajaSesionId) return true;
@@ -139,7 +253,9 @@ const ReportesPage: React.FC = () => {
   const [ventas, setVentas] = useState<Venta[]>([]);
   const [pedidosOnline, setPedidosOnline] = useState<PedidoOnline[]>([]);
   const [cajas, setCajas] = useState<CajaSesion[]>([]);
-  const [fechaVentas, setFechaVentas] = useState('');
+  const [periodoTipo, setPeriodoTipo] = useState<PeriodoReporte>('dia');
+  const [fechaVentas, setFechaVentas] = useState(todayDateValue());
+  const [rango, setRango] = useState<RangoReporte>(() => getRangoPorDefecto('dia'));
   const [selectedVenta, setSelectedVenta] = useState<Venta | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -250,8 +366,13 @@ const ReportesPage: React.FC = () => {
   // LOGICA REPORTES - VENTAS FILTRADAS:
   // Aplica el filtro de fecha antes de pintar las filas en la tabla.
   const ventasFiltradas = useMemo(
-    () => ventasConPedidosOnline.filter((venta) => !fechaVentas || getSaleDateValue(venta.fecha) === fechaVentas),
-    [fechaVentas, ventasConPedidosOnline]
+    () => ventasConPedidosOnline.filter((venta) => ventaEstaEnPeriodo(venta, periodoTipo, fechaVentas, rango)),
+    [fechaVentas, periodoTipo, rango, ventasConPedidosOnline]
+  );
+
+  const periodoReporteLabel = useMemo(
+    () => getPeriodoLabel(periodoTipo, fechaVentas, rango),
+    [fechaVentas, periodoTipo, rango]
   );
 
   // LOGICA REPORTES - RESUMEN DEL PERIODO:
@@ -314,7 +435,7 @@ const ReportesPage: React.FC = () => {
     sheet.getCell('B1').alignment = { horizontal: 'center' };
 
     sheet.mergeCells('B2:H2');
-    sheet.getCell('B2').value = `Reporte de ventas ${fechaVentas || 'general'}`;
+    sheet.getCell('B2').value = `Reporte de ventas ${periodoReporteLabel}`;
     sheet.getCell('B2').font = { bold: true, size: 15, color: { argb: 'FF1976D2' } };
     sheet.getCell('B2').alignment = { horizontal: 'center' };
 
@@ -326,7 +447,7 @@ const ReportesPage: React.FC = () => {
     const summary = [
       ['Total de ventas', resumenPeriodo.totalVentas, 'Ingresos totales', resumenPeriodo.ingresosTotales],
       ['Productos vendidos', resumenPeriodo.productosVendidos, 'Promedio por venta', resumenPeriodo.promedioPorVenta],
-      ['Ganancia estimada', resumenPeriodo.gananciaEstimada, 'Periodo', fechaVentas || 'General']
+      ['Ganancia estimada', resumenPeriodo.gananciaEstimada, 'Periodo', periodoReporteLabel]
     ];
     summary.forEach((row, index) => {
       const excelRow = sheet.getRow(5 + index);
@@ -404,7 +525,7 @@ const ReportesPage: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `reporte_ventas_${fechaVentas || 'general'}.xlsx`;
+    link.download = `reporte_ventas_${getPeriodoFileName(periodoTipo, fechaVentas, rango)}.xlsx`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -415,14 +536,14 @@ const ReportesPage: React.FC = () => {
   // Mensaje mostrado cuando el usuario no es administrador.
   if (!isAdmin) {
     return (
-      <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+      <Container maxWidth={false} sx={{ mt: 4, mb: 4, px: { xs: 1.5, sm: 2.5, lg: 4 } }}>
         <Alert severity="warning">{t('Solo el administrador puede consultar reportes.', 'Only the administrator can view reports.')}</Alert>
       </Container>
     );
   }
 
   return (
-    <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+    <Container maxWidth={false} sx={{ mt: { xs: 2, md: 4 }, mb: 4, px: { xs: 1.5, sm: 2.5, lg: 4 } }}>
       {/* DISEÑO REPORTES - PARTE SUPERIOR:
           Titulo principal con icono de reportes. */}
       <Box display="flex" alignItems="center" gap={1.5} mb={2}>
@@ -433,26 +554,109 @@ const ReportesPage: React.FC = () => {
       </Box>
 
       {/* DISEÑO REPORTES - FILTRO DE FECHA:
-          Campo para mostrar solo ventas de un dia especifico. */}
-      <Box mb={3} display="flex" gap={1.5} alignItems="center" flexWrap="wrap">
-        <TextField
-          label={t('Fecha de ventas', 'Sales date')}
-          type="date"
-          value={fechaVentas}
-          onChange={(event) => setFechaVentas(event.target.value)}
-          InputLabelProps={{ shrink: true }}
-          sx={{ width: 220 }}
-          size="small"
-        />
-        <Button
-          variant="contained"
-          startIcon={<FileDownload />}
-          onClick={exportarVentasExcel}
-          disabled={loading}
-        >
-          Exportar Excel
-        </Button>
-      </Box>
+          Dia, semana, mes, año o un RANGO "desde - hasta" (por dias, meses o años). */}
+      <Card variant="outlined" sx={{ p: { xs: 1.5, sm: 2 }, mb: 3 }}>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems={{ xs: 'stretch', md: 'center' }} flexWrap="wrap" useFlexGap>
+          <TextField
+            label="Periodo"
+            select
+            value={periodoTipo}
+            onChange={(event) => {
+              const nextTipo = event.target.value as PeriodoReporte;
+              const today = todayDateValue();
+              setPeriodoTipo(nextTipo);
+              if (nextTipo !== 'rango') {
+                setFechaVentas(nextTipo === 'mes' ? today.slice(0, 7) : nextTipo === 'anio' ? today.slice(0, 4) : today);
+              }
+            }}
+            sx={{ width: { xs: '100%', md: 170 } }}
+            size="small"
+          >
+            <MenuItem value="dia">Dia</MenuItem>
+            <MenuItem value="semana">Semana</MenuItem>
+            <MenuItem value="mes">Mes</MenuItem>
+            <MenuItem value="anio">Año</MenuItem>
+            <MenuItem value="rango">Rango de fechas</MenuItem>
+          </TextField>
+
+          {periodoTipo === 'rango' ? (
+            <>
+              <TextField
+                label="Rango por"
+                select
+                value={rango.unidad}
+                onChange={(event) => setRango(getRangoPorDefecto(event.target.value as UnidadRango))}
+                sx={{ width: { xs: '100%', md: 130 } }}
+                size="small"
+              >
+                <MenuItem value="dia">Dias</MenuItem>
+                <MenuItem value="mes">Meses</MenuItem>
+                <MenuItem value="anio">Años</MenuItem>
+              </TextField>
+              <TextField
+                label="Desde"
+                type={getPeriodoInputType(rango.unidad)}
+                value={rango.desde}
+                onChange={(event) => setRango((prev) => ({ ...prev, desde: event.target.value }))}
+                inputProps={rango.unidad === 'anio' ? { min: 2000, max: 2100, step: 1 } : { max: rango.hasta || undefined }}
+                InputLabelProps={{ shrink: true }}
+                sx={{ width: { xs: '100%', md: 190 } }}
+                size="small"
+              />
+              <TextField
+                label="Hasta"
+                type={getPeriodoInputType(rango.unidad)}
+                value={rango.hasta}
+                onChange={(event) => setRango((prev) => ({ ...prev, hasta: event.target.value }))}
+                inputProps={rango.unidad === 'anio' ? { min: 2000, max: 2100, step: 1 } : { min: rango.desde || undefined }}
+                InputLabelProps={{ shrink: true }}
+                sx={{ width: { xs: '100%', md: 190 } }}
+                size="small"
+              />
+            </>
+          ) : (
+            <TextField
+              label={periodoTipo === 'semana' ? 'Fecha dentro de la semana' : periodoTipo === 'mes' ? 'Mes de ventas' : periodoTipo === 'anio' ? 'Año de ventas' : t('Fecha de ventas', 'Sales date')}
+              type={getPeriodoInputType(periodoTipo)}
+              value={fechaVentas}
+              onChange={(event) => setFechaVentas(event.target.value)}
+              inputProps={periodoTipo === 'anio' ? { min: 2000, max: 2100, step: 1 } : undefined}
+              InputLabelProps={{ shrink: true }}
+              sx={{ width: { xs: '100%', md: 220 } }}
+              size="small"
+            />
+          )}
+
+          <Button
+            variant="contained"
+            startIcon={<FileDownload />}
+            onClick={exportarVentasExcel}
+            disabled={loading}
+            sx={{ width: { xs: '100%', md: 'auto' } }}
+          >
+            Exportar Excel
+          </Button>
+          <Typography variant="body2" color="text.secondary" sx={{ flex: { md: 1 }, textAlign: { md: 'right' } }}>
+            {periodoReporteLabel} · {ventasFiltradas.length} venta(s)
+          </Typography>
+        </Stack>
+
+        {periodoTipo === 'rango' && (
+          <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mt: 1.5 }}>
+            {getRangoPresets().map((preset) => (
+              <Chip
+                key={preset.label}
+                label={preset.label}
+                size="small"
+                variant="outlined"
+                color="primary"
+                clickable
+                onClick={() => setRango(preset.rango)}
+              />
+            ))}
+          </Stack>
+        )}
+      </Card>
 
       {/* DISEÑO REPORTES - MENSAJE DE ERROR:
           Aparece si falla la carga de estadisticas o ventas. */}
@@ -507,8 +711,8 @@ const ReportesPage: React.FC = () => {
 
       {/* DISEÑO REPORTES - TABLA DE VENTAS:
           Contenedor principal de la tabla sin checks ni botones de eliminar. */}
-      <TableContainer component={Card} sx={{ boxShadow: 1 }}>
-        <Table size="small">
+      <TableContainer component={Card} sx={{ boxShadow: 1, overflowX: 'auto' }}>
+        <Table size="small" sx={{ minWidth: 640 }}>
           {/* DISEÑO REPORTES - ENCABEZADOS DE TABLA:
               Columnas ID, hora, cliente, productos, total y acciones. */}
           <TableHead>
@@ -587,7 +791,7 @@ const ReportesPage: React.FC = () => {
       <Card sx={{ mt: 3, mb: 3, boxShadow: 1 }}>
         <CardContent>
           <Typography variant="h6" component="h2" mb={2} fontWeight={700}>
-            {fechaVentas ? t('Resumen del Día', 'Day summary') : t('Resumen del periodo seleccionado', 'Selected period summary')}
+            {`Resumen de ${periodoReporteLabel}`}
           </Typography>
 
           {/* DISEÑO REPORTES - METRICAS DEL RESUMEN:

@@ -161,7 +161,15 @@ const createProveedor = async (req, res) => {
         data.contacto_email, data.estado, data.condicion, data.distrito, data.provincia, data.departamento
       ]
     );
-    res.status(201).json(await getProveedorRowById(result.insertId));
+    const created = await getProveedorRowById(result.insertId);
+    await registrarAuditoria(pool, {
+      req,
+      accion: 'PROVEEDOR_CREADO',
+      entidad: 'proveedor',
+      entidadId: result.insertId,
+      detalle: { ruc: created?.numeroDocumento, razonSocial: created?.razonSocial }
+    });
+    res.status(201).json(created);
   } catch (error) {
     if (error?.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: 'Ya existe un proveedor con ese RUC.' });
     throw error;
@@ -197,7 +205,15 @@ const updateProveedor = async (req, res) => {
       ]
     );
     if (result.affectedRows === 0) return res.status(404).json({ message: 'Proveedor no encontrado.' });
-    res.json(await getProveedorRowById(id));
+    const updated = await getProveedorRowById(id);
+    await registrarAuditoria(pool, {
+      req,
+      accion: 'PROVEEDOR_ACTUALIZADO',
+      entidad: 'proveedor',
+      entidadId: id,
+      detalle: { ruc: updated?.numeroDocumento, razonSocial: updated?.razonSocial }
+    });
+    res.json(updated);
   } catch (error) {
     if (error?.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: 'Ya existe un proveedor con ese RUC.' });
     throw error;
@@ -218,6 +234,13 @@ const deleteProveedor = async (req, res) => {
   }
   const [result] = await pool.execute('UPDATE proveedores SET activo = 0 WHERE id = ?', [req.params.id]);
   if (result.affectedRows === 0) return res.status(404).json({ message: 'Proveedor no encontrado.' });
+  await registrarAuditoria(pool, {
+    req,
+    accion: 'PROVEEDOR_ELIMINADO',
+    entidad: 'proveedor',
+    entidadId: req.params.id,
+    detalle: { proveedorId: req.params.id }
+  });
   res.status(204).send();
 };
 
@@ -350,6 +373,13 @@ const createPedidoCompra = async (req, res) => {
       );
     }
     await conn.commit();
+    await registrarAuditoria(pool, {
+      req,
+      accion: 'PEDIDO_COMPRA_CREADO',
+      entidad: 'pedido_compra',
+      entidadId: result.insertId,
+      detalle: { proveedorId, items: normalizedItems.length }
+    });
     req.params.id = String(result.insertId);
     return getPedidoCompra(req, res);
   } catch (error) {
@@ -376,6 +406,13 @@ const deletePedidoCompra = async (req, res) => {
   }
   const [result] = await pool.execute('DELETE FROM pedidos_compra WHERE id = ?', [req.params.id]);
   if (result.affectedRows === 0) return res.status(404).json({ message: 'Pedido de compra no encontrado.' });
+  await registrarAuditoria(pool, {
+    req,
+    accion: 'PEDIDO_COMPRA_ELIMINADO',
+    entidad: 'pedido_compra',
+    entidadId: req.params.id,
+    detalle: { pedidoCompraId: req.params.id }
+  });
   res.status(204).send();
 };
 
@@ -485,6 +522,13 @@ const deletePedidosCompraBatch = async (req, res) => {
     });
   }
   const [result] = await pool.query('DELETE FROM pedidos_compra WHERE id IN (?)', [ids]);
+  await registrarAuditoria(pool, {
+    req,
+    accion: 'PEDIDOS_COMPRA_ELIMINADOS',
+    entidad: 'pedido_compra',
+    entidadId: null,
+    detalle: { ids, deleted: Number(result.affectedRows || 0) }
+  });
   res.json({ deleted: Number(result.affectedRows || 0), ids });
 };
 

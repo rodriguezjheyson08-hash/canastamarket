@@ -24,6 +24,8 @@ export const centeredFallbackStyles: SxProps<Theme> = {
 
 // DISEÑO GLOBAL: margen estandar para paginas internas.
 export const pageContainerStyles: SxProps<Theme> = {
-  mt: 4,
-  mb: 4
+  mt: { xs: 2, md: 4 },
+  mb: 4,
+  // Ancho completo: aprovecha toda la pantalla en escritorio y deja margen comodo en celular.
+  px: { xs: 1.5, sm: 2.5, lg: 4 }
 };

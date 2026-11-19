@@ -427,7 +427,8 @@ describe('ConfiguracionPage usuarios y permisos', () => {
         direccion: 'Av. Prueba 123',
         telefono: '987654321',
         serie: '002',
-        logo: '/imagenes/boleta-prueba.png'
+        logo: '/imagenes/boleta-prueba.png',
+        mapaUrl: 'https://maps.google.com/?q=Av.%20Prueba%20123'
       },
       vueltos: null
     });
@@ -469,6 +470,9 @@ describe('ConfiguracionPage usuarios y permisos', () => {
     fireEvent.change(screen.getByLabelText('URL logo boleta'), {
       target: { value: '/imagenes/boleta-prueba.png' }
     });
+    fireEvent.change(screen.getByLabelText('URL de ubicacion / Google Maps'), {
+      target: { value: 'https://maps.google.com/?q=Av.%20Prueba%20123' }
+    });
     // TEST BOLETA - ACCION:
     // Presiona el boton principal del formulario de Boleta.
     fireEvent.click(screen.getByRole('button', { name: /guardar boleta/i }));
@@ -483,7 +487,8 @@ describe('ConfiguracionPage usuarios y permisos', () => {
           direccion: 'Av. Prueba 123',
           telefono: '987654321',
           serie: '002',
-          logo: '/imagenes/boleta-prueba.png'
+          logo: '/imagenes/boleta-prueba.png',
+          mapaUrl: 'https://maps.google.com/?q=Av.%20Prueba%20123'
         })
       }));
     });
@@ -497,7 +502,7 @@ describe('ConfiguracionPage usuarios y permisos', () => {
 
     await renderAsAdmin();
 
-    fireEvent.click(screen.getByRole('button', { name: /abrir vueltos/i }));
+    fireEvent.click(screen.getByRole('button', { name: /abrir caja/i }));
     fireEvent.change(screen.getByLabelText('Monto base para vueltos'), {
       target: { value: '150' }
     });

@@ -141,7 +141,10 @@ describe('cajasController flujo de dinero', () => {
       execute: jest.fn().mockResolvedValueOnce([{ insertId: 33 }])
     };
     pool.query
-      .mockResolvedValueOnce([[{ id: 10, usuario_id: 7, estado: 'ABIERTA' }]])
+      .mockResolvedValueOnce([[{ id: 10, usuario_id: 7, estado: 'ABIERTA', monto_inicial: 100 }]])
+      .mockResolvedValueOnce([[{ metodo: 'efectivo', cantidad_ventas: 2, total: 80 }]])
+      .mockResolvedValueOnce([[]])
+      .mockResolvedValueOnce([[]])
       .mockResolvedValueOnce([[{
         id: 33,
         caja_sesion_id: 10,
@@ -166,5 +169,22 @@ describe('cajasController flujo de dinero', () => {
     expect(connection.commit).toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json.mock.calls[0][0]).toMatchObject({ tipo: 'SALIDA', monto: 25, motivo: 'Pago proveedor' });
+  });
+
+  test('rechaza una salida de efectivo mayor al efectivo disponible en caja', async () => {
+    pool.query
+      .mockResolvedValueOnce([[{ id: 10, usuario_id: 7, estado: 'ABIERTA', monto_inicial: 100 }]])
+      .mockResolvedValueOnce([[{ metodo: 'efectivo', cantidad_ventas: 1, total: 20 }]])
+      .mockResolvedValueOnce([[]])
+      .mockResolvedValueOnce([[]]);
+
+    const req = { auth: { sub: 7, role: 'ADMINISTRADOR' }, body: { tipo: 'SALIDA', monto: 500, motivo: 'Pago proveedor' } };
+    const res = mockRes();
+
+    await registrarMovimientoEfectivo(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json.mock.calls[0][0].message).toContain('supera el efectivo disponible');
+    expect(pool.getConnection).not.toHaveBeenCalled();
   });
 });

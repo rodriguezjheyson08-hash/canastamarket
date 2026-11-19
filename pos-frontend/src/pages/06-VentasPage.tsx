@@ -636,6 +636,10 @@ const VentasPage: React.FC = () => {
       showSnackbar('Ingresa el motivo del movimiento de efectivo', 'error');
       return;
     }
+    if (modalMovimientoCaja === 'SALIDA' && cajaActual && monto > cajaActual.montoEsperado + 0.001) {
+      showSnackbar(`La salida supera el efectivo disponible en caja (${formatCurrency(cajaActual.montoEsperado)})`, 'error');
+      return;
+    }
     try {
       setCajaLoading(true);
       await registrarMovimientoCaja({
@@ -1680,7 +1684,7 @@ const VentasPage: React.FC = () => {
   }
 
   return (
-    <Container maxWidth="xl" sx={pageContainerStyles}>
+    <Container maxWidth={false} sx={pageContainerStyles}>
       <Card variant="outlined" sx={{ mb: 2, p: 2 }}>
         <Box display="flex" flexWrap="wrap" alignItems="center" justifyContent="space-between" gap={2}>
           <Box display="flex" alignItems="center" gap={1.5}>
@@ -1690,8 +1694,8 @@ const VentasPage: React.FC = () => {
                 {cajaLoading ? 'Consultando caja...' : cajaActual ? 'Caja abierta' : 'Caja cerrada'}
               </Typography>
               {cajaActual && (
-                <Typography variant="body2" color="text.secondary">
-                  Fondo base: {formatCurrency(cajaActual.montoInicial)} / Efectivo ventas: {formatCurrency(cajaActual.efectivoVentas ?? 0)} / Entradas: {formatCurrency(cajaActual.entradasEfectivo ?? 0)} / Salidas: {formatCurrency(cajaActual.salidasEfectivo ?? 0)} / Entregar admin: {formatCurrency(cajaActual.efectivoAEntregar ?? 0)}
+                <Typography variant="caption" color="text.secondary">
+                  Abierta por {cajaActual.usuarioNombre || 'tu usuario'}
                 </Typography>
               )}
               {!cajaActual && fondoCajaPendiente && (
@@ -1729,7 +1733,7 @@ const VentasPage: React.FC = () => {
               color={cajaActual ? 'warning' : 'success'}
               disabled={cajaLoading}
               onClick={() => {
-                setMontoCaja(cajaActual ? String(cajaActual.montoEsperado.toFixed(2)) : (fondoCajaPendiente ? String(fondoCajaPendiente.monto.toFixed(2)) : (esCajero ? 'automatico' : '')));
+                setMontoCaja(cajaActual ? '' : (fondoCajaPendiente ? String(fondoCajaPendiente.monto.toFixed(2)) : (esCajero ? 'automatico' : '')));
                 setModalCaja(cajaActual ? 'cerrar' : 'abrir');
               }}
             >
@@ -1737,6 +1741,30 @@ const VentasPage: React.FC = () => {
             </Button>
           </Stack>
         </Box>
+        {cajaActual && (
+          // DISEÑO CAJA - RESUMEN: cada monto en su propia tarjeta; se acomodan solas segun el ancho de pantalla.
+          <Box
+            sx={{
+              mt: 1.5,
+              display: 'grid',
+              gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(3, minmax(0, 1fr))', lg: 'repeat(5, minmax(0, 1fr))' },
+              gap: 1
+            }}
+          >
+            {[
+              { label: 'Fondo base', value: cajaActual.montoInicial, color: 'text.primary' },
+              { label: 'Efectivo ventas', value: cajaActual.efectivoVentas ?? 0, color: 'success.main' },
+              { label: 'Entradas', value: cajaActual.entradasEfectivo ?? 0, color: 'info.main' },
+              { label: 'Salidas', value: cajaActual.salidasEfectivo ?? 0, color: 'error.main' },
+              { label: 'Entregar admin', value: cajaActual.efectivoAEntregar ?? 0, color: 'warning.main' }
+            ].map((item) => (
+              <Box key={item.label} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, px: 1.5, py: 1, bgcolor: 'background.default' }}>
+                <Typography variant="caption" color="text.secondary" display="block" noWrap>{item.label}</Typography>
+                <Typography fontWeight={800} color={item.color} noWrap>{formatCurrency(item.value)}</Typography>
+              </Box>
+            ))}
+          </Box>
+        )}
         {!cajaLoading && !cajaActual && (
           <Alert severity="warning" sx={{ mt: 1.5 }}>
             {esCajero && !fondoCajaPendiente
@@ -2032,9 +2060,17 @@ const VentasPage: React.FC = () => {
             sx={{ mt: 1 }}
           />
           {modalCaja === 'cerrar' && cajaActual && Number.isFinite(Number.parseFloat(montoCaja)) && (
-            <Typography sx={{ mt: 1.5 }} color={Math.abs(Number.parseFloat(montoCaja) - cajaActual.montoEsperado) <= 0.01 ? 'success.main' : 'error.main'}>
-              Diferencia: <b>{formatCurrency(Number.parseFloat(montoCaja) - cajaActual.montoEsperado)}</b>
-            </Typography>
+            <Alert
+              severity={Math.abs(Number.parseFloat(montoCaja) - cajaActual.montoEsperado) <= 0.01 ? 'success' : 'warning'}
+              sx={{ mt: 1.5 }}
+            >
+              {Math.abs(Number.parseFloat(montoCaja) - cajaActual.montoEsperado) <= 0.01
+                ? 'La caja cuadra.'
+                : Number.parseFloat(montoCaja) > cajaActual.montoEsperado
+                  ? 'Sobra efectivo. Vuelve a contar antes de cerrar.'
+                  : 'Falta efectivo. Vuelve a contar antes de cerrar.'}
+              {' '}Diferencia: <b>{formatCurrency(Number.parseFloat(montoCaja) - cajaActual.montoEsperado)}</b>
+            </Alert>
           )}
         </DialogContent>
         <DialogActions>
@@ -2058,7 +2094,7 @@ const VentasPage: React.FC = () => {
           <Alert severity={modalMovimientoCaja === 'ENTRADA' ? 'info' : 'warning'} sx={{ mb: 2 }}>
             {modalMovimientoCaja === 'ENTRADA'
               ? 'Registra dinero externo que ingresa a la gaveta. No cuenta como venta.'
-              : 'Registra dinero retirado de la gaveta, por ejemplo pago a proveedor o gasto autorizado.'}
+              : `Registra dinero retirado de la gaveta, por ejemplo pago a proveedor o gasto autorizado. Disponible en caja: ${formatCurrency(cajaActual?.montoEsperado ?? 0)}.`}
           </Alert>
           <TextField
             autoFocus

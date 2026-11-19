@@ -27,10 +27,13 @@ import {
   Grid,
   IconButton,
   InputAdornment,
+  LinearProgress,
   List,
   ListItem,
   ListItemAvatar,
+  ListItemIcon,
   ListItemText,
+  Menu as MuiMenu,
   MenuItem,
   Paper,
   Snackbar,
@@ -52,12 +55,15 @@ import {
   LocalMall,
   Logout,
   Menu,
+  Paid,
   Payment,
+  PendingActions,
   Person,
   ReceiptLong,
   Remove,
   Search,
   Storefront,
+  TaskAlt,
   WhatsApp
 } from '@mui/icons-material';
 import {
@@ -653,6 +659,8 @@ const ClienteTiendaPage: React.FC = () => {
   const [pedidos, setPedidos] = useState<ClientePedido[]>(() => readStorage<ClientePedido[]>(CLIENT_ORDERS_KEY, []));
   const [authOpen, setAuthOpen] = useState(false);
   const [perfilOpen, setPerfilOpen] = useState(false);
+  // Menu desplegable del perfil (esquina superior derecha).
+  const [menuPerfilAnchor, setMenuPerfilAnchor] = useState<null | HTMLElement>(null);
   const [historialOpen, setHistorialOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -678,6 +686,13 @@ const ClienteTiendaPage: React.FC = () => {
     const message = `Hola, quiero consultar sobre ${config.appName}.`;
     return `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
   }, [config.appName, whatsappNumber]);
+
+  const mapaUrl = useMemo(() => String(boletaConfig.mapaUrl || '').trim(), [boletaConfig.mapaUrl]);
+  const mapaEmbedUrl = useMemo(() => {
+    if (!mapaUrl || !/^https?:\/\//i.test(mapaUrl)) return '';
+    if (mapaUrl.includes('/maps/embed')) return mapaUrl;
+    return '';
+  }, [mapaUrl]);
 
   const isClienteRegistrado = Boolean(perfil.email && perfil.nombre);
   const clientePedidos = useMemo(
@@ -848,9 +863,9 @@ const ClienteTiendaPage: React.FC = () => {
       setPerfilForm(nextPerfil);
       setAuthOpen(false);
       if (!result.cliente.dni || !result.cliente.telefono) {
+        // Se queda en el catalogo; el cliente completa sus datos desde su perfil (esquina superior).
         setCheckoutAfterAuth(false);
-        setPerfilOpen(true);
-        showSnackbar('Acceso con Google correcto. Completa DNI y telefono para comprar.');
+        showSnackbar('Acceso con Google correcto. Completa DNI y telefono desde tu perfil para comprar.');
       } else if (checkoutAfterAuth) {
         setCheckoutOpen(true);
         setCheckoutAfterAuth(false);
@@ -917,6 +932,18 @@ const ClienteTiendaPage: React.FC = () => {
       ultimoPedido: clientePedidos[0]
     };
   }, [clientePedidos]);
+
+  // LOGICA CLIENTE - AVANCE DEL PERFIL: porcentaje de datos necesarios para comprar.
+  const perfilCompletado = useMemo(() => {
+    const checks = [
+      Boolean(perfilForm.nombre),
+      Boolean(perfilForm.email),
+      /^\d{8}$/.test(perfilForm.dni || ''),
+      /^\d{9}$/.test(perfilForm.telefono || ''),
+      Boolean(perfilForm.direccion)
+    ];
+    return Math.round((checks.filter(Boolean).length / checks.length) * 100);
+  }, [perfilForm]);
 
   const updateCartQuantity = (producto: Producto, nextCantidad: number) => {
     const stock = Number(producto.stockActual || 0);
@@ -1312,15 +1339,56 @@ const ClienteTiendaPage: React.FC = () => {
           </Stack>
           {isClienteRegistrado ? (
             <>
-              <Button color="inherit" startIcon={<History />} onClick={() => setHistorialOpen(true)} sx={{ minWidth: { xs: 34, sm: 64 }, px: { xs: 0.35, sm: 1.5 }, fontSize: { xs: '0.68rem', sm: '0.875rem' }, '& .MuiButton-startIcon': { mr: { xs: 0, sm: 0.75 } } }}>
-                <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Historial</Box>
+              {/* DISEÑO CLIENTE - PERFIL EN LA ESQUINA:
+                  Un solo boton con foto y nombre abre el menu con perfil, historial y cierre de sesion. */}
+              <Button
+                color="inherit"
+                aria-label="Abrir menu de perfil"
+                aria-haspopup="true"
+                onClick={(event) => setMenuPerfilAnchor(event.currentTarget)}
+                startIcon={<Avatar src={perfil.fotoUrl || buildAvatarUrl(perfil)} sx={{ width: 28, height: 28, border: '2px solid rgba(255,255,255,0.7)' }} />}
+                sx={{
+                  minWidth: { xs: 40, sm: 64 },
+                  px: { xs: 0.5, sm: 1.25 },
+                  borderRadius: 5,
+                  textTransform: 'none',
+                  fontWeight: 800,
+                  fontSize: { xs: '0.7rem', sm: '0.9rem' },
+                  '& .MuiButton-startIcon': { mr: { xs: 0, sm: 0.75 }, ml: 0 },
+                  '&:hover': { bgcolor: 'rgba(255,255,255,0.16)' }
+                }}
+              >
+                <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' }, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {perfil.nombre.split(' ')[0]}
+                </Box>
               </Button>
-              <Button color="inherit" startIcon={<Logout />} onClick={logoutCliente} sx={{ minWidth: { xs: 34, sm: 64 }, px: { xs: 0.35, sm: 1.5 }, fontSize: { xs: '0.68rem', sm: '0.875rem' }, '& .MuiButton-startIcon': { mr: { xs: 0, sm: 0.75 } } }}>
-                <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Salir</Box>
-              </Button>
-              <Button color="inherit" startIcon={<Avatar src={perfil.fotoUrl || buildAvatarUrl(perfil)} sx={{ width: 22, height: 22 }} />} onClick={() => setPerfilOpen(true)} sx={{ minWidth: { xs: 34, sm: 64 }, px: { xs: 0.35, sm: 1.5 }, fontSize: { xs: '0.68rem', sm: '0.875rem' }, '& .MuiButton-startIcon': { mr: { xs: 0, sm: 0.75 } } }}>
-                <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>{perfil.nombre.split(' ')[0]}</Box>
-              </Button>
+              <MuiMenu
+                anchorEl={menuPerfilAnchor}
+                open={Boolean(menuPerfilAnchor)}
+                onClose={() => setMenuPerfilAnchor(null)}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                PaperProps={{ sx: { mt: 1, minWidth: 220, borderRadius: 2 } }}
+              >
+                <Box sx={{ px: 2, py: 1 }}>
+                  <Typography fontWeight={900} noWrap>{perfil.nombre}</Typography>
+                  <Typography variant="caption" color="text.secondary" noWrap display="block">{perfil.email}</Typography>
+                </Box>
+                <Divider />
+                <MenuItem onClick={() => { setMenuPerfilAnchor(null); setCheckoutOpen(false); setPerfilOpen(true); }}>
+                  <ListItemIcon><AccountCircle fontSize="small" /></ListItemIcon>
+                  Mi perfil
+                </MenuItem>
+                <MenuItem onClick={() => { setMenuPerfilAnchor(null); setHistorialOpen(true); }}>
+                  <ListItemIcon><History fontSize="small" /></ListItemIcon>
+                  Historial de pedidos
+                </MenuItem>
+                <Divider />
+                <MenuItem onClick={() => { setMenuPerfilAnchor(null); logoutCliente(); }} sx={{ color: 'error.main' }}>
+                  <ListItemIcon><Logout fontSize="small" color="error" /></ListItemIcon>
+                  Cerrar sesion
+                </MenuItem>
+              </MuiMenu>
             </>
           ) : (
             <>
@@ -1407,15 +1475,29 @@ const ClienteTiendaPage: React.FC = () => {
                 <LocationOn color="primary" fontSize="small" />
                 <Typography fontWeight={900}>Ubicacion</Typography>
               </Stack>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="text.secondary" mb={mapaUrl ? 1 : 0}>
                 {boletaConfig.direccion || 'Direccion pendiente de configurar'}
               </Typography>
+              {mapaEmbedUrl && (
+                <Box
+                  component="iframe"
+                  src={mapaEmbedUrl}
+                  title="Ubicacion de la tienda"
+                  loading="lazy"
+                  sx={{ width: '100%', height: 150, border: 0, borderRadius: 1, mb: 1 }}
+                />
+              )}
+              {mapaUrl && (
+                <Button component="a" href={mapaUrl} target="_blank" rel="noopener noreferrer" variant="outlined" startIcon={<LocationOn />} fullWidth>
+                  Ver ubicacion
+                </Button>
+              )}
             </Paper>
           </Stack>
         </Box>
       </Drawer>
 
-      <Container maxWidth="xl" sx={{ py: { xs: 1.5, md: 4 }, px: { xs: 1, sm: 3 } }}>
+      <Container maxWidth={false} sx={{ py: { xs: 1.5, md: 3 }, px: { xs: 1, sm: 2, lg: 4 }, maxWidth: 2200, mx: 'auto' }}>
         {perfilOpen ? (
           <>
             {/* DISEÑO CLIENTE - PERFIL COMO SECCION:
@@ -1435,51 +1517,92 @@ const ClienteTiendaPage: React.FC = () => {
             </Stack>
 
             <Stack spacing={{ xs: 1.25, sm: 2.5 }}>
-              <Paper elevation={0} sx={{ p: { xs: 1.5, md: 2.5 }, borderRadius: 2 }}>
-                <Stack direction="row" spacing={{ xs: 1.25, sm: 2 }} alignItems="center" flexWrap="wrap">
-                  <Avatar src={perfilForm.fotoUrl || buildAvatarUrl(perfilForm)} sx={{ width: { xs: 48, sm: 64 }, height: { xs: 48, sm: 64 }, bgcolor: '#e3f2fd', color: '#0d47a1', fontWeight: 900 }}>
-                    {(perfilForm.nombre || perfilForm.email || 'C').slice(0, 2).toUpperCase()}
-                  </Avatar>
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography variant="h5" fontWeight={900} noWrap sx={{ fontSize: { xs: '1rem', sm: '1.5rem' } }}>{perfilForm.nombre || 'Cliente'}</Typography>
-                    <Typography variant="body2" color="text.secondary" noWrap sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>{perfilForm.email || 'Correo pendiente'}</Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: '0.7rem', sm: '0.75rem' } }}>
-                      {perfilStats.activos > 0 ? `${perfilStats.activos} pedido(s) pendiente(s)` : 'Sin pedidos en curso'}
-                    </Typography>
-                  </Box>
-                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} sx={{ width: { xs: '100%', sm: 'auto' } }}>
-                    <Button size="small" variant="contained" startIcon={<Storefront />} onClick={() => setPerfilOpen(false)} fullWidth sx={{ minHeight: 34, fontSize: { xs: '0.72rem', sm: '0.8125rem' } }}>
+              {/* DISEÑO CLIENTE - BANNER DEL PERFIL: foto, datos, avance del perfil y acciones rapidas. */}
+              <Paper
+                elevation={0}
+                sx={{
+                  p: { xs: 2, md: 3 },
+                  borderRadius: 3,
+                  color: '#fff',
+                  background: 'linear-gradient(135deg, #0d47a1 0%, #1976d2 55%, #42a5f5 100%)',
+                  boxShadow: '0 10px 30px rgba(25,118,210,0.25)'
+                }}
+              >
+                <Stack direction={{ xs: 'column', md: 'row' }} spacing={{ xs: 2, md: 3 }} alignItems={{ xs: 'flex-start', md: 'center' }}>
+                  <Stack direction="row" spacing={{ xs: 1.5, sm: 2.5 }} alignItems="center" sx={{ flex: 1, minWidth: 0, width: '100%' }}>
+                    <Avatar src={perfilForm.fotoUrl || buildAvatarUrl(perfilForm)} sx={{ width: { xs: 64, sm: 88 }, height: { xs: 64, sm: 88 }, bgcolor: '#e3f2fd', color: '#0d47a1', fontWeight: 900, border: '4px solid rgba(255,255,255,0.85)' }}>
+                      {(perfilForm.nombre || perfilForm.email || 'C').slice(0, 2).toUpperCase()}
+                    </Avatar>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography variant="h5" fontWeight={900} noWrap sx={{ fontSize: { xs: '1.15rem', sm: '1.75rem' } }}>{perfilForm.nombre || 'Cliente'}</Typography>
+                      <Typography variant="body2" noWrap sx={{ opacity: 0.9 }}>{perfilForm.email || 'Correo pendiente'}</Typography>
+                      <Chip
+                        size="small"
+                        label={perfilStats.activos > 0 ? `${perfilStats.activos} pedido(s) pendiente(s)` : 'Sin pedidos en curso'}
+                        sx={{ mt: 0.75, bgcolor: 'rgba(255,255,255,0.2)', color: '#fff', fontWeight: 700 }}
+                      />
+                      <Box sx={{ mt: 1.25, maxWidth: 360 }}>
+                        <Stack direction="row" justifyContent="space-between">
+                          <Typography variant="caption" sx={{ opacity: 0.9 }}>Perfil completo</Typography>
+                          <Typography variant="caption" fontWeight={800}>{perfilCompletado}%</Typography>
+                        </Stack>
+                        <LinearProgress
+                          variant="determinate"
+                          value={perfilCompletado}
+                          sx={{ height: 8, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.28)', '& .MuiLinearProgress-bar': { bgcolor: '#fff', borderRadius: 4 } }}
+                        />
+                      </Box>
+                    </Box>
+                  </Stack>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ width: { xs: '100%', md: 'auto' }, flexShrink: 0 }}>
+                    <Button variant="contained" startIcon={<Storefront />} onClick={() => setPerfilOpen(false)} sx={{ bgcolor: '#fff', color: '#0d47a1', fontWeight: 800, '&:hover': { bgcolor: '#e3f2fd' } }}>
                       Seguir comprando
                     </Button>
-                    <Button size="small" variant="outlined" startIcon={<LocalMall />} onClick={openCheckout} fullWidth sx={{ minHeight: 34, fontSize: { xs: '0.72rem', sm: '0.8125rem' } }}>
-                      Ir al carrito ({cartCount})
+                    <Button variant="outlined" startIcon={<LocalMall />} onClick={openCheckout} sx={{ color: '#fff', borderColor: 'rgba(255,255,255,0.7)', fontWeight: 700, '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,0.12)' } }}>
+                      Carrito ({cartCount})
                     </Button>
-                    <Button size="small" variant="outlined" color="error" startIcon={<Logout />} onClick={logoutCliente} fullWidth sx={{ minHeight: 34, fontSize: { xs: '0.72rem', sm: '0.8125rem' } }}>
-                      Cerrar sesión
+                    <Button variant="outlined" startIcon={<Logout />} onClick={logoutCliente} sx={{ color: '#fff', borderColor: 'rgba(255,255,255,0.45)', fontWeight: 700, '&:hover': { borderColor: '#ffcdd2', bgcolor: 'rgba(244,67,54,0.25)' } }}>
+                      Salir
                     </Button>
                   </Stack>
                 </Stack>
               </Paper>
 
+              {/* DISEÑO CLIENTE - ESTADISTICAS: tarjetas con icono y efecto hover. */}
               <Grid container spacing={{ xs: 1.25, sm: 2 }}>
                 {[
-                  { label: 'Pedidos', value: perfilStats.totalPedidos, hint: 'Total registrados' },
-                  { label: 'Activos', value: perfilStats.activos, hint: 'Pendientes o en proceso' },
-                  { label: 'Entregados', value: perfilStats.entregados, hint: 'Pedidos completados' },
-                  { label: 'Total gastado', value: formatCurrency(perfilStats.totalGastado), hint: 'Historico acumulado' }
+                  { label: 'Pedidos', value: perfilStats.totalPedidos, hint: 'Total registrados', icon: <ReceiptLong />, color: '#1976d2' },
+                  { label: 'Activos', value: perfilStats.activos, hint: 'Pendientes o en proceso', icon: <PendingActions />, color: '#ef6c00' },
+                  { label: 'Entregados', value: perfilStats.entregados, hint: 'Pedidos completados', icon: <TaskAlt />, color: '#2e7d32' },
+                  { label: 'Total gastado', value: formatCurrency(perfilStats.totalGastado), hint: 'Historico acumulado', icon: <Paid />, color: '#7b1fa2' }
                 ].map((item) => (
-                  <Grid item xs={6} sm={6} md={3} key={item.label}>
-                    <Paper elevation={0} sx={{ p: { xs: 1.25, sm: 2 }, borderRadius: 2, height: '100%' }}>
-                      <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.72rem', sm: '0.875rem' } }}>{item.label}</Typography>
-                      <Typography variant="h4" fontWeight={900} sx={{ fontSize: { xs: '1.45rem', sm: '2.125rem' } }}>{item.value}</Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2, fontSize: { xs: '0.66rem', sm: '0.75rem' } }}>{item.hint}</Typography>
+                  <Grid item xs={6} md={3} key={item.label}>
+                    <Paper
+                      elevation={0}
+                      sx={{
+                        p: { xs: 1.25, sm: 2 },
+                        borderRadius: 3,
+                        height: '100%',
+                        borderLeft: `4px solid ${item.color}`,
+                        transition: 'transform .2s ease, box-shadow .2s ease',
+                        '&:hover': { transform: 'translateY(-3px)', boxShadow: 4 }
+                      }}
+                    >
+                      <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.72rem', sm: '0.875rem' } }}>{item.label}</Typography>
+                          <Typography variant="h4" fontWeight={900} noWrap sx={{ fontSize: { xs: '1.3rem', sm: '2rem' } }}>{item.value}</Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2, fontSize: { xs: '0.66rem', sm: '0.75rem' } }}>{item.hint}</Typography>
+                        </Box>
+                        <Box sx={{ color: item.color, bgcolor: `${item.color}1a`, borderRadius: 2, p: 0.75, display: { xs: 'none', sm: 'flex' } }}>{item.icon}</Box>
+                      </Stack>
                     </Paper>
                   </Grid>
                 ))}
               </Grid>
 
               <Grid container spacing={{ xs: 1.25, sm: 2 }}>
-                <Grid item xs={12} md={6}>
+                <Grid item xs={12} md={5} lg={4}>
                   {/* DISEÑO CLIENTE - FORMULARIO PERFIL:
                       Campos editables del cliente para comprar mas rapido y mantener datos actualizados. */}
                   <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2 }, borderRadius: 2 }}>
@@ -1504,7 +1627,7 @@ const ClienteTiendaPage: React.FC = () => {
                   </Paper>
                 </Grid>
 
-                <Grid item xs={12} md={6}>
+                <Grid item xs={12} md={7} lg={8}>
                   <Stack spacing={{ xs: 1.25, sm: 2 }}>
                     <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2 }, borderRadius: 2 }}>
                       <Typography variant="overline" color="text.secondary">Tu estado actual</Typography>
@@ -1712,8 +1835,8 @@ const ClienteTiendaPage: React.FC = () => {
           </Typography>
         </Box>
 
-        <Grid container spacing={{ xs: 1.5, md: 3 }}>
-          <Grid item xs={12} lg={8.5}>
+          <Grid container spacing={{ xs: 1.5, md: 3 }}>
+            <Grid item xs={12} lg={9}>
             {/* DISEÑO CLIENTE - BUSCADOR:
                 Filtra productos publicos por nombre o descripcion. */}
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={{ xs: 1, md: 1.5 }} sx={{ mb: { xs: 1.25, md: 2 } }}>
@@ -1799,8 +1922,8 @@ const ClienteTiendaPage: React.FC = () => {
                   return (
                     <React.Fragment key={producto.id}>
                       {/* Cuatro columnas en escritorio para conservar tarjetas y botones cómodos. */}
-                    <Grid item xs={6} sm={6} md={4} xl={3}>
-                      <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', borderRadius: 1, overflow: 'hidden' }}>
+                    <Grid item xs={6} sm={4} md={3} lg={3} xl={2}>
+                      <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', borderRadius: 2, overflow: 'hidden', transition: 'transform .2s ease, box-shadow .2s ease', '&:hover': { transform: 'translateY(-4px)', boxShadow: 6 } }}>
                         <CardMedia
                           component="img"
                           image={getProductImage(producto)}
@@ -1842,7 +1965,7 @@ const ClienteTiendaPage: React.FC = () => {
             )}
           </Grid>
 
-          <Grid item xs={12} lg={3.5} sx={{ display: { xs: 'none', lg: 'block' } }}>
+            <Grid item xs={12} lg={3} sx={{ display: { xs: 'none', lg: 'block' } }}>
             {/* DISEÑO CLIENTE - PANEL CARRITO:
                 Muestra productos seleccionados, controles de cantidad, subtotal y total. */}
             <Paper elevation={2} sx={{ p: { xs: 2, sm: 2.5 }, position: { lg: 'sticky' }, top: { lg: 88 } }}>

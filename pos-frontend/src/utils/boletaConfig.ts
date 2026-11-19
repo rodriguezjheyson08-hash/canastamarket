@@ -13,6 +13,7 @@ export interface BoletaConfig {
   telefono: string;
   serie: string;
   logo: string;
+  mapaUrl: string;
 }
 
 // CONSTANTE: BOLETA_CONFIG_STORAGE_KEY guarda un valor fijo usado por este bloque.
@@ -28,7 +29,8 @@ export const DEFAULT_BOLETA_CONFIG: BoletaConfig = {
   direccion: 'Av. America Sur',
   telefono: '975929943',
   serie: '001',
-  logo: defaultLogo
+  logo: defaultLogo,
+  mapaUrl: ''
 };
 
 const getDefaultBoletaConfig = (): BoletaConfig => ({
@@ -56,7 +58,8 @@ const normalizeBoletaConfig = (input: Partial<BoletaConfig> | null | undefined):
     direccion: getOptionalField('direccion', defaults.direccion),
     telefono: getOptionalField('telefono', defaults.telefono),
     serie: serie || defaults.serie,
-    logo: logo || defaults.logo
+    logo: logo || defaults.logo,
+    mapaUrl: getOptionalField('mapaUrl', defaults.mapaUrl)
   };
 };
 

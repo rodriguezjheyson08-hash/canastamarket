@@ -10,8 +10,9 @@ import { SxProps, Theme } from '@mui/material';
 // La pagina importa estos objetos para no mezclar medidas, espacios y colores con la logica.
 
 export const proveedoresPageContainerStyles: SxProps<Theme> = {
-  mt: 4,
-  mb: 4
+  mt: { xs: 2, md: 4 },
+  mb: 4,
+  px: { xs: 1.5, sm: 2.5, lg: 4 }
 };
 
 export const proveedoresHeaderStyles: SxProps<Theme> = {

@@ -354,7 +354,7 @@ const ProveedoresPage: React.FC = () => {
   }, [proveedorSearch, proveedores]);
 
   return (
-    <Container maxWidth="xl" sx={proveedoresPageContainerStyles}>
+    <Container maxWidth={false} sx={proveedoresPageContainerStyles}>
       {/* DISENO: encabezado de la pantalla, contiene titulo "Proveedores" y botones superiores. */}
       <Box sx={proveedoresHeaderStyles}>
         <Typography variant="h4" component="h1">

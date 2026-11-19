@@ -10,6 +10,7 @@ const { ensurePasswordColumnSchema } = require('../utils/ensurePasswordColumnSch
 // DEPENDENCIAS BACKEND: librerias, helpers y tipos que usa este archivo.
 const { hashPassword } = require('../utils/passwords');
 const { isStrongPassword, PASSWORD_MESSAGE } = require('../features/passwordReset/security');
+const { registrarAuditoria } = require('../features/auditoria/service');
 
 let usuariosColumnsChecked = false;
 
@@ -190,7 +191,15 @@ const createUsuario = async (req, res) => {
     );
 
     const [rows] = await pool.query(`SELECT ${usuarioSelect} FROM usuarios WHERE id = ?`, [result.insertId]);
-    res.status(201).json(mapUsuarioRow(rows[0]));
+    const created = mapUsuarioRow(rows[0]);
+    await registrarAuditoria(pool, {
+      req,
+      accion: 'USUARIO_CREADO',
+      entidad: 'usuario',
+      entidadId: created.id,
+      detalle: { nombreUsuario: created.nombre_usuario, rol: created.rol, permisos: created.permisos }
+    });
+    res.status(201).json(created);
   } catch (error) {
     if (error?.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({ message: 'Ya existe un usuario con ese nombre.' });
@@ -259,7 +268,21 @@ const updateUsuario = async (req, res) => {
 
     if (result.affectedRows === 0) return res.status(404).json({ message: 'Usuario no encontrado.' });
     const [rows] = await pool.query(`SELECT ${usuarioSelect} FROM usuarios WHERE id = ?`, [id]);
-    res.json(mapUsuarioRow(rows[0]));
+    const updated = mapUsuarioRow(rows[0]);
+    await registrarAuditoria(pool, {
+      req,
+      accion: 'USUARIO_ACTUALIZADO',
+      entidad: 'usuario',
+      entidadId: id,
+      detalle: {
+        nombreUsuario: updated.nombre_usuario,
+        rol: updated.rol,
+        permisos: updated.permisos,
+        passwordActualizada: hasPassword,
+        activo: Boolean(updated.is_active)
+      }
+    });
+    res.json(updated);
   } catch (error) {
     if (error?.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({ message: 'Ya existe un usuario con ese nombre.' });
@@ -273,6 +296,13 @@ const deleteUsuario = async (req, res) => {
   const { id } = req.params;
   const [result] = await pool.execute('DELETE FROM usuarios WHERE id = ?', [id]);
   if (result.affectedRows === 0) return res.status(404).json({ message: 'Usuario no encontrado.' });
+  await registrarAuditoria(pool, {
+    req,
+    accion: 'USUARIO_ELIMINADO',
+    entidad: 'usuario',
+    entidadId: id,
+    detalle: { usuarioId: id }
+  });
   res.status(204).send();
 };
 
@@ -286,7 +316,15 @@ const unlockUsuario = async (req, res) => {
   );
   if (result.affectedRows === 0) return res.status(404).json({ message: 'Usuario no encontrado.' });
   const [rows] = await pool.query(`SELECT ${usuarioSelect} FROM usuarios WHERE id = ?`, [id]);
-  res.json(mapUsuarioRow(rows[0]));
+  const updated = mapUsuarioRow(rows[0]);
+  await registrarAuditoria(pool, {
+    req,
+    accion: 'USUARIO_DESBLOQUEADO',
+    entidad: 'usuario',
+    entidadId: id,
+    detalle: { nombreUsuario: updated.nombre_usuario }
+  });
+  res.json(updated);
 };
 
 module.exports = {
